@@ -3,9 +3,9 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   ArrowUpRight, Braces, BriefcaseBusiness as Linkedin, Camera as Instagram,
-  Check, ChevronDown, ChevronLeft, ChevronRight, Circle, Code2, FileCode2,
-  GitBranch as Github, GitFork as Gitlab, Mail, MapPin, Menu,
-  CornerDownLeft, ListTree, LoaderCircle, MessageCircle, PanelBottom,
+  Check, ChevronDown, ChevronLeft, ChevronRight, Circle, Code2, Command, Copy, ExternalLink, FileCode2,
+  FolderOpen, GitBranch as Github, GitFork as Gitlab, Home as HomeIcon, Link2, Mail, MapPin, Menu,
+  CornerDownLeft, ListTree, LoaderCircle, MessageCircle, PanelBottom, RefreshCw,
   Image as ImageIcon, LayoutGrid, Monitor, Moon, Package, Search, Send, ServerCog, Star, Sun, Terminal, Type, X, Zap,
 } from "lucide-react";
 import { BUILD_DISPLAY, BUILD_ID, BUILD_TIME, BUILD_VERSION } from "./generated/build";
@@ -62,6 +62,26 @@ const npmUrl = (repoName: string) => npmPackages[repoName]
   : "";
 
 type SearchResult = { label: string; path: string; kind: "section" | "project" };
+
+type ContextMenuState = {
+  x: number;
+  y: number;
+  repoName?: string;
+  imageUrl?: string;
+  imageIndex?: number;
+  linkUrl?: string;
+  linkLabel?: string;
+  selection?: string;
+};
+
+type PaletteCommand = {
+  id: string;
+  label: string;
+  hint: string;
+  keywords: string;
+  icon: "home" | "code" | "about" | "experience" | "contact" | "terminal" | "theme" | "github" | "linkedin" | "copy" | "build" | "hire";
+  action: () => void;
+};
 
 const sections: SearchResult[] = [
   { label: "Home", path: "/home", kind: "section" },
@@ -307,6 +327,11 @@ export default function Home() {
   const [notFoundPath, setNotFoundPath] = useState<string | null>(null);
   const [panelTab, setPanelTab] = useState<"outline" | "terminal">("terminal");
   const [terminalInput, setTerminalInput] = useState("");
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [commandQuery, setCommandQuery] = useState("");
+  const [commandIndex, setCommandIndex] = useState(0);
+  const [actionToast, setActionToast] = useState("");
   const [terminalLines, setTerminalLines] = useState<string[]>([
     "› cat welcome.txt",
     "Hi — I'm Osameh, software engineer in Tehran. This site is a small editor.",
@@ -315,15 +340,69 @@ export default function Home() {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const terminalOutputRef = useRef<HTMLDivElement>(null);
   const terminalInputRef = useRef<HTMLInputElement>(null);
+  const contextMenuRef = useRef<HTMLDivElement>(null);
+  const commandPaletteInputRef = useRef<HTMLInputElement>(null);
+  const actionToastTimerRef = useRef<number | null>(null);
   const code = codeProfiles[codeLanguage];
   const skillLines = skillSource(codeLanguage);
+
+  const showActionToast = (message: string) => {
+    setActionToast(message);
+    if (actionToastTimerRef.current !== null) window.clearTimeout(actionToastTimerRef.current);
+    actionToastTimerRef.current = window.setTimeout(() => setActionToast(""), 1800);
+  };
+
+  const copyText = async (value: string, message = "Copied to clipboard") => {
+    try {
+      await navigator.clipboard.writeText(value);
+      showActionToast(message);
+      return true;
+    } catch {
+      showActionToast("Clipboard permission was blocked");
+      return false;
+    }
+  };
+
+  const openTerminal = (prefill?: string) => {
+    setPanelTab("terminal");
+    setPanelOpen(true);
+    if (prefill !== undefined) setTerminalInput(prefill);
+    window.requestAnimationFrame(() => {
+      const input = terminalInputRef.current;
+      if (!input) return;
+      input.focus({ preventScroll: true });
+      input.setSelectionRange(input.value.length, input.value.length);
+    });
+  };
+
+  const toggleThemeMode = () => {
+    const resolved = document.documentElement.dataset.theme === "light" ? "light" : "dark";
+    setTheme(resolved === "dark" ? "light" : "dark");
+  };
+
+  const runHireEasterEgg = () => {
+    setTerminalLines(lines => [...lines,
+      "› sudo hire osameh",
+      "Checking skills...",
+      ".NET / backend          ✓",
+      "React / Vue / Nuxt      ✓",
+      "Systems / DevOps        ✓",
+      "Product engineering     ✓",
+      "",
+      "Access granted.",
+      "Let's build something great.",
+    ]);
+    setSearchResults([]);
+    setTerminalInput("");
+    openTerminal();
+  };
 
   useEffect(() => {
     const path = window.location.pathname;
     const knownPaths = ["/", "/home", "/about", "/projects", "/experience", "/contact"];
     const project = fallbackRepos.find(repo => `/${repo.name.toLowerCase()}` === path.toLowerCase() || `/projects/${repo.name.toLowerCase()}` === path.toLowerCase());
     if (project) openProject(project);
-    else if (!knownPaths.includes(path.toLowerCase())) setNotFoundPath(path);
+    else if (!knownPaths.includes(path.toLowerCase()) && !/^\/projects\/[^/]+\/?$/i.test(path)) setNotFoundPath(path);
   }, []);
 
   useEffect(() => {
@@ -357,6 +436,149 @@ export default function Home() {
   }, [codeLanguage]);
 
   useEffect(() => {
+    if (!panelOpen || panelTab !== "terminal") return;
+    const frame = window.requestAnimationFrame(() => {
+      terminalInputRef.current?.focus({ preventScroll: true });
+      const input = terminalInputRef.current;
+      if (input) input.setSelectionRange(input.value.length, input.value.length);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [panelOpen, panelTab]);
+
+  useEffect(() => {
+    if (!commandPaletteOpen) return;
+    const frame = window.requestAnimationFrame(() => commandPaletteInputRef.current?.focus({ preventScroll: true }));
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") { event.preventDefault(); setCommandPaletteOpen(false); } };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => { window.cancelAnimationFrame(frame); document.removeEventListener("keydown", closeOnEscape); };
+  }, [commandPaletteOpen]);
+
+  useEffect(() => { setCommandIndex(0); }, [commandQuery]);
+
+  useEffect(() => {
+    const openPalette = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.altKey || event.key.toLowerCase() !== "k") return;
+      event.preventDefault();
+      setContextMenu(null);
+      setCommandQuery("");
+      setCommandIndex(0);
+      setCommandPaletteOpen(open => !open);
+    };
+    document.addEventListener("keydown", openPalette);
+    return () => document.removeEventListener("keydown", openPalette);
+  }, []);
+
+  useEffect(() => {
+    const handleContextMenu = (event: MouseEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (!target) return;
+      if (target.closest('input, textarea, select, [contenteditable="true"]')) return;
+      if (target.closest(".custom-context-menu, .command-palette")) { event.preventDefault(); return; }
+
+      const keyboardInvocation = event.clientX === 0 && event.clientY === 0;
+      const finePointer = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+      if (!finePointer && !keyboardInvocation) return;
+
+      event.preventDefault();
+      setFileMenuOpen(false);
+      setCommandPaletteOpen(false);
+
+      const projectTarget = target.closest<HTMLElement>("[data-project-name]");
+      const repoName = projectTarget?.dataset.projectName || (target.closest(".ide-project-view") ? activeRepo?.name : undefined);
+      const imageTarget = target.closest<HTMLElement>("[data-image-url]");
+      let imageUrl = imageTarget?.dataset.imageUrl;
+      let imageIndex = imageTarget?.dataset.imageIndex ? Number(imageTarget.dataset.imageIndex) : undefined;
+
+      if (!imageUrl && target instanceof HTMLImageElement && target.src) {
+        imageUrl = target.currentSrc || target.src;
+        if (repoName) {
+          const gallery = repoGalleries[repoName] || [];
+          const match = gallery.findIndex(item => item.url === imageUrl);
+          if (match >= 0) imageIndex = match;
+        }
+      }
+
+      const anchor = target.closest<HTMLAnchorElement>("a[href]");
+      const selectedText = window.getSelection()?.toString().trim() || "";
+      let x = event.clientX;
+      let y = event.clientY;
+      if (keyboardInvocation) {
+        const rect = target.getBoundingClientRect();
+        x = rect.left + Math.min(24, Math.max(8, rect.width / 2));
+        y = rect.top + Math.min(rect.height + 8, 36);
+      }
+
+      setContextMenu({
+        x, y, repoName, imageUrl, imageIndex,
+        linkUrl: anchor?.href,
+        linkLabel: anchor?.textContent?.trim() || anchor?.getAttribute("aria-label") || undefined,
+        selection: selectedText || undefined,
+      });
+    };
+
+    const closeOnPointer = (event: PointerEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (!target?.closest(".custom-context-menu")) setContextMenu(null);
+    };
+    const closeOnScroll = (event: Event) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (target?.closest(".custom-context-menu")) return;
+      setContextMenu(null);
+    };
+    const closeOnResize = () => setContextMenu(null);
+
+    document.addEventListener("contextmenu", handleContextMenu);
+    document.addEventListener("pointerdown", closeOnPointer);
+    window.addEventListener("scroll", closeOnScroll, true);
+    window.addEventListener("resize", closeOnResize);
+    return () => {
+      document.removeEventListener("contextmenu", handleContextMenu);
+      document.removeEventListener("pointerdown", closeOnPointer);
+      window.removeEventListener("scroll", closeOnScroll, true);
+      window.removeEventListener("resize", closeOnResize);
+    };
+  }, [activeRepo, repoGalleries]);
+
+  useEffect(() => {
+    if (!contextMenu) return;
+    const frame = window.requestAnimationFrame(() => {
+      const menu = contextMenuRef.current;
+      if (!menu) return;
+      const margin = 10;
+      const rect = menu.getBoundingClientRect();
+      const left = Math.max(margin, Math.min(contextMenu.x, window.innerWidth - rect.width - margin));
+      const top = Math.max(margin, Math.min(contextMenu.y, window.innerHeight - rect.height - margin));
+      menu.style.left = `${left}px`;
+      menu.style.top = `${top}px`;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [contextMenu]);
+
+  useEffect(() => {
+    if (!contextMenu) return;
+    const navigateMenu = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { event.preventDefault(); setContextMenu(null); return; }
+      if (!["ArrowDown", "ArrowUp", "Home", "End", "Enter", " "].includes(event.key)) return;
+      const menu = contextMenuRef.current;
+      if (!menu) return;
+      const items = Array.from(menu.querySelectorAll<HTMLButtonElement>("button.context-menu-item:not(:disabled)"));
+      if (!items.length) return;
+      const current = items.indexOf(document.activeElement as HTMLButtonElement);
+      if (event.key === "Enter" || event.key === " ") {
+        if (current >= 0) { event.preventDefault(); items[current].click(); }
+        return;
+      }
+      event.preventDefault();
+      if (event.key === "Home") items[0].focus();
+      else if (event.key === "End") items[items.length - 1].focus();
+      else if (event.key === "ArrowDown") items[(current + 1 + items.length) % items.length].focus();
+      else items[(current - 1 + items.length) % items.length].focus();
+    };
+    document.addEventListener("keydown", navigateMenu);
+    return () => document.removeEventListener("keydown", navigateMenu);
+  }, [contextMenu]);
+
+  useEffect(() => {
     const closeMenu = (event: PointerEvent) => {
       if (!(event.target as HTMLElement).closest(".ide-file-menu")) setFileMenuOpen(false);
     };
@@ -368,6 +590,7 @@ export default function Home() {
 
   useEffect(() => {
     const closeActiveTab = (event: KeyboardEvent) => {
+      if (contextMenu || commandPaletteOpen) return;
       if (galleryLightbox) {
         const gallery = repoGalleries[galleryLightbox.repo] || [];
         if (event.key === "Escape") {
@@ -388,7 +611,7 @@ export default function Home() {
     };
     document.addEventListener("keydown", closeActiveTab);
     return () => document.removeEventListener("keydown", closeActiveTab);
-  }, [activeRepo, notFoundPath, openedRepos, fileMenuOpen, galleryLightbox, repoGalleries]);
+  }, [activeRepo, notFoundPath, openedRepos, fileMenuOpen, galleryLightbox, repoGalleries, contextMenu, commandPaletteOpen]);
 
   useEffect(() => {
     const toggleTerminal = (event: KeyboardEvent) => {
@@ -396,10 +619,7 @@ export default function Home() {
       event.preventDefault();
       setPanelOpen(open => {
         const next = !open;
-        if (next) {
-          setPanelTab("terminal");
-          window.setTimeout(() => terminalInputRef.current?.focus(), 0);
-        }
+        if (next) setPanelTab("terminal");
         return next;
       });
     };
@@ -528,6 +748,21 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    if (repoState !== "ready") return;
+    const match = window.location.pathname.match(/^\/projects\/([^/]+)\/?$/i);
+    if (!match) return;
+    let requested = match[1];
+    try { requested = decodeURIComponent(requested); } catch { /* Keep the encoded value for the 404 path. */ }
+    const repo = repos.find(item => item.name.toLowerCase() === requested.toLowerCase());
+    if (repo) {
+      setNotFoundPath(null);
+      if (activeRepo?.name.toLowerCase() !== repo.name.toLowerCase()) openProject(repo);
+    } else {
+      setNotFoundPath(window.location.pathname);
+    }
+  }, [repoState, repos]);
+
+  useEffect(() => {
     if (repoState !== "ready" || projectsNearViewport) return;
     const section = projectsSectionRef.current;
     if (!section || !("IntersectionObserver" in window)) {
@@ -551,7 +786,8 @@ export default function Home() {
     repos.slice(0, visibleRepos).forEach(repo => { void loadReadme(repo); });
   }, [repos, visibleRepos, repoState, projectsNearViewport]);
   const copyEmail = async () => {
-    await navigator.clipboard.writeText("osirandoust@gmail.com");
+    const ok = await copyText("osirandoust@gmail.com", "Email copied");
+    if (!ok) return;
     setCopied(true);
     setTimeout(() => setCopied(false), 1800);
   };
@@ -633,6 +869,7 @@ export default function Home() {
         "open <where>  github | gitlab | linkedin | telegram | instagram | whatsapp | mail",
         "search <text> search site content",
         "version       show deployed build id",
+        "hire          run a tiny easter egg",
         "clear         clear the screen",
         "`             toggle terminal  ·  esc closes the active tab"]);
       setSearchResults([]);
@@ -640,6 +877,19 @@ export default function Home() {
     }
     if (command === "version" || command === "build" || command === "--version") {
       setTerminalLines(lines => [...lines, "› " + raw, `osameh.dev ${BUILD_ID}`, `built ${BUILD_TIME}`]);
+      setSearchResults([]); return;
+    }
+    if (command === "sudo hire osameh" || command === "hire" || command === "hire osameh") {
+      setTerminalLines(lines => [...lines, "› " + raw,
+        "Checking skills...",
+        ".NET / backend          ✓",
+        "React / Vue / Nuxt      ✓",
+        "Systems / DevOps        ✓",
+        "Product engineering     ✓",
+        "",
+        "Access granted.",
+        "Let's build something great.",
+      ]);
       setSearchResults([]); return;
     }
     if (command === "whoami") {
@@ -740,6 +990,46 @@ export default function Home() {
     setSearchResults(matches.slice(0, 8));
   };
 
+  const paletteCommands: PaletteCommand[] = [
+    { id: "home", label: "Go to Home", hint: "/home", keywords: "home start portfolio", icon: "home", action: () => goTo(sections[0]) },
+    { id: "projects", label: "Go to Projects", hint: "/projects", keywords: "work repos github projects", icon: "code", action: () => goTo(sections[2]) },
+    { id: "about", label: "Go to About", hint: "/about", keywords: "about profile bio", icon: "about", action: () => goTo(sections[1]) },
+    { id: "experience", label: "Go to Experience", hint: "/experience", keywords: "experience jobs career", icon: "experience", action: () => goTo(sections[3]) },
+    { id: "contact", label: "Go to Contact", hint: "/contact", keywords: "contact email social", icon: "contact", action: () => goTo(sections[4]) },
+    { id: "terminal", label: "Open Terminal", hint: "`", keywords: "terminal shell cli command", icon: "terminal", action: () => openTerminal() },
+    { id: "theme", label: `Switch to ${document.documentElement.dataset.theme === "light" ? "Dark" : "Light"} Theme`, hint: "theme", keywords: "theme dark light appearance", icon: "theme", action: toggleThemeMode },
+    { id: "github", label: "Open GitHub", hint: "github.com/osameh15", keywords: "github source repositories", icon: "github", action: () => window.open("https://github.com/osameh15", "_blank", "noopener,noreferrer") },
+    { id: "linkedin", label: "Open LinkedIn", hint: "linkedin", keywords: "linkedin career profile", icon: "linkedin", action: () => window.open("https://www.linkedin.com/in/osameh-irandoust-493359173/", "_blank", "noopener,noreferrer") },
+    { id: "copy-url", label: "Copy Portfolio URL", hint: "osameh.dev", keywords: "copy link url share", icon: "copy", action: () => { void copyText(window.location.origin + "/", "Portfolio URL copied"); } },
+    { id: "build", label: "View Build Info", hint: BUILD_DISPLAY, keywords: "build version deploy cache", icon: "build", action: () => window.open("/build-info.json", "_blank", "noopener,noreferrer") },
+    { id: "hire", label: "sudo hire osameh", hint: "easter egg", keywords: "hire sudo easter egg terminal", icon: "hire", action: runHireEasterEgg },
+  ];
+  const normalizedCommandQuery = commandQuery.trim().toLowerCase();
+  const filteredPaletteCommands = paletteCommands.filter(item => !normalizedCommandQuery || `${item.label} ${item.hint} ${item.keywords}`.toLowerCase().includes(normalizedCommandQuery));
+  const safeCommandIndex = filteredPaletteCommands.length ? Math.min(commandIndex, filteredPaletteCommands.length - 1) : 0;
+  const runPaletteCommand = (item: PaletteCommand) => {
+    setCommandPaletteOpen(false);
+    setCommandQuery("");
+    item.action();
+  };
+  const paletteIcon = (icon: PaletteCommand["icon"]) => {
+    if (icon === "home") return <HomeIcon size={16} />;
+    if (icon === "code") return <Code2 size={16} />;
+    if (icon === "about") return <Braces size={16} />;
+    if (icon === "experience") return <FileCode2 size={16} />;
+    if (icon === "contact") return <Mail size={16} />;
+    if (icon === "terminal") return <Terminal size={16} />;
+    if (icon === "theme") return document.documentElement.dataset.theme === "light" ? <Moon size={16} /> : <Sun size={16} />;
+    if (icon === "github") return <Github size={16} />;
+    if (icon === "linkedin") return <Linkedin size={16} />;
+    if (icon === "copy") return <Copy size={16} />;
+    if (icon === "build") return <RefreshCw size={16} />;
+    return <Command size={16} />;
+  };
+  const contextRepo = contextMenu?.repoName ? repos.find(repo => repo.name.toLowerCase() === contextMenu.repoName?.toLowerCase()) || fallbackRepos.find(repo => repo.name.toLowerCase() === contextMenu.repoName?.toLowerCase()) || null : null;
+  const projectShareUrl = (repo: GithubRepo) => `${window.location.origin}/projects/${encodeURIComponent(repo.name)}`;
+  const runContextAction = (action: () => void) => { setContextMenu(null); action(); };
+
   return (
     <main>
       <header className="topbar">
@@ -793,7 +1083,7 @@ export default function Home() {
           <button className="file" onClick={() => goTo(sections[4])}><Mail size={14} /> contact.md</button>
           <div className="explorer-footer">
             <button onClick={() => { setPanelTab("outline"); setPanelOpen(true); }}><ListTree size={14} /> OUTLINE</button>
-            <button onClick={() => { setPanelTab("terminal"); setPanelOpen(true); }}><Terminal size={14} /> TERMINAL</button>
+            <button onClick={() => openTerminal()}><Terminal size={14} /> TERMINAL</button>
           </div>
         </aside>
 
@@ -814,7 +1104,7 @@ export default function Home() {
               <button className="primary-btn" onClick={showHome}>Return to home <ArrowUpRight size={16} /></button>
               <button className="secondary-btn" onClick={() => { showHome(); window.setTimeout(() => document.getElementById("work")?.scrollIntoView({ behavior: "smooth" }), 50); }}>Browse projects</button>
             </div>
-          </section> : activeRepo ? <section className="ide-project-view">
+          </section> : activeRepo ? <section className="ide-project-view" data-project-name={activeRepo.name}>
             <header className="ide-project-hero">
               <div>
                 <p className="eyebrow">PROJECT / {activeRepo.language || "CODE"}</p>
@@ -846,7 +1136,7 @@ export default function Home() {
                 <span>{repoGalleries[activeRepo.name]?.length ? `${repoGalleries[activeRepo.name].length} images discovered in README, images/ or docs/` : "Images are discovered from the repository automatically."}</span>
               </div>
               {loadingGalleries.includes(activeRepo.name) ? <div className="gallery-loading"><LoaderCircle className="spin" size={19} /> Discovering project images…</div> : repoGalleries[activeRepo.name]?.length ? <div className="project-gallery-grid">
-                {repoGalleries[activeRepo.name].map((image, index) => <button type="button" className="project-gallery-item" key={`${image.url}-${index}`} onClick={() => setGalleryLightbox({ repo: activeRepo.name, index })} aria-label={`Open ${image.name || image.path} in gallery`}>
+                {repoGalleries[activeRepo.name].map((image, index) => <button type="button" className="project-gallery-item" key={`${image.url}-${index}`} data-project-name={activeRepo.name} data-image-url={image.url} data-image-index={index} onClick={() => setGalleryLightbox({ repo: activeRepo.name, index })} aria-label={`Open ${image.name || image.path} in gallery`}>
                   <img src={image.url} alt={image.name || `${activeRepo.name} project image ${index + 1}`} loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={event => { event.currentTarget.closest("button")?.setAttribute("hidden", ""); }} />
                   <span><ImageIcon size={13} />{image.path}</span>
                 </button>)}
@@ -901,7 +1191,7 @@ export default function Home() {
             {repoState === "error" && <div className="repo-status error"><Code2 size={20} /> GitHub is taking a break. Visit my profile to browse the repositories.</div>}
             {repoState === "ready" && <>
               <div className="project-grid">{repos.slice(0, visibleRepos).map((project, index) => (
-                <article role="button" tabIndex={0} onClick={() => openProject(project)} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openProject(project); } }} className={'project-card tone-' + (index % 3)} key={project.id} aria-label={'Open ' + project.name + ' project details'}>
+                <article role="button" tabIndex={0} onClick={() => openProject(project)} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openProject(project); } }} className={'project-card tone-' + (index % 3)} key={project.id} data-project-name={project.name} aria-label={'Open ' + project.name + ' project details'}>
                   <div className="project-top"><span>{String(index + 1).padStart(2, "0")}</span><span className="project-stats"><Star size={13} /> {project.stargazers_count}<Github size={13} /> {project.forks_count}</span><ArrowUpRight size={19} /></div>
                   <div className="project-image">
                     {repoImages[project.name] && <img src={repoImages[project.name]} alt={'Preview from ' + project.name + ' README'} loading="lazy" onError={event => { event.currentTarget.hidden = true; }} />}
@@ -952,6 +1242,57 @@ export default function Home() {
           <footer><span>© 2026 Osameh Irandoust</span><span className="footer-status"><i /> All systems operational</span><span className="build-version" title={`${BUILD_ID} · built ${BUILD_TIME}`}>build {BUILD_DISPLAY}</span><span>Designed & built with intention.</span></footer>
           </>}
         </div>
+        {contextMenu && <div className="custom-context-menu" ref={contextMenuRef} role="menu" aria-label="Portfolio context menu">
+          <div className="context-menu-head"><span><Command size={13} /> osameh.dev</span><code>{contextRepo ? contextRepo.name : contextMenu.imageUrl ? "image" : contextMenu.linkUrl ? "link" : "workspace"}</code></div>
+          {contextMenu.selection && <div className="context-menu-group"><button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => { void copyText(contextMenu.selection || "", "Selection copied"); })}><Copy size={15} /><span>Copy selection</span><kbd>⌘C</kbd></button></div>}
+          {contextMenu.imageUrl && <div className="context-menu-group"><p>IMAGE</p>
+            {contextRepo && contextMenu.imageIndex !== undefined && contextMenu.imageIndex >= 0 && <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => setGalleryLightbox({ repo: contextRepo.name, index: contextMenu.imageIndex || 0 }))}><ImageIcon size={15} /><span>Open fullscreen</span><small>Gallery</small></button>}
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => window.open(contextMenu.imageUrl || "", "_blank", "noopener,noreferrer"))}><ExternalLink size={15} /><span>Open original image</span><small>New tab</small></button>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => { void copyText(contextMenu.imageUrl || "", "Image URL copied"); })}><Link2 size={15} /><span>Copy image URL</span></button>
+          </div>}
+          {contextRepo && <div className="context-menu-group"><p>PROJECT</p>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => openProject(contextRepo))}><FolderOpen size={15} /><span>Open project</span><small>{contextRepo.name}.md</small></button>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => window.open(`https://github.com/${GITHUB_OWNER}/${contextRepo.name}`, "_blank", "noopener,noreferrer"))}><Github size={15} /><span>View on GitHub</span><small>Source</small></button>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => { void copyText(projectShareUrl(contextRepo), "Project link copied"); })}><Link2 size={15} /><span>Copy project link</span></button>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => { openProject(contextRepo); window.setTimeout(() => document.getElementById(`gallery-${contextRepo.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 120); })}><ImageIcon size={15} /><span>Open gallery</span><small>{repoGalleries[contextRepo.name]?.length || "Auto"}</small></button>
+          </div>}
+          {contextMenu.linkUrl && <div className="context-menu-group"><p>LINK</p>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => { window.location.href = contextMenu.linkUrl || "#"; })}><ExternalLink size={15} /><span>Open link</span><small>{contextMenu.linkLabel?.slice(0, 20)}</small></button>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => window.open(contextMenu.linkUrl || "", "_blank", "noopener,noreferrer"))}><ExternalLink size={15} /><span>Open in new tab</span></button>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => { void copyText(contextMenu.linkUrl || "", "Link copied"); })}><Copy size={15} /><span>Copy link</span></button>
+          </div>}
+          {!contextRepo && !contextMenu.imageUrl && !contextMenu.linkUrl && <div className="context-menu-group"><p>NAVIGATE</p>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => goTo(sections[0]))}><HomeIcon size={15} /><span>Home</span><small>/home</small></button>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => goTo(sections[2]))}><Code2 size={15} /><span>Projects</span><small>/projects</small></button>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => goTo(sections[1]))}><Braces size={15} /><span>About</span><small>/about</small></button>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => goTo(sections[3]))}><FileCode2 size={15} /><span>Experience</span><small>/experience</small></button>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => goTo(sections[4]))}><Mail size={15} /><span>Contact</span><small>/contact</small></button>
+          </div>}
+          <div className="context-menu-group"><p>WORKSPACE</p>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => { setCommandQuery(""); setCommandIndex(0); setCommandPaletteOpen(true); })}><Command size={15} /><span>Command Palette</span><kbd>⌘K</kbd></button>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => openTerminal())}><Terminal size={15} /><span>Open Terminal</span><kbd>`</kbd></button>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(toggleThemeMode)}>{document.documentElement.dataset.theme === "light" ? <Moon size={15} /> : <Sun size={15} />}<span>Switch theme</span><small>{document.documentElement.dataset.theme === "light" ? "Dark" : "Light"}</small></button>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => { void copyText(window.location.href, "Page URL copied"); })}><Copy size={15} /><span>Copy page URL</span></button>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => window.location.reload())}><RefreshCw size={15} /><span>Refresh</span><kbd>⌘R</kbd></button>
+          </div>
+          <div className="context-menu-group context-menu-easter"><button className="context-menu-item" role="menuitem" onClick={() => runContextAction(runHireEasterEgg)}><Terminal size={15} /><span>sudo hire osameh</span><small>run</small></button></div>
+          <div className="context-menu-foot"><span>{BUILD_DISPLAY}</span><span><kbd>↑↓</kbd> navigate · <kbd>Esc</kbd> close</span></div>
+        </div>}
+        {commandPaletteOpen && <div className="command-palette-backdrop" role="presentation" onMouseDown={() => setCommandPaletteOpen(false)}>
+          <section className="command-palette" role="dialog" aria-modal="true" aria-label="Command Palette" onMouseDown={event => event.stopPropagation()}>
+            <div className="command-palette-search"><Search size={17} /><input ref={commandPaletteInputRef} value={commandQuery} onChange={event => setCommandQuery(event.target.value)} onKeyDown={event => {
+              if (event.key === "Escape") { event.preventDefault(); setCommandPaletteOpen(false); return; }
+              if (event.key === "ArrowDown") { event.preventDefault(); if (filteredPaletteCommands.length) setCommandIndex(index => (Math.min(index, filteredPaletteCommands.length - 1) + 1) % filteredPaletteCommands.length); return; }
+              if (event.key === "ArrowUp") { event.preventDefault(); if (filteredPaletteCommands.length) setCommandIndex(index => (Math.min(index, filteredPaletteCommands.length - 1) - 1 + filteredPaletteCommands.length) % filteredPaletteCommands.length); return; }
+              if (event.key === "Enter" && filteredPaletteCommands[safeCommandIndex]) { event.preventDefault(); runPaletteCommand(filteredPaletteCommands[safeCommandIndex]); }
+            }} placeholder="Type a command or search…" aria-label="Search commands" autoComplete="off" /><kbd>ESC</kbd></div>
+            <div className="command-palette-list" role="listbox" aria-label="Available commands">
+              {filteredPaletteCommands.length ? filteredPaletteCommands.map((item, index) => <button key={item.id} className={index === safeCommandIndex ? "active" : ""} role="option" aria-selected={index === safeCommandIndex} onMouseEnter={() => setCommandIndex(index)} onClick={() => runPaletteCommand(item)}><span className="command-palette-icon">{paletteIcon(item.icon)}</span><span><b>{item.label}</b><small>{item.hint}</small></span><CornerDownLeft size={13} /></button>) : <div className="command-palette-empty"><Search size={18} /><span>No command matches “{commandQuery}”.</span></div>}
+            </div>
+            <div className="command-palette-foot"><span><kbd>↑</kbd><kbd>↓</kbd> navigate</span><span><kbd>↵</kbd> run</span><span><kbd>esc</kbd> close</span><code>{BUILD_VERSION}</code></div>
+          </section>
+        </div>}
+        {actionToast && <div className="action-toast" role="status" aria-live="polite"><Check size={14} />{actionToast}</div>}
         {galleryLightbox && (() => {
           const gallery = repoGalleries[galleryLightbox.repo] || [];
           const image = gallery[galleryLightbox.index];
@@ -961,7 +1302,7 @@ export default function Home() {
             <button type="button" className="gallery-lightbox-close" onClick={() => setGalleryLightbox(null)} aria-label="Close gallery"><X size={20} /></button>
             {gallery.length > 1 && <button type="button" className="gallery-lightbox-nav previous" onClick={event => { event.stopPropagation(); move(-1); }} aria-label="Previous image"><ChevronLeft size={24} /></button>}
             <figure onClick={event => event.stopPropagation()}>
-              <img src={image.url} alt={image.name || image.path} referrerPolicy="no-referrer" />
+              <img src={image.url} alt={image.name || image.path} data-project-name={galleryLightbox.repo} data-image-url={image.url} data-image-index={galleryLightbox.index} referrerPolicy="no-referrer" />
               <figcaption><span>{galleryLightbox.index + 1} / {gallery.length}</span><code>{image.path}</code></figcaption>
             </figure>
             {gallery.length > 1 && <button type="button" className="gallery-lightbox-nav next" onClick={event => { event.stopPropagation(); move(1); }} aria-label="Next image"><ChevronRight size={24} /></button>}
@@ -998,7 +1339,7 @@ export default function Home() {
         </section>}
         <div className="status-bar">
           <span><Github size={12} /> main*</span><span className="status-build" title={`${BUILD_ID} · built ${BUILD_TIME}`}>{BUILD_VERSION}</span><span className="status-online"><i /> {code.label} mode</span>
-          <button onClick={() => { setPanelOpen(!panelOpen); if (!panelOpen) setPanelTab("terminal"); }}><PanelBottom size={13} /> {panelOpen ? "Close panel" : "Open panel"}</button>
+          <button onClick={() => { if (panelOpen) setPanelOpen(false); else openTerminal(); }}><PanelBottom size={13} /> {panelOpen ? "Close panel" : "Open panel"}</button>
         </div>
       </div>
     </main>

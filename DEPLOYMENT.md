@@ -1,4 +1,4 @@
-# Deploy osameh.dev — Production v5
+# Deploy osameh.dev — Production v7
 
 ## 1. Build locally
 
@@ -32,6 +32,8 @@ Your domain should ultimately serve `public_html` for HTTPS as well (DirectAdmin
 │   │   └── github.php
 │   ├── favicon.svg
 │   ├── og-cover.webp
+│   ├── og-cover-social.jpg
+│   ├── build-info.json
 │   ├── robots.txt
 │   └── sitemap.xml
 └── private_html -> public_html      # recommended DirectAdmin layout
@@ -89,6 +91,8 @@ Open:
 https://osameh.dev/
 https://osameh.dev/favicon.svg
 https://osameh.dev/og-cover.webp
+https://osameh.dev/og-cover-social.jpg
+https://osameh.dev/build-info.json
 https://osameh.dev/api/github/repos
 https://osameh.dev/api/github/readme/Mizekar
 ```
@@ -127,7 +131,7 @@ The built `.htaccess` enables:
 - clickjacking protection;
 - restrictive Permissions Policy;
 - no directory listing;
-- strict CSP with `connect-src 'self'` and no inline styles;
+- strict CSP with `connect-src 'self'`; inline scripts remain blocked except for the build-hashed JSON-LD block. `style-src-attr 'unsafe-inline'` is narrowly enabled only because the desktop context menu needs runtime cursor coordinates; stylesheet sources remain restricted to `'self'`;
 - no objects/frames/forms/workers;
 - forced `www` → apex redirect;
 - SPA fallback without allowing `/api/*` to fall into `index.html`.
@@ -163,3 +167,27 @@ https://osameh.dev/og-cover-social.jpg
 ```
 
 It is a 1200×630 progressive JPEG for maximum crawler compatibility. After deploying, verify the image opens directly with HTTP 200 and `Content-Type: image/jpeg`. Social platforms cache link previews independently of your CDN, so an old preview can persist briefly even after a CDN purge. The new filename intentionally forces a fresh image URL.
+
+
+## v1.3.0 interaction verification
+
+After deploy, verify on desktop:
+
+1. Right-click empty workspace: the custom context menu should appear near the pointer.
+2. Right-click a project card: project-specific actions should appear.
+3. Right-click a gallery image: image actions and fullscreen gallery action should appear.
+4. Right-click a normal link: open/copy link actions should appear.
+5. Select text and right-click: `Copy selection` should be available.
+6. Right-click inside the terminal input or another editable field: the browser-native menu should remain available.
+7. Press `Ctrl+K` / `Cmd+K`: Command Palette should open with its search box focused.
+8. Open the terminal using the explorer, status bar, backtick shortcut, context menu, Command Palette, or the easter egg: the command input must receive focus immediately.
+9. Run `hire` or `sudo hire osameh` in the terminal to verify the easter egg.
+10. Test both light and dark themes. Long-press on mobile should continue to use normal touch/browser behavior.
+
+Project links copied from the context menu use:
+
+```text
+https://osameh.dev/projects/<repo>
+```
+
+The SPA resolves these routes after the live repository list loads.
