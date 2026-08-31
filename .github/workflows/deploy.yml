@@ -1,0 +1,141 @@
+name: Build and deploy osameh.dev
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "README.md"
+      - "DEPLOYMENT.md"
+      - "CHANGELOG.md"
+      - "docs/**"
+  workflow_dispatch:
+
+concurrency:
+  group: osameh-dev-production
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Build → FTPS → verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -f package-lock.json ]]; then
+            npm ci --no-audit --no-fund
+          else
+            echo "::warning::package-lock.json is missing; using npm install. Commit a lockfile for reproducible deployments."
+            npm install --no-audit --no-fund
+          fi
+
+      - name: Build production bundle
+        run: npm run build
+
+      - name: Validate deployment bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f dist/index.html
+          test -f dist/.htaccess
+          test -f dist/build-info.json
+          test -f dist/api/github.php
+          test -f dist/api/contact.php
+          test -f dist/sw.js
+          jq . dist/build-info.json
+
+      - name: Install deployment client
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq lftp
+
+      - name: Deploy to ParsPack public_html
+        shell: bash
+        env:
+          FTP_HOST: ${{ secrets.FTP_HOST }}
+          FTP_PORT: ${{ secrets.FTP_PORT }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          : "${FTP_HOST:?Missing repository secret FTP_HOST}"
+          : "${FTP_USERNAME:?Missing repository secret FTP_USERNAME}"
+          : "${FTP_PASSWORD:?Missing repository secret FTP_PASSWORD}"
+          FTP_PORT="${FTP_PORT:-21}"
+
+          # The FTP account should be scoped to domains/osameh.dev/public_html,
+          # so / is the deployment root and private server files are unreachable.
+          lftp <<LFTP
+          set cmd:fail-exit true
+          set net:max-retries 2
+          set net:timeout 25
+          set net:reconnect-interval-base 5
+          set ftp:passive-mode true
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate true
+          open -p ${FTP_PORT} ${FTP_HOST}
+          user ${FTP_USERNAME} ${FTP_PASSWORD}
+          mirror --reverse --delete --verbose --parallel=4 \
+            --exclude-glob .well-known \
+            --exclude-glob '.well-known/**' \
+            dist/ /
+          bye
+          LFTP
+
+      - name: Verify live build
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="$(jq -r '.buildId' dist/build-info.json)"
+          echo "Expected build: ${expected}"
+
+          matched=0
+          for attempt in {1..10}; do
+            stamp="${GITHUB_SHA}-${attempt}-$(date +%s)"
+            body="$(curl -fsS --connect-timeout 10 --max-time 20 \
+              -H 'Cache-Control: no-cache' \
+              "https://osameh.dev/build-info.json?ci=${stamp}" || true)"
+            live="$(printf '%s' "$body" | jq -r '.buildId // empty' 2>/dev/null || true)"
+            echo "Attempt ${attempt}: live=${live:-unavailable}"
+            if [[ "$live" == "$expected" ]]; then
+              matched=1
+              break
+            fi
+            sleep 12
+          done
+
+          if [[ "$matched" -eq 1 ]]; then
+            echo "Deployment verified: ${expected}"
+          else
+            echo "::warning::Files were uploaded, but the public CDN still reports a different build. ParsPack CDN propagation/cache may still be catching up."
+          fi
+
+      - name: Deployment summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "### osameh.dev deployment"
+            echo
+            echo "- Commit: \`${GITHUB_SHA}\`"
+            if [[ -f dist/build-info.json ]]; then
+              echo "- Build: \`$(jq -r '.buildId' dist/build-info.json)\`"
+            fi
+            echo "- Target: ParsPack shared hosting / public_html"
+            echo "- URL: https://osameh.dev"
+          } >> "$GITHUB_STEP_SUMMARY"

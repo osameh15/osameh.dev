@@ -254,7 +254,7 @@ Keep the previous `public_html` archive before deployment. If a production issue
 The external `private/osameh-portfolio-secrets.php` does not need to change during rollback.
 
 
-## 9. Interaction smoke tests
+## 11. Interaction smoke tests
 
 After deployment also verify:
 
@@ -264,3 +264,73 @@ After deployment also verify:
 - Build-version hover remains legible in both themes.
 - Contact success/failure and other user-facing operational messages appear as typed toasts.
 - Changing the code language updates the Contact filename extension.
+
+## 12. CI/CD with GitHub Actions
+
+The repository includes `.github/workflows/deploy.yml`.
+
+On every push to `main` (except documentation-only changes), GitHub Actions will:
+
+1. install dependencies
+2. run the full production build (`tsc` + Vite + deploy preparation)
+3. validate required `dist/` files
+4. deploy `dist/` to the ParsPack web root over explicit FTPS
+5. poll `/build-info.json` with a cache-busting query to verify which build is publicly visible
+
+### Dedicated FTP account
+
+Create a dedicated deployment FTP account in ParsPack / DirectAdmin and scope its directory to:
+
+```text
+domains/osameh.dev/public_html
+```
+
+This is important: the CI account should not be able to access `private/`, `private_html`, mail, or unrelated domains.
+
+### GitHub repository secrets
+
+In GitHub:
+
+```text
+Repository → Settings → Secrets and variables → Actions → New repository secret
+```
+
+Create:
+
+```text
+FTP_HOST      = FTP hostname supplied by ParsPack
+FTP_PORT      = 21
+FTP_USERNAME  = dedicated deployment FTP username
+FTP_PASSWORD  = dedicated deployment FTP password
+```
+
+Do not add the server-side `GITHUB_TOKEN` to Actions. That token stays only in:
+
+```text
+domains/osameh.dev/private/osameh-portfolio-secrets.php
+```
+
+### FTPS
+
+The workflow requires explicit TLS for FTP (`ftp:ssl-force true`) and validates the server certificate. Do not weaken this unless the hosting service explicitly cannot provide FTPS; SFTP/SSH is preferred over plaintext FTP when available.
+
+### CDN cache
+
+The workflow intentionally does **not** call the undocumented `my.parspack.com/cdnapi/...` browser endpoint. Panel session/cookie APIs are not a stable CI interface. The site already uses hashed Vite assets plus `no-cache, must-revalidate` for `index.html`, `build-info.json`, `sw.js`, and the manifest.
+
+After deployment, the workflow verifies the public build with a cache-busting `/build-info.json?ci=...` request. If ParsPack still serves an older build, the workflow adds a warning to the run summary; manual CDN purge remains the safe fallback until ParsPack exposes a documented CDN purge API/token for this service.
+
+### First rollout
+
+Commit and push the workflow, then watch:
+
+```text
+GitHub repository → Actions → Build and deploy osameh.dev
+```
+
+You can also run it manually through `workflow_dispatch` using **Run workflow**.
+
+
+## 13. Release notes
+
+Repository release history is maintained in [`CHANGELOG.md`](CHANGELOG.md). Documentation-only changes are excluded from automatic production deploys.

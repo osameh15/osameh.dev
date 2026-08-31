@@ -23,24 +23,7 @@ A production portfolio for **Osameh Irandoust**, designed as an IDE-inspired wor
 
 ## Screenshots
 
-The repository uses the following screenshot names under `docs/img/`:
-
-| View | File |
-| --- | --- |
-| Dark workspace | `home-dark.webp` |
-| Light workspace | `home-light.webp` |
-| Projects explorer | `projects.webp` |
-| Project details / case study | `project-detail.webp` |
-| Project gallery | `project-gallery.webp` |
-| Custom context menu | `context-menu.webp` |
-| Command Palette | `command-palette.webp` |
-| Terminal / neofetch | `terminal-neofetch.webp` |
-| Project comparison | `compare.webp` |
-| Contact form | `contacts.webp` |
-| Changelog | `change-log.webp` |
-| Responsive mobile view | `mobile.webp` |
-
-Once those files are present, the gallery below renders directly on GitHub:
+Production screenshots are committed under `docs/img/` and render directly on GitHub.
 
 <table>
   <tr>
@@ -49,23 +32,23 @@ Once those files are present, the gallery below renders directly on GitHub:
   </tr>
   <tr>
     <td><img src="docs/img/projects.webp" alt="Projects explorer" /></td>
-    <td><img src="docs/img/project-detail.webp" alt="Project detail and case study" /></td>
+    <td><img src="docs/img/project-detail.webp" alt="Project detail and README preview" /></td>
   </tr>
   <tr>
     <td><img src="docs/img/project-gallery.webp" alt="Project gallery" /></td>
+    <td><img src="docs/img/compare-projects.webp" alt="Project comparison modal" /></td>
+  </tr>
+  <tr>
     <td><img src="docs/img/context-menu.webp" alt="Custom context menu" /></td>
-  </tr>
-  <tr>
     <td><img src="docs/img/command-palette.webp" alt="Command Palette" /></td>
-    <td><img src="docs/img/terminal-neofetch.webp" alt="Terminal neofetch output" /></td>
   </tr>
   <tr>
-    <td><img src="docs/img/compare.webp" alt="Project comparison" /></td>
-    <td><img src="docs/img/contacts.webp" alt="Contact form" /></td>
+    <td><img src="docs/img/terminal-neofetch.webp" alt="Resizable terminal with neofetch output" /></td>
+    <td><img src="docs/img/changelog.webp" alt="In-site changelog" /></td>
   </tr>
   <tr>
-    <td><img src="docs/img/change-log.webp" alt="Portfolio changelog" /></td>
-    <td><img src="docs/img/mobile.webp" alt="Responsive mobile layout" /></td>
+    <td><img src="docs/img/contact-form.webp" alt="Contact form" /></td>
+    <td><img src="docs/img/mobile.webp" alt="Responsive mobile experience" /></td>
   </tr>
 </table>
 
@@ -382,6 +365,23 @@ The site also includes an in-app resume viewer and download/open controls.
 
 ## Release history
 
+The five most recent releases are summarized here. See **[CHANGELOG.md](CHANGELOG.md)** for the complete production history.
+
+### v2.2.2 — Release documentation
+
+- complete repository-level changelog
+- production screenshots committed under `docs/img/`
+- README reduced to a concise five-release summary
+- CI/CD documentation finalized for the scoped ParsPack deployment account
+
+### v2.2.1 — Automated delivery
+
+- GitHub Actions build and production deployment over FTPS
+- dedicated/scoped deployment credentials
+- deployment bundle validation and public build verification
+- manual workflow dispatch for controlled redeploys
+- recent public activity messaging aligned with GitHub's 30-day events window
+
 ### v2.2.0 — Interaction & polish
 
 - Command Palette selection follows keyboard navigation and scrolls into view
@@ -390,31 +390,30 @@ The site also includes an in-app resume viewer and download/open controls.
 - contact filename synchronized with the selected programming language
 - gallery discovery expanded across authored repository image files
 - improved status-bar build hover contrast
-- README rewritten for public repository use
 
 ### v2.1.0 — Readability & contact polish
 
 - improved typography and dark/light contrast
-- resilient contact-form initialization
-- resume action layout improvements
-- ongoing freelance experience added
+- resilient contact-form initialization and CSRF retry flow
+- refined header wrapping and resume PDF actions
+- ongoing freelance experience added from 2017 to present
 
-### v2.0.0 — Portfolio OS
+### v2.0.1 — Build UX & compile fixes
 
-- case studies and project comparison
-- PWA/offline support
-- resume viewer and secure contact form
-- GitHub activity and diagnostics
-- advanced terminal and keyboard navigation
-- dynamic social metadata
+- build information opens in an in-app modal
+- terminal `build` opens the modal while `version` remains text-only
+- fixed React event-handler typing and icon compatibility
 
-### v1.3.0 — Developer interaction layer
-
-- custom context menu
-- Command Palette
-- terminal autofocus
-- deep project links
+**Full history:** [CHANGELOG.md](CHANGELOG.md)
 
 ## License
 
 Choose and add a license before publishing if you want to explicitly define reuse rights. Until a license is included, normal copyright rules apply to the source code and visual design.
+
+## Continuous deployment
+
+Production delivery is automated with GitHub Actions. A push to `main` runs the TypeScript/Vite production build, validates the deployment bundle, uploads `dist/` to a dedicated ParsPack `public_html` FTP account over FTPS, and checks the public `build-info.json` fingerprint after deployment.
+
+Deployment credentials are stored as GitHub Actions repository secrets and the hosting account is scoped only to the web root. Runtime secrets such as the GitHub API token remain server-side outside `public_html` and are never copied by CI.
+
+See [`DEPLOYMENT.md`](DEPLOYMENT.md) for the required secrets and rollout procedure.

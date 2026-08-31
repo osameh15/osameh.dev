@@ -73,13 +73,16 @@ export const nowItems = [
 ];
 
 export const changelog = [
+  { version: "2.2.2", title: "Release documentation", items: ["Added a complete repository CHANGELOG.md", "README now shows the five latest releases and links to full history", "Added the production screenshots to docs/img", "Finalized CI/CD documentation for scoped ParsPack deployment"] },
+  { version: "2.2.1", title: "Automated delivery", items: ["GitHub Actions production build and FTPS deployment", "Scoped deployment credentials and CDN-aware live build verification", "Manual workflow dispatch for controlled redeploys", "Clarified the 30-day GitHub public activity window"] },
   { version: "2.2.0", title: "Interaction & polish", items: ["Command Palette selection now scrolls into view", "Resizable and maximizable IDE terminal panel", "Unified success, info, warning, and error toasts", "Contact filename follows the selected programming language", "Repository gallery discovers authored images across the full repository", "Status-bar build hover contrast refined"] },
   { version: "2.1.0", title: "Readability & contact polish", items: ["Improved typography and contrast across both themes", "Fixed contact form bootstrap with resilient same-origin CSRF handling", "Refined header wrapping and resume PDF actions", "Added ongoing freelance experience from 2017 to present"] },
   { version: "2.0.1", title: "Build UX & compile fixes", items: ["Build information now opens in an in-app modal", "Terminal build opens the modal while version remains text-only", "Fixed React event-handler typing and GitHub activity icon compatibility"] },
   { version: "2.0.0", title: "Portfolio OS", items: ["Case studies, project filtering and compare", "Resume viewer, PWA/offline support and contact form", "GitHub activity, system diagnostics and privacy-friendly analytics", "Advanced terminal, keyboard navigation and share tooling", "Dynamic project social metadata"] },
   { version: "1.3.0", title: "Developer interaction layer", items: ["Custom context menu", "Command Palette", "Terminal autofocus", "Deep project links and clipboard toasts"] },
-  { version: "1.2.0", title: "Production diagnostics", items: ["Build IDs", "Social preview cover", "Gallery and project image discovery", "GitHub proxy hardening"] },
-  { version: "1.0.0", title: "Production launch", items: ["IDE-inspired responsive portfolio", "Dynamic public GitHub projects", "README rendering", "CDN-ready shared-host deployment"] },
+  { version: "1.2.0", title: "Production diagnostics", items: ["Automatic build IDs and deployment fingerprints", "Social preview JPEG for broader crawler compatibility", "Expanded Open Graph and Twitter metadata", "Terminal version and build diagnostics"] },
+  { version: "1.1.0", title: "Repository visuals", items: ["Project Gallery and fullscreen lightbox", "Repository-tree image discovery", "Root-relative and README image path fixes", "Server-side image-list caching"] },
+  { version: "1.0.0", title: "Production launch", items: ["IDE-inspired responsive portfolio", "Shared-hosting React/Vite production build", "Server-side GitHub proxy and cache", "Sanitized README rendering and CDN-ready deployment"] },
 ];
 
 export const resumeSummary = {
