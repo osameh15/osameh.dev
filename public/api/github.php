@@ -142,7 +142,7 @@ function serveImages(string $repo): never
         respondJson([], 404);
     }
 
-    $cacheKey = 'images-v5-' . strtolower($canonicalName) . '-' . strtolower($defaultBranch);
+    $cacheKey = 'images-v8-' . strtolower($canonicalName) . '-' . strtolower($defaultBranch);
     $fresh = cacheRead($cacheKey, 21600); // 6 hours
     if ($fresh !== null) {
         $decoded = json_decode($fresh, true);
@@ -171,7 +171,18 @@ function serveImages(string $repo): never
             ];
         }
 
-        usort($images, static fn(array $a, array $b): int => strnatcasecmp((string) $a['path'], (string) $b['path']));
+        $priority = static function (string $path): int {
+            $normalized = strtolower(str_replace('\\', '/', $path));
+            if (preg_match('#(^|/)(screenshots?|images?|media)(/|$)#', $normalized)) return 0;
+            if (preg_match('#(^|/)(docs?|assets?)(/|$)#', $normalized)) return 1;
+            return 2;
+        };
+        usort($images, static function (array $a, array $b) use ($priority): int {
+            $aPath = (string) ($a['path'] ?? '');
+            $bPath = (string) ($b['path'] ?? '');
+            $rank = $priority($aPath) <=> $priority($bPath);
+            return $rank !== 0 ? $rank : strnatcasecmp($aPath, $bPath);
+        });
         $body = json_encode($images, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         if (is_string($body)) cacheWrite($cacheKey, $body);
         respondJson($images, 200);
@@ -189,9 +200,13 @@ function serveImages(string $repo): never
 function isGalleryImagePath(string $path): bool
 {
     $normalized = str_replace('\\', '/', $path);
-    // Keep the gallery focused on project visuals rather than application icon packs and build assets.
-    if (!preg_match('#(^|/)(images?|docs?|screenshots?|media)(/|$)#i', $normalized)) return false;
-    return (bool) preg_match('/\.(?:png|jpe?g|webp|gif|avif|svg|bmp)$/i', $normalized);
+    if (!preg_match('/\.(?:png|jpe?g|webp|gif|avif|svg|bmp)$/i', $normalized)) return false;
+
+    // Discover images across the whole repository, while ignoring generated/dependency trees
+    // that are not authored project content. This keeps docs/, images/, assets/, root-level
+    // screenshots and similar folders visible without flooding the gallery with build output.
+    if (preg_match('#(^|/)(?:node_modules|vendor|dist|build|bin|obj|coverage|\.git|\.cache|\.next|\.nuxt|target)(/|$)#i', $normalized)) return false;
+    return true;
 }
 
 function rawRepositoryUrl(string $repo, string $branch, string $path): string

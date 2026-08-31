@@ -336,3 +336,41 @@ html[data-theme="light"] .advanced-modal>header a.icon-text-btn:hover{background
   .section-heading p{font-size:10.5px}
   .context-menu-item{font-size:11px}
 }
+
+/* v2.2.0 — Palette follow-scroll, resizable terminal, unified toasts, status contrast */
+.command-palette-list{scroll-behavior:smooth;scrollbar-gutter:stable}
+
+.bottom-panel{min-height:190px;max-height:calc(100vh - 72px)}
+.panel-resize-handle{position:absolute;z-index:3;left:0;right:0;top:-5px;height:10px;display:flex;align-items:center;justify-content:center;cursor:ns-resize;touch-action:none}
+.panel-resize-handle span{width:52px;height:3px;border-radius:999px;background:#3f4a41;box-shadow:0 0 0 1px #0008;opacity:.78;transition:.15s ease}
+.panel-resize-handle:hover span,.panel-resize-handle:focus-visible span{width:70px;background:#8ba781;opacity:1}
+.panel-window-actions{display:flex;align-items:center;gap:2px}
+.panel-maximized{max-height:none}
+body.panel-resizing{cursor:ns-resize!important;user-select:none!important}
+body.panel-resizing *{cursor:ns-resize!important}
+html[data-theme="light"] .panel-resize-handle span{background:#91a295;box-shadow:0 0 0 1px #fff}
+html[data-theme="light"] .panel-resize-handle:hover span{background:#4f7750}
+
+.status-build-button:hover{color:#fff!important;background:#ffffff24!important;border-color:#ffffff54!important;text-decoration:none!important;opacity:1}
+.status-build-button:focus-visible{outline-color:#fff!important;background:#ffffff1c!important;color:#fff!important}
+
+.action-toast{min-height:48px;max-width:min(460px,calc(100vw - 28px));padding:11px 14px;gap:11px;border-radius:9px;font:11.5px/1.5 var(--code-font);letter-spacing:.005em}
+.action-toast>span:last-child{min-width:0}
+.action-toast-icon{width:26px;height:26px;flex:0 0 26px;display:grid;place-items:center;border-radius:7px;background:#ffffff08}
+.action-toast.success{border-color:#4f754e;background:#111a12f5;color:#d8e6d8}
+.action-toast.success .action-toast-icon{color:#9dd48a;background:#79aa6815}
+.action-toast.info{border-color:#445e70;background:#101820f5;color:#d5e1e8}
+.action-toast.info .action-toast-icon{color:#8fc4e0;background:#6aa6c51a}
+.action-toast.warning{border-color:#756137;background:#1b170df5;color:#eee1bf}
+.action-toast.warning .action-toast-icon{color:#e1bd68;background:#d7a93618}
+.action-toast.error{border-color:#7b4141;background:#1d1010f7;color:#f0d2d2}
+.action-toast.error .action-toast-icon{color:#ed8f8f;background:#d9656518}
+html[data-theme="light"] .action-toast.success{background:#f3faf1f7;border-color:#9bb894;color:#2e4930}
+html[data-theme="light"] .action-toast.info{background:#f2f8fbf7;border-color:#a5bdca;color:#2f4b5b}
+html[data-theme="light"] .action-toast.warning{background:#fff8e8f7;border-color:#d4bb7d;color:#6d5721}
+html[data-theme="light"] .action-toast.error{background:#fff3f3f8;border-color:#d2a0a0;color:#713b3b}
+
+@media(max-width:720px){
+  .action-toast{right:10px;left:10px;bottom:40px;max-width:none;font-size:11px}
+  .panel-resize-handle span{width:44px}
+}

@@ -1,4 +1,4 @@
-# Production deployment — osameh.dev v2.1.0
+# Production deployment — osameh.dev v2.2.0
 
 Target: ParsPack shared Linux hosting + ParsPack CDN + PHP 8+.
 
@@ -252,3 +252,15 @@ Keep the previous `public_html` archive before deployment. If a production issue
 3. verify the previous `/build-info.json`
 
 The external `private/osameh-portfolio-secrets.php` does not need to change during rollback.
+
+
+## 9. Interaction smoke tests
+
+After deployment also verify:
+
+- Command Palette keyboard navigation scrolls the selected item into view.
+- The bottom IDE panel can be resized vertically and maximized/restored.
+- Opening the terminal still autofocuses the command input.
+- Build-version hover remains legible in both themes.
+- Contact success/failure and other user-facing operational messages appear as typed toasts.
+- Changing the code language updates the Contact filename extension.

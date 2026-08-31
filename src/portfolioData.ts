@@ -73,6 +73,7 @@ export const nowItems = [
 ];
 
 export const changelog = [
+  { version: "2.2.0", title: "Interaction & polish", items: ["Command Palette selection now scrolls into view", "Resizable and maximizable IDE terminal panel", "Unified success, info, warning, and error toasts", "Contact filename follows the selected programming language", "Repository gallery discovers authored images across the full repository", "Status-bar build hover contrast refined"] },
   { version: "2.1.0", title: "Readability & contact polish", items: ["Improved typography and contrast across both themes", "Fixed contact form bootstrap with resilient same-origin CSRF handling", "Refined header wrapping and resume PDF actions", "Added ongoing freelance experience from 2017 to present"] },
   { version: "2.0.1", title: "Build UX & compile fixes", items: ["Build information now opens in an in-app modal", "Terminal build opens the modal while version remains text-only", "Fixed React event-handler typing and GitHub activity icon compatibility"] },
   { version: "2.0.0", title: "Portfolio OS", items: ["Case studies, project filtering and compare", "Resume viewer, PWA/offline support and contact form", "GitHub activity, system diagnostics and privacy-friendly analytics", "Advanced terminal, keyboard navigation and share tooling", "Dynamic project social metadata"] },

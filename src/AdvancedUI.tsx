@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Activity, ArrowUpRight, Check, Code2, Download, ExternalLink, FileText, GitBranch, HardDrive, Keyboard, Laptop, LoaderCircle, Mail, MonitorCheck, PackageCheck, RefreshCw, Send, Share2, ShieldCheck, Sparkles, Terminal, Wifi, WifiOff, X } from "lucide-react";
 import { BUILD_ID, BUILD_TIME, BUILD_VERSION } from "./generated/build";
+import { notify } from "./toast";
 import { caseStudyFor, changelog, nowItems, resumeSummary, type RepoLike } from "./portfolioData";
 
 export function trackEvent(event: string, label = "") {
@@ -36,12 +37,16 @@ export function GithubActivity() {
     fetch("/api/github/activity", { headers: { Accept: "application/json" } })
       .then(response => { if (!response.ok) throw new Error("activity"); return response.json(); })
       .then(data => { if (live) { setItems(Array.isArray(data) ? data.slice(0, 8) : []); setState("ready"); } })
-      .catch(() => { if (live) setState("error"); });
+      .catch(() => {
+        if (!live) return;
+        setState("error");
+        notify("GitHub activity is temporarily unavailable. Project data will keep using the cached fallback.", "warning", 4200);
+      });
     return () => { live = false; };
   }, []);
   return <section id="activity" className="activity-feed section-pad">
     <div className="section-heading"><span>04</span><div><p>GITHUB.ACTIVITY</p><h2>Recent public activity.</h2></div><a href="https://github.com/osameh15" target="_blank" rel="noreferrer" className="section-link">Open GitHub <ArrowUpRight size={15} /></a></div>
-    {state === "loading" ? <div className="repo-status"><LoaderCircle className="spin" size={18} /> Reading public activity…</div> : state === "error" ? <div className="repo-status error"><GitBranch size={18} /> Activity is unavailable right now; projects still use cached data.</div> : <div className="activity-timeline">
+    {state === "loading" ? <div className="repo-status"><LoaderCircle className="spin" size={18} /> Reading public activity…</div> : state === "error" ? <div className="muted-card"><GitBranch size={18} /> Recent activity is temporarily unavailable.</div> : <div className="activity-timeline">
       {items.length ? items.map(item => <a key={item.id} href={item.url} target="_blank" rel="noreferrer"><span className="activity-node"><GitBranch size={14} /></span><div><b>{item.repo}</b><p>{item.message}</p><small>{new Date(item.created_at).toLocaleString("en", { month: "short", day: "numeric", year: "numeric" })}</small></div><ExternalLink size={14} /></a>) : <p className="muted-card">No recent public events returned by GitHub.</p>}
     </div>}
   </section>;
@@ -111,6 +116,7 @@ export function BuildInfoModal() {
       window.setTimeout(() => setCopied(false), 1400);
     } catch {
       setCopied(false);
+      notify("Clipboard permission was blocked by the browser.", "error");
     }
   };
 
@@ -154,8 +160,16 @@ export function SystemDiagnostics() {
   useEffect(() => {
     if (!open) return;
     setApi("checking");
-    fetch("/api/github/repos", { headers: { Accept: "application/json" } }).then(r => setApi(r.ok ? "online" : "offline")).catch(() => setApi("offline"));
-    if ("serviceWorker" in navigator) navigator.serviceWorker.getRegistration().then(reg => setSw(reg?.active ? "Active" : reg ? "Installing" : "Not registered"));
+    fetch("/api/github/repos", { headers: { Accept: "application/json" } })
+      .then(r => {
+        const next = r.ok ? "online" : "offline";
+        setApi(next);
+        if (next === "offline") notify("GitHub API diagnostics reported an unavailable endpoint.", "warning", 4200);
+      })
+      .catch(() => { setApi("offline"); notify("GitHub API diagnostics could not complete.", "warning", 4200); });
+    if ("serviceWorker" in navigator) navigator.serviceWorker.getRegistration()
+      .then(reg => setSw(reg?.active ? "Active" : reg ? "Installing" : "Not registered"))
+      .catch(() => { setSw("Unavailable"); notify("Service Worker status could not be read.", "info"); });
   }, [open]);
   if (!open) return null;
   const browser = `${navigator.userAgent.includes("Firefox") ? "Firefox" : navigator.userAgent.includes("Edg/") ? "Edge" : navigator.userAgent.includes("Chrome") ? "Chromium" : navigator.userAgent.includes("Safari") ? "Safari" : "Browser"}`;
@@ -186,13 +200,31 @@ export function PwaInstallControl() {
   const [installed, setInstalled] = useState(false);
   useEffect(() => {
     const before = (event: Event) => { event.preventDefault(); setPrompt(event); };
-    const appInstalled = () => { setInstalled(true); setPrompt(null); trackEvent("pwa_installed"); };
-    const install = async () => {
-      if (!prompt) return;
-      await prompt.prompt();
-      const choice = await prompt.userChoice;
-      if (choice?.outcome === "accepted") trackEvent("pwa_install_accept");
+    const appInstalled = () => {
+      setInstalled(true);
       setPrompt(null);
+      trackEvent("pwa_installed");
+      notify("Portfolio app installed successfully.", "success");
+    };
+    const install = async () => {
+      if (!prompt) {
+        notify("Install is not available in this browser right now. You can still add the site from your browser menu.", "info", 4200);
+        return;
+      }
+      try {
+        await prompt.prompt();
+        const choice = await prompt.userChoice;
+        if (choice?.outcome === "accepted") {
+          trackEvent("pwa_install_accept");
+          notify("Install accepted. The app will be available from your device launcher.", "success");
+        } else {
+          notify("Install dismissed.", "info");
+        }
+      } catch {
+        notify("The browser could not open the install prompt.", "error");
+      } finally {
+        setPrompt(null);
+      }
     };
     window.addEventListener("beforeinstallprompt", before as EventListener);
     window.addEventListener("appinstalled", appInstalled);
@@ -203,10 +235,9 @@ export function PwaInstallControl() {
   return <button className="pwa-install" onClick={() => window.dispatchEvent(new Event("portfolio:install"))}><Download size={14} /> Install app</button>;
 }
 
-export function ContactForm() {
+export function ContactForm({ fileName = "send-message.ts" }: { fileName?: string }) {
   const [csrf, setCsrf] = useState("");
   const [state, setState] = useState<"idle" | "sending" | "success" | "error">("idle");
-  const [message, setMessage] = useState("");
   const [securityState, setSecurityState] = useState<"loading" | "ready" | "fallback">("loading");
 
   const loadCsrf = async () => {
@@ -233,16 +264,23 @@ export function ContactForm() {
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (state === "sending") return;
-    setState("sending");
-    setMessage("");
     const formElement = event.currentTarget;
     const form = new FormData(formElement);
+    const name = String(form.get("name") || "").trim();
+    const email = String(form.get("email") || "").trim();
+    const subject = String(form.get("subject") || "").trim();
+    const bodyMessage = String(form.get("message") || "").trim();
+    if (name.length < 2) { notify("Please enter your name.", "error"); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { notify("Please enter a valid email address.", "error"); return; }
+    if (subject.length < 3) { notify("Please enter a subject with at least 3 characters.", "error"); return; }
+    if (bodyMessage.length < 20) { notify("Please write a message with at least 20 characters.", "error"); return; }
+    setState("sending");
     const token = csrf || await loadCsrf();
     const payload = {
-      name: String(form.get("name") || ""),
-      email: String(form.get("email") || ""),
-      subject: String(form.get("subject") || ""),
-      message: String(form.get("message") || ""),
+      name,
+      email,
+      subject,
+      message: bodyMessage,
       website: String(form.get("website") || ""),
       csrf: token,
     };
@@ -270,12 +308,12 @@ export function ContactForm() {
       if (result.data.csrf) { setCsrf(String(result.data.csrf)); setSecurityState("ready"); }
       if (!result.response.ok || !result.data.success) throw new Error(result.data.message || "Message could not be sent.");
       setState("success");
-      setMessage("Message sent. I’ll get back to you as soon as I can.");
+      notify("Message sent successfully. I’ll get back to you as soon as I can.", "success", 4200);
       formElement.reset();
       trackEvent("contact_submit", payload.subject || "general");
     } catch (error) {
       setState("error");
-      setMessage(error instanceof Error ? error.message : "Message could not be sent.");
+      notify(error instanceof Error ? error.message : "Message could not be sent.", "error", 4800);
     }
   };
 
@@ -285,13 +323,13 @@ export function ContactForm() {
       ? "preparing secure channel…"
       : "same-origin · origin checked · honeypot · rate limited";
 
-  return <form className="contact-form" onSubmit={submit}>
-    <div className="contact-form-head"><div><Mail size={17} /><span>send-message.ts</span></div><small>{securityLabel}</small></div>
+  return <form className="contact-form" onSubmit={submit} noValidate>
+    <div className="contact-form-head"><div><Mail size={17} /><span>{fileName}</span></div><small>{securityLabel}</small></div>
     <div className="contact-form-grid"><label>Name<input name="name" required minLength={2} maxLength={80} autoComplete="name" /></label><label>Email<input name="email" type="email" required maxLength={160} autoComplete="email" /></label></div>
     <label>Subject<input name="subject" required minLength={3} maxLength={120} /></label>
     <label>Message<textarea name="message" required minLength={20} maxLength={5000} rows={6} /></label>
     <label className="honeypot" aria-hidden="true">Website<input name="website" tabIndex={-1} autoComplete="off" /></label>
-    <div className="contact-form-actions"><button type="submit" className="primary-btn" disabled={state === "sending"}>{state === "sending" ? <><LoaderCircle className="spin" size={16} /> Sending…</> : <><Send size={16} /> Send message</>}</button>{message && <p className={state === "success" ? "form-message success" : "form-message error"}>{state === "success" && <Check size={14} />}{message}</p>}</div>
+    <div className="contact-form-actions"><button type="submit" className="primary-btn" disabled={state === "sending"}>{state === "sending" ? <><LoaderCircle className="spin" size={16} /> Sending…</> : <><Send size={16} /> Send message</>}</button></div>
   </form>;
 }
 
@@ -303,6 +341,23 @@ export function ProjectCompare({ repos, onClose }: { repos: RepoLike[]; onClose:
 export async function shareProject(repo: RepoLike) {
   const url = `${window.location.origin}/projects/${encodeURIComponent(repo.name)}`;
   const data = { title: `${repo.name} - Osameh Irandoust`, text: repo.description || `Explore ${repo.name} on osameh.dev`, url };
-  if (navigator.share) { try { await navigator.share(data); trackEvent("project_share", repo.name); return true; } catch { return false; } }
-  try { await navigator.clipboard.writeText(url); trackEvent("project_share_copy", repo.name); return true; } catch { return false; }
+  if (navigator.share) {
+    try {
+      await navigator.share(data);
+      trackEvent("project_share", repo.name);
+      notify(`${repo.name} shared successfully.`, "success");
+      return true;
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return false;
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(url);
+    trackEvent("project_share_copy", repo.name);
+    notify("Project link copied to clipboard.", "success");
+    return true;
+  } catch {
+    notify("This browser blocked the share and clipboard actions.", "error");
+    return false;
+  }
 }

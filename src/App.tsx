@@ -1,15 +1,16 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
 import {
-  ArrowUpRight, Braces, BriefcaseBusiness as Linkedin, Camera as Instagram,
+  AlertTriangle, ArrowUpRight, Braces, BriefcaseBusiness as Linkedin, Camera as Instagram,
   Check, ChevronDown, ChevronLeft, ChevronRight, Circle, Code2, Command, Copy, Download, ExternalLink, FileCode2,
   FolderOpen, GitBranch as Github, GitFork as Gitlab, Home as HomeIcon, Link2, Mail, MapPin, Menu,
-  CornerDownLeft, ListTree, LoaderCircle, MessageCircle, PanelBottom, RefreshCw,
+  CornerDownLeft, Info, ListTree, LoaderCircle, Maximize2, MessageCircle, Minimize2, PanelBottom, RefreshCw,
   Image as ImageIcon, LayoutGrid, Monitor, Moon, Package, Search, Send, ServerCog, Star, Sun, Terminal, Type, X, Zap,
 } from "lucide-react";
 import { BUILD_DISPLAY, BUILD_ID, BUILD_TIME, BUILD_VERSION } from "./generated/build";
 import { BuildInfoModal, ChangelogSection, ContactForm, GithubActivity, NowSection, ProjectCaseStudy, ProjectCompare, PwaInstallControl, ResumeViewer, ShortcutGuide, SystemDiagnostics, shareProject, trackEvent } from "./AdvancedUI";
+import type { ToastKind, ToastPayload } from "./toast";
 
 type ThemePreference = "dark" | "light" | "system";
 type FontPreference = "inter" | "mono" | "humanist" | "serif";
@@ -23,6 +24,16 @@ const codeProfiles: Record<CodeLanguage, { label: string; file: string; projects
   go: { label: "Go", file: "main.go", projects: "projects.go", stack: "stack.go", open: "engineer := Engineer{", close: "}", comment: "// based in Tehran, working globally" },
   python: { label: "Python", file: "portfolio.py", projects: "projects.py", stack: "stack.py", open: "engineer = {", close: "}", comment: "# based in Tehran, working globally" },
   php: { label: "PHP", file: "index.php", projects: "projects.php", stack: "stack.php", open: "$engineer = [", close: "];", comment: "// based in Tehran, working globally" },
+};
+
+const contactFiles: Record<CodeLanguage, string> = {
+  typescript: "send-message.ts",
+  cpp: "send_message.cpp",
+  csharp: "SendMessage.cs",
+  java: "SendMessage.java",
+  go: "send_message.go",
+  python: "send_message.py",
+  php: "send-message.php",
 };
 
 const fontOptions: { id: FontPreference; label: string; sample: string }[] = [
@@ -298,6 +309,8 @@ function skillSource(language: CodeLanguage) {
   return ["const osamehStack = {", ...values.map(({ group, items }) => `  ${group.toLowerCase().replace(/[^a-z]+/g, "_")}: [${items.map(item => `\"${item}\"`).join(", ")}],`), "};" ];
 }
 
+type ToastState = { message: string; kind: ToastKind } | null;
+
 function BrandMark() {
   return <div className="brand-mark" aria-label="Osameh Irandoust"><span>OI</span><i /></div>;
 }
@@ -312,7 +325,7 @@ export default function Home() {
   const [copied, setCopied] = useState(false);
   const [repos, setRepos] = useState<GithubRepo[]>(fallbackRepos);
   const [visibleRepos, setVisibleRepos] = useState(6);
-  const [repoState, setRepoState] = useState<"loading" | "ready" | "error">("loading");
+  const [repoState, setRepoState] = useState<"loading" | "ready">("loading");
   const [activeRepo, setActiveRepo] = useState<GithubRepo | null>(null);
   const [openedRepos, setOpenedRepos] = useState<GithubRepo[]>([]);
   const [readmeHtml, setReadmeHtml] = useState<Record<string, string>>({});
@@ -335,7 +348,9 @@ export default function Home() {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [commandQuery, setCommandQuery] = useState("");
   const [commandIndex, setCommandIndex] = useState(0);
-  const [actionToast, setActionToast] = useState("");
+  const [actionToast, setActionToast] = useState<ToastState>(null);
+  const [panelHeight, setPanelHeight] = useState(290);
+  const [panelMaximized, setPanelMaximized] = useState(false);
   const [projectQuery, setProjectQuery] = useState("");
   const [projectTech, setProjectTech] = useState("all");
   const [projectSort, setProjectSort] = useState<"recent" | "stars" | "name">("recent");
@@ -352,25 +367,27 @@ export default function Home() {
   const terminalInputRef = useRef<HTMLInputElement>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const commandPaletteInputRef = useRef<HTMLInputElement>(null);
+  const commandPaletteListRef = useRef<HTMLDivElement>(null);
   const projectSearchRef = useRef<HTMLInputElement>(null);
+  const panelResizeRef = useRef<{ startY: number; startHeight: number } | null>(null);
   const keyboardChordRef = useRef<{ key: string; at: number } | null>(null);
   const actionToastTimerRef = useRef<number | null>(null);
   const code = codeProfiles[codeLanguage];
   const skillLines = skillSource(codeLanguage);
 
-  const showActionToast = (message: string) => {
-    setActionToast(message);
+  const showActionToast = (message: string, kind: ToastKind = "info", duration = 3200) => {
+    setActionToast({ message, kind });
     if (actionToastTimerRef.current !== null) window.clearTimeout(actionToastTimerRef.current);
-    actionToastTimerRef.current = window.setTimeout(() => setActionToast(""), 1800);
+    actionToastTimerRef.current = window.setTimeout(() => setActionToast(null), duration);
   };
 
   const copyText = async (value: string, message = "Copied to clipboard") => {
     try {
       await navigator.clipboard.writeText(value);
-      showActionToast(message);
+      showActionToast(message, "success");
       return true;
     } catch {
-      showActionToast("Clipboard permission was blocked");
+      showActionToast("Clipboard permission was blocked by the browser.", "error", 4200);
       return false;
     }
   };
@@ -385,6 +402,34 @@ export default function Home() {
       input.focus({ preventScroll: true });
       input.setSelectionRange(input.value.length, input.value.length);
     });
+  };
+
+  const togglePanelMaximized = () => {
+    setPanelMaximized(value => !value);
+    window.requestAnimationFrame(() => terminalInputRef.current?.focus({ preventScroll: true }));
+  };
+
+  const beginPanelResize = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const renderedHeight = event.currentTarget.parentElement?.getBoundingClientRect().height || panelHeight;
+    if (panelMaximized) setPanelMaximized(false);
+    panelResizeRef.current = { startY: event.clientY, startHeight: renderedHeight };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    document.body.classList.add("panel-resizing");
+  };
+
+  const resizePanel = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const state = panelResizeRef.current;
+    if (!state) return;
+    const maxHeight = Math.max(260, window.innerHeight - 86);
+    setPanelHeight(Math.max(190, Math.min(maxHeight, state.startHeight + state.startY - event.clientY)));
+  };
+
+  const endPanelResize = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!panelResizeRef.current) return;
+    panelResizeRef.current = null;
+    try { event.currentTarget.releasePointerCapture(event.pointerId); } catch { /* pointer capture may already be released */ }
+    document.body.classList.remove("panel-resizing");
+    window.requestAnimationFrame(() => terminalInputRef.current?.focus({ preventScroll: true }));
   };
 
   const toggleThemeMode = () => {
@@ -454,6 +499,16 @@ export default function Home() {
   }, [codeLanguage]);
 
   useEffect(() => {
+    const onToast = (event: Event) => {
+      const detail = (event as CustomEvent<ToastPayload>).detail;
+      if (!detail?.message) return;
+      showActionToast(detail.message, detail.kind || "info", detail.duration || 3200);
+    };
+    window.addEventListener("portfolio:toast", onToast);
+    return () => window.removeEventListener("portfolio:toast", onToast);
+  }, []);
+
+  useEffect(() => {
     if (!panelOpen || panelTab !== "terminal") return;
     const frame = window.requestAnimationFrame(() => {
       terminalInputRef.current?.focus({ preventScroll: true });
@@ -474,7 +529,19 @@ export default function Home() {
   useEffect(() => { setCommandIndex(0); }, [commandQuery]);
 
   useEffect(() => {
-    const sync = () => setOffline(!navigator.onLine);
+    if (!commandPaletteOpen) return;
+    const frame = window.requestAnimationFrame(() => {
+      commandPaletteListRef.current?.querySelector<HTMLElement>("[aria-selected='true']")?.scrollIntoView({ block: "nearest" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [commandIndex, commandQuery, commandPaletteOpen]);
+
+  useEffect(() => {
+    const sync = () => {
+      const nextOffline = !navigator.onLine;
+      setOffline(nextOffline);
+      showActionToast(nextOffline ? "You are offline. Cached portfolio content remains available." : "Connection restored.", nextOffline ? "warning" : "success", 3800);
+    };
     window.addEventListener("online", sync);
     window.addEventListener("offline", sync);
     return () => { window.removeEventListener("online", sync); window.removeEventListener("offline", sync); };
@@ -807,6 +874,7 @@ export default function Home() {
       .catch(() => {
         setRepos(fallbackRepos);
         setRepoState("ready");
+        showActionToast("GitHub is temporarily unavailable. Showing the embedded project fallback.", "warning", 4600);
       });
   }, []);
 
@@ -1036,8 +1104,11 @@ export default function Home() {
     if (command.startsWith("share ")) {
       const name = raw.slice(6).trim().toLowerCase();
       const repo = repos.find(item => item.name.toLowerCase() === name);
-      if (repo) { void shareProject(repo).then(ok => showActionToast(ok ? "Project shared" : "Share cancelled")); setTerminalLines(lines => [...lines, "› " + raw, `sharing ${repo.name}…`]); }
-      else setTerminalLines(lines => [...lines, "› " + raw, `share: project “${name}” not found`]);
+      if (repo) { void shareProject(repo); setTerminalLines(lines => [...lines, "› " + raw, `sharing ${repo.name}…`]); }
+      else {
+        setTerminalLines(lines => [...lines, "› " + raw, `share: project “${name}” not found`]);
+        showActionToast(`Project “${name}” was not found.`, "error", 4200);
+      }
       setSearchResults([]); return;
     }
     if (command === "whoami") {
@@ -1091,6 +1162,7 @@ export default function Home() {
       } else {
         setTerminalLines(lines => [...lines, "› " + raw, `cat: ${name || "<repo>"}: project not found`, "Run `projects` to view available repositories."]);
         setSearchResults([]);
+        showActionToast(`Project “${name || "<repo>"}” was not found.`, "error", 4200);
       }
       return;
     }
@@ -1108,6 +1180,7 @@ export default function Home() {
       } else {
         setTerminalLines(lines => [...lines, "› " + raw, `open: unknown destination “${service}”`, "Try github, gitlab, linkedin, telegram, instagram, whatsapp, mail, or business."]);
         setSearchResults([]);
+        showActionToast(`Unknown destination “${service}”.`, "warning", 4000);
       }
       return;
     }
@@ -1128,6 +1201,7 @@ export default function Home() {
       } else {
         setTerminalLines(lines => [...lines, "› " + raw, "Command not found: " + raw, "Try /help or /projects."]);
         setSearchResults([]);
+        showActionToast(`Command not found: ${raw}`, "error", 4000);
       }
       return;
     }
@@ -1136,6 +1210,7 @@ export default function Home() {
     const matches = candidates.filter(item => item.label.toLowerCase().includes(query) || item.path.toLowerCase().includes(query));
     setTerminalLines(lines => [...lines, "› " + raw, matches.length ? "Found " + matches.length + " result" + (matches.length === 1 ? "." : "s.") : "No matches for “" + query + "”."]);
     setSearchResults(matches.slice(0, 8));
+    if (!matches.length) showActionToast(`No matches for “${query}”.`, "info");
   };
 
   const paletteCommands: PaletteCommand[] = [
@@ -1317,14 +1392,14 @@ export default function Home() {
             <section className="project-gallery" aria-labelledby={`gallery-${activeRepo.id}`}>
               <div className="project-gallery-heading">
                 <div><p className="eyebrow">PROJECT / GALLERY</p><h2 id={`gallery-${activeRepo.id}`}>Project visuals.</h2></div>
-                <span>{repoGalleries[activeRepo.name]?.length ? `${repoGalleries[activeRepo.name].length} images discovered in README, images/ or docs/` : "Images are discovered from the repository automatically."}</span>
+                <span>{repoGalleries[activeRepo.name]?.length ? `${repoGalleries[activeRepo.name].length} repository images discovered automatically` : "Images are discovered across the repository automatically."}</span>
               </div>
               {loadingGalleries.includes(activeRepo.name) ? <div className="gallery-loading"><LoaderCircle className="spin" size={19} /> Discovering project images…</div> : repoGalleries[activeRepo.name]?.length ? <div className="project-gallery-grid">
                 {repoGalleries[activeRepo.name].map((image, index) => <button type="button" className="project-gallery-item" key={`${image.url}-${index}`} data-project-name={activeRepo.name} data-image-url={image.url} data-image-index={index} onClick={() => setGalleryLightbox({ repo: activeRepo.name, index })} aria-label={`Open ${image.name || image.path} in gallery`}>
                   <img src={image.url} alt={image.name || `${activeRepo.name} project image ${index + 1}`} loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={event => { event.currentTarget.closest("button")?.setAttribute("hidden", ""); }} />
                   <span><ImageIcon size={13} />{image.path}</span>
                 </button>)}
-              </div> : <div className="gallery-empty"><ImageIcon size={22} /><span>No project images were found in README, images/, docs/, screenshots/ or media/.</span></div>}
+              </div> : <div className="gallery-empty"><ImageIcon size={22} /><span>No project images were found in the repository or README.</span></div>}
             </section>
           </section> : <>
           <section id="home" className="hero section-pad">
@@ -1379,7 +1454,6 @@ export default function Home() {
             </div>
             <div className="stack-explorer" aria-label="Technology explorer"><span>Explore by stack</span>{["C#", "Vue", "TypeScript", "PHP", "Java", "Kotlin", "Nuxt", "Android"].map(tech => <button key={tech} className={projectTech.toLowerCase() === tech.toLowerCase() ? "active" : ""} onClick={() => exploreTech(tech)}>{tech}</button>)}</div>
             {repoState === "loading" && <div className="repo-status"><LoaderCircle className="spin" size={20} /> Fetching projects from GitHub…</div>}
-            {repoState === "error" && <div className="repo-status error"><Code2 size={20} /> GitHub is taking a break. Visit my profile to browse the repositories.</div>}
             {repoState === "ready" && <>
               <div className="project-grid">{filteredRepos.slice(0, visibleRepos).map((project, index) => (
                 <article role="button" tabIndex={0} onClick={() => openProject(project)} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openProject(project); } }} className={'project-card tone-' + (index % 3)} key={project.id} data-project-name={project.name} aria-label={'Open ' + project.name + ' project details'}>
@@ -1422,7 +1496,7 @@ export default function Home() {
             <h2>Have a difficult problem?<br /><em>Let’s make it simple.</em></h2>
             <p>Open to thoughtful engineering roles, ambitious products, and conversations about how software should work.</p>
             <a href="mailto:osirandoust@gmail.com" className="primary-btn">Start a conversation <Mail size={17} /></a>
-            <ContactForm />
+            <ContactForm fileName={contactFiles[codeLanguage]} />
             <div className="email-options" aria-label="Email contacts">
               <a href="mailto:osirandoust@gmail.com"><span>Personal</span>osirandoust@gmail.com</a>
               <a href="mailto:support@osameh.dev"><span>Business &amp; formal</span>support@osameh.dev</a>
@@ -1490,13 +1564,16 @@ export default function Home() {
               if (event.key === "ArrowUp") { event.preventDefault(); if (filteredPaletteCommands.length) setCommandIndex(index => (Math.min(index, filteredPaletteCommands.length - 1) - 1 + filteredPaletteCommands.length) % filteredPaletteCommands.length); return; }
               if (event.key === "Enter" && filteredPaletteCommands[safeCommandIndex]) { event.preventDefault(); runPaletteCommand(filteredPaletteCommands[safeCommandIndex]); }
             }} placeholder="Type a command or search…" aria-label="Search commands" autoComplete="off" /><kbd>ESC</kbd></div>
-            <div className="command-palette-list" role="listbox" aria-label="Available commands">
+            <div ref={commandPaletteListRef} className="command-palette-list" role="listbox" aria-label="Available commands">
               {filteredPaletteCommands.length ? filteredPaletteCommands.map((item, index) => <button key={item.id} className={index === safeCommandIndex ? "active" : ""} role="option" aria-selected={index === safeCommandIndex} onMouseEnter={() => setCommandIndex(index)} onClick={() => runPaletteCommand(item)}><span className="command-palette-icon">{paletteIcon(item.icon)}</span><span><b>{item.label}</b><small>{item.hint}</small></span><CornerDownLeft size={13} /></button>) : <div className="command-palette-empty"><Search size={18} /><span>No command matches “{commandQuery}”.</span></div>}
             </div>
             <div className="command-palette-foot"><span><kbd>↑</kbd><kbd>↓</kbd> navigate</span><span><kbd>↵</kbd> run</span><span><kbd>esc</kbd> close</span><code>{BUILD_VERSION}</code></div>
           </section>
         </div>}
-        {actionToast && <div className="action-toast" role="status" aria-live="polite"><Check size={14} />{actionToast}</div>}
+        {actionToast && <div className={`action-toast ${actionToast.kind}`} role={actionToast.kind === "error" ? "alert" : "status"} aria-live={actionToast.kind === "error" ? "assertive" : "polite"}>
+          <span className="action-toast-icon">{actionToast.kind === "success" ? <Check size={18} /> : actionToast.kind === "warning" || actionToast.kind === "error" ? <AlertTriangle size={18} /> : <Info size={18} />}</span>
+          <span>{actionToast.message}</span>
+        </div>}
         {compareRepos.length > 0 && <div className="compare-bar"><span><Code2 size={14} /> Compare queue</span><div>{compareRepos.map(repo => <button key={repo.id} onClick={() => toggleCompareRepo(repo)}>{repo.name} <X size={12} /></button>)}</div><button className="compare-run" disabled={compareRepos.length !== 2} onClick={() => { if (compareRepos.length === 2) { setCompareModalOpen(true); trackEvent("project_compare", compareRepos.map(repo => repo.name).join(" vs ")); } }}>{compareRepos.length === 2 ? "Compare 2 projects" : "Select one more"}</button></div>}
         <ResumeViewer />
         <BuildInfoModal />
@@ -1518,13 +1595,17 @@ export default function Home() {
             {gallery.length > 1 && <button type="button" className="gallery-lightbox-nav next" onClick={event => { event.stopPropagation(); move(1); }} aria-label="Next image"><ChevronRight size={24} /></button>}
           </div>;
         })()}
-        {panelOpen && <section className="bottom-panel" aria-label="IDE bottom panel">
+        {panelOpen && <section className={panelMaximized ? "bottom-panel panel-maximized" : "bottom-panel"} style={{ height: panelMaximized ? "calc(100vh - 72px)" : `${panelHeight}px` }} aria-label="IDE bottom panel">
+          <div className="panel-resize-handle" role="separator" aria-label="Resize terminal panel" aria-orientation="horizontal" onDoubleClick={togglePanelMaximized} onPointerDown={beginPanelResize} onPointerMove={resizePanel} onPointerUp={endPanelResize} onPointerCancel={endPanelResize}><span /></div>
           <div className="panel-head">
             <div className="panel-tabs">
               <button className={panelTab === "outline" ? "active" : ""} onClick={() => setPanelTab("outline")}><ListTree size={13} /> OUTLINE</button>
               <button className={panelTab === "terminal" ? "active" : ""} onClick={() => setPanelTab("terminal")}><Terminal size={13} /> TERMINAL</button>
             </div>
-            <button className="panel-close" onClick={() => setPanelOpen(false)} aria-label="Close panel"><X size={15} /></button>
+            <div className="panel-window-actions">
+              <button className="panel-close" onClick={togglePanelMaximized} aria-label={panelMaximized ? "Restore panel size" : "Maximize panel"} title={panelMaximized ? "Restore panel size" : "Maximize panel"}>{panelMaximized ? <Minimize2 size={14} /> : <Maximize2 size={14} />}</button>
+              <button className="panel-close" onClick={() => setPanelOpen(false)} aria-label="Close panel"><X size={15} /></button>
+            </div>
           </div>
           {panelTab === "outline" ? <div className="outline-panel">
             <div className="outline-tree">
