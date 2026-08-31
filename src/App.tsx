@@ -1,0 +1,1006 @@
+"use client";
+
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import {
+  ArrowUpRight, Braces, BriefcaseBusiness as Linkedin, Camera as Instagram,
+  Check, ChevronDown, ChevronLeft, ChevronRight, Circle, Code2, FileCode2,
+  GitBranch as Github, GitFork as Gitlab, Mail, MapPin, Menu,
+  CornerDownLeft, ListTree, LoaderCircle, MessageCircle, PanelBottom,
+  Image as ImageIcon, LayoutGrid, Monitor, Moon, Package, Search, Send, ServerCog, Star, Sun, Terminal, Type, X, Zap,
+} from "lucide-react";
+import { BUILD_DISPLAY, BUILD_ID, BUILD_TIME, BUILD_VERSION } from "./generated/build";
+
+type ThemePreference = "dark" | "light" | "system";
+type FontPreference = "inter" | "mono" | "humanist" | "serif";
+type CodeLanguage = "typescript" | "cpp" | "csharp" | "java" | "go" | "python" | "php";
+
+const codeProfiles: Record<CodeLanguage, { label: string; file: string; projects: string; stack: string; open: string; close: string; comment: string }> = {
+  typescript: { label: "TypeScript", file: "home.tsx", projects: "projects.ts", stack: "stack.ts", open: "const engineer = {", close: "};", comment: "// based in Tehran, working globally" },
+  cpp: { label: "C++", file: "main.cpp", projects: "projects.cpp", stack: "stack.cpp", open: "auto engineer = Engineer{", close: "};", comment: "// based in Tehran, working globally" },
+  csharp: { label: "C#", file: "Portfolio.cs", projects: "Projects.cs", stack: "Stack.cs", open: "var engineer = new Engineer {", close: "};", comment: "// based in Tehran, working globally" },
+  java: { label: "Java", file: "Portfolio.java", projects: "Projects.java", stack: "Stack.java", open: "Engineer engineer = new Engineer() {{", close: "}};", comment: "// based in Tehran, working globally" },
+  go: { label: "Go", file: "main.go", projects: "projects.go", stack: "stack.go", open: "engineer := Engineer{", close: "}", comment: "// based in Tehran, working globally" },
+  python: { label: "Python", file: "portfolio.py", projects: "projects.py", stack: "stack.py", open: "engineer = {", close: "}", comment: "# based in Tehran, working globally" },
+  php: { label: "PHP", file: "index.php", projects: "projects.php", stack: "stack.php", open: "$engineer = [", close: "];", comment: "// based in Tehran, working globally" },
+};
+
+const fontOptions: { id: FontPreference; label: string; sample: string }[] = [
+  { id: "inter", label: "Inter / System", sample: "Aa" },
+  { id: "mono", label: "Developer Mono", sample: "{}" },
+  { id: "humanist", label: "Humanist", sample: "Ag" },
+  { id: "serif", label: "Editorial Serif", sample: "Ss" },
+];
+
+type GithubRepo = {
+  id: number; name: string; description: string | null; language: string | null;
+  topics: string[]; stargazers_count: number; forks_count: number; archived: boolean;
+  updated_at: string; fork: boolean; default_branch: string;
+};
+
+const fallbackRepos: GithubRepo[] = [
+  { id: 101, name: "toast-notifications", description: "A beautiful, zero-dependency toast notification module for Nuxt 3 and 4.", language: "Vue", topics: ["nuxt", "vue", "typescript"], stargazers_count: 1, forks_count: 0, archived: false, updated_at: "2026-04-30T00:00:00Z", fork: false, default_branch: "main" },
+  { id: 102, name: "confirm-dialogs", description: "Promise-based confirmation dialogs for Nuxt 3 and 4 with accessible RTL support.", language: "Vue", topics: ["nuxt", "vue", "typescript"], stargazers_count: 2, forks_count: 0, archived: false, updated_at: "2026-04-30T00:00:00Z", fork: false, default_branch: "main" },
+  { id: 103, name: "input-dialog", description: "A clean input prompt module for fast user interactions in Nuxt applications.", language: "Vue", topics: ["nuxt", "vue", "typescript"], stargazers_count: 2, forks_count: 0, archived: false, updated_at: "2026-04-30T00:00:00Z", fork: false, default_branch: "main" },
+  { id: 107, name: "Form-Management", description: "A zero-dependency drag-and-drop form builder and renderer for Nuxt 3 and Nuxt 4.", language: "TypeScript", topics: ["nuxt", "vue", "typescript", "form-builder"], stargazers_count: 0, forks_count: 0, archived: false, updated_at: "2026-08-01T00:00:00Z", fork: false, default_branch: "main" },
+  { id: 104, name: "Mizekar", description: "A modern fullscreen Windows folder manager with full Persian language support.", language: "C#", topics: ["dotnet", "wpf", "windows"], stargazers_count: 2, forks_count: 0, archived: false, updated_at: "2026-04-30T00:00:00Z", fork: false, default_branch: "main" },
+  { id: 108, name: "YariZan", description: "A modern Persian launcher for educational mini-games for grades 1–6.", language: "C#", topics: ["dotnet", "education", "games"], stargazers_count: 0, forks_count: 0, archived: false, updated_at: "2026-07-01T00:00:00Z", fork: false, default_branch: "main" },
+  { id: 105, name: "Dialysis", description: "An Android application that helps dialysis patients with monitoring and reminders.", language: "Java", topics: ["android", "health"], stargazers_count: 2, forks_count: 0, archived: false, updated_at: "2026-04-30T00:00:00Z", fork: false, default_branch: "master" },
+  { id: 106, name: "ArappMain", description: "An Android rating and review application.", language: "Kotlin", topics: ["android", "kotlin"], stargazers_count: 2, forks_count: 1, archived: false, updated_at: "2026-04-30T00:00:00Z", fork: false, default_branch: "main" },
+  { id: 109, name: "ArappMainBack-End", description: "The backend and supporting web application for the Arapp platform.", language: "PHP", topics: ["php", "backend", "web"], stargazers_count: 0, forks_count: 0, archived: false, updated_at: "2026-03-01T00:00:00Z", fork: false, default_branch: "main" },
+  { id: 110, name: "ArappOfficialSite", description: "The official web experience for the Arapp project.", language: "PHP", topics: ["php", "web"], stargazers_count: 0, forks_count: 0, archived: false, updated_at: "2026-03-01T00:00:00Z", fork: false, default_branch: "master" },
+];
+
+const npmPackages: Record<string, string> = {
+  "toast-notifications": "nuxt-toast-notification",
+  "confirm-dialogs": "nuxt-confirm-dialog",
+  "input-dialog": "nuxt-input-dialog",
+  "Form-Management": "nuxt-form-management",
+};
+
+const npmUrl = (repoName: string) => npmPackages[repoName]
+  ? `https://www.npmjs.com/package/${npmPackages[repoName]}`
+  : "";
+
+type SearchResult = { label: string; path: string; kind: "section" | "project" };
+
+const sections: SearchResult[] = [
+  { label: "Home", path: "/home", kind: "section" },
+  { label: "About me", path: "/about", kind: "section" },
+  { label: "Projects", path: "/projects", kind: "section" },
+  { label: "Experience", path: "/experience", kind: "section" },
+  { label: "Contact", path: "/contact", kind: "section" },
+];
+
+const GITHUB_OWNER = "osameh15";
+
+function encodePathSegments(value: string) {
+  return value.split("/").filter(Boolean).map(segment => encodeURIComponent(segment)).join("/");
+}
+
+function normalizeReadmeAssetUrl(source: string, repo: GithubRepo) {
+  const value = source.replace(/&amp;/g, "&").trim();
+  if (!value) return "";
+  if (value.startsWith("data:image/")) return value;
+  if (value.startsWith("//")) return "https:" + value;
+
+  if (/^https:\/\//i.test(value)) {
+    // GitHub blob links are HTML pages, not image resources. Convert the common form to raw content.
+    const blob = value.match(/^https:\/\/github\.com\/([^/]+)\/([^/]+)\/blob\/([^/]+)\/(.+)$/i);
+    if (blob && blob[1].toLowerCase() === GITHUB_OWNER.toLowerCase() && blob[2].toLowerCase() === repo.name.toLowerCase()) {
+      return `https://raw.githubusercontent.com/${encodeURIComponent(blob[1])}/${encodeURIComponent(blob[2])}/${encodePathSegments(blob[3])}/${encodePathSegments(blob[4])}`;
+    }
+
+    // Repair legacy malformed raw.githubusercontent.com paths that omit owner/repo/branch.
+    try {
+      const absolute = new URL(value);
+      if (absolute.hostname.toLowerCase() === "raw.githubusercontent.com") {
+        const parts = absolute.pathname.split("/").filter(Boolean);
+        const alreadyCanonical = parts.length >= 4 && parts[0].toLowerCase() === GITHUB_OWNER.toLowerCase() && parts[1].toLowerCase() === repo.name.toLowerCase();
+        if (!alreadyCanonical && parts.length) {
+          return `https://raw.githubusercontent.com/${GITHUB_OWNER}/${encodeURIComponent(repo.name)}/${encodePathSegments(repo.default_branch)}/${encodePathSegments(parts.join("/"))}`;
+        }
+      }
+    } catch {
+      return "";
+    }
+    return value;
+  }
+
+  if (/^[a-z][a-z0-9+.-]*:/i.test(value)) return "";
+
+  const clean = value.split("#")[0].split("?")[0].replace(/^\.\//, "").replace(/^\/+/, "");
+  if (!clean) return "";
+  const base = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${encodeURIComponent(repo.name)}/${encodePathSegments(repo.default_branch)}/`;
+  try {
+    return new URL(clean, base).href;
+  } catch {
+    return "";
+  }
+}
+
+type MarkdownTools = {
+  marked: typeof import("marked").marked;
+  DOMPurify: typeof import("dompurify").default;
+};
+
+let markdownToolsPromise: Promise<MarkdownTools> | null = null;
+
+function getMarkdownTools() {
+  if (!markdownToolsPromise) {
+    markdownToolsPromise = Promise.all([import("marked"), import("dompurify")])
+      .then(([markedModule, domPurifyModule]) => ({
+        marked: markedModule.marked,
+        DOMPurify: domPurifyModule.default,
+      }));
+  }
+  return markdownToolsPromise;
+}
+
+type RepoGalleryImage = {
+  path: string;
+  url: string;
+  name: string;
+  source?: "repository" | "readme";
+};
+
+function readmeImages(markdown: string, repo: GithubRepo): RepoGalleryImage[] {
+  if (!markdown.trim()) return [];
+  const badImage = /(shields\.io|badge|travis|codecov|workflow\/status|license|licence|mit[-_ ]?(?:logo|badge)|copyright)/i;
+  const projectImage = /(screenshot|screen[-_ ]?shot|preview|demo|showcase|interface|dashboard|form[-_ ]?management|app[-_ ]?screen|ui[-_ ]|docs\/screenshots|images?\/)/i;
+  const candidates: { alt: string; source: string }[] = [];
+
+  const markdownImage = /!\[([^\]]*)\]\(\s*(?:<([^>]+)>|([^\s)]+))(?:\s+["'][^"']*["'])?\s*\)/g;
+  for (const match of markdown.matchAll(markdownImage)) {
+    candidates.push({ alt: match[1] || "", source: match[2] || match[3] || "" });
+  }
+
+  const documentNode = new DOMParser().parseFromString(markdown, "text/html");
+  documentNode.querySelectorAll("img").forEach(image => {
+    candidates.push({ alt: image.getAttribute("alt") || "", source: image.getAttribute("src") || "" });
+  });
+
+  const seenSource = new Set<string>();
+  const seenUrl = new Set<string>();
+  const usable = candidates
+    .filter(image => image.source && !badImage.test(image.alt + " " + image.source))
+    .filter(image => {
+      const key = image.source.trim();
+      if (!key || seenSource.has(key)) return false;
+      seenSource.add(key);
+      return true;
+    })
+    .sort((a, b) => Number(projectImage.test(b.alt + " " + b.source)) - Number(projectImage.test(a.alt + " " + a.source)));
+
+  const images: RepoGalleryImage[] = [];
+  for (const candidate of usable) {
+    const normalized = normalizeReadmeAssetUrl(candidate.source, repo);
+    if (!normalized || seenUrl.has(normalized)) continue;
+    seenUrl.add(normalized);
+    const rawPath = candidate.source.split("#")[0].split("?")[0].replace(/^\.\//, "").replace(/^\/+/, "");
+    const fallbackName = rawPath.split("/").filter(Boolean).pop() || candidate.alt || "README image";
+    images.push({ path: rawPath || candidate.alt || fallbackName, url: normalized, name: candidate.alt || fallbackName, source: "readme" });
+  }
+  return images;
+}
+
+function readmeImage(markdown: string, repo: GithubRepo) {
+  return readmeImages(markdown, repo)[0]?.url || "";
+}
+
+function mergeGalleryImages(...groups: RepoGalleryImage[][]) {
+  const seen = new Set<string>();
+  const merged: RepoGalleryImage[] = [];
+  for (const group of groups) {
+    for (const image of group) {
+      if (!image.url || seen.has(image.url)) continue;
+      seen.add(image.url);
+      merged.push(image);
+    }
+  }
+  return merged;
+}
+
+async function renderMarkdown(markdown: string, repo: GithubRepo) {
+  const { marked, DOMPurify } = await getMarkdownTools();
+  const parsed = marked.parse(markdown, { gfm: true, breaks: false }) as string;
+  const sanitized = DOMPurify.sanitize(parsed, {
+    USE_PROFILES: { html: true },
+    FORBID_TAGS: ["script", "style", "iframe", "object", "embed", "form", "input", "button", "textarea", "select"],
+    FORBID_ATTR: ["style", "srcset"],
+  });
+  const documentNode = new DOMParser().parseFromString(sanitized, "text/html");
+
+  documentNode.querySelectorAll("img").forEach(image => {
+    const safeSource = normalizeReadmeAssetUrl(image.getAttribute("src") || "", repo);
+    if (!safeSource) image.remove();
+    else {
+      image.src = safeSource;
+      image.loading = "lazy";
+      image.decoding = "async";
+      image.referrerPolicy = "no-referrer";
+    }
+  });
+
+  documentNode.querySelectorAll("a").forEach(link => {
+    const href = (link.getAttribute("href") || "").trim();
+    if (!href || href.startsWith("#")) return;
+    if (/^mailto:/i.test(href) || /^https:\/\//i.test(href)) {
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      return;
+    }
+    if (!/^[a-z][a-z0-9+.-]*:/i.test(href)) {
+      const clean = href.replace(/^\.\//, "").replace(/^\//, "");
+      link.href = `https://github.com/${GITHUB_OWNER}/${encodeURIComponent(repo.name)}/blob/${encodePathSegments(repo.default_branch)}/${clean}`;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      return;
+    }
+    link.removeAttribute("href");
+  });
+
+  return DOMPurify.sanitize(documentNode.body.innerHTML, {
+    USE_PROFILES: { html: true },
+    ADD_ATTR: ["target", "rel", "loading", "decoding", "referrerpolicy"],
+    FORBID_TAGS: ["script", "style", "iframe", "object", "embed", "form", "input", "button", "textarea", "select"],
+    FORBID_ATTR: ["style", "srcset"],
+  });
+}
+
+const roles = [
+  { years: "Apr 2026 — Present", company: "Navatel", role: "Software Engineer", detail: "Building and improving production software as part of Navatel’s engineering team." },
+  { years: "2024 — 2026", company: "Fluxudio", role: "Software Engineer", detail: "Scalable .NET and Ruby services, Nuxt applications, ELK observability, Docker, and AI-assisted workflows." },
+  { years: "2021 — 2024", company: "Datall", role: "Full Stack Developer", detail: "High-performance C++/Qt systems, PostgreSQL and Cassandra optimization, architecture built for reliability." },
+  { years: "2019 — 2021", company: "Arrap Startup", role: "Android Developer", detail: "End-to-end Android products with Java and Kotlin, backed by Laravel, MySQL, and Python automation." },
+];
+
+const skills = [
+  ["Frontend", "Nuxt 3 / 4", "Vue", "TypeScript", "JavaScript"],
+  ["Backend", "C# / .NET", "Laravel / PHP", "Ruby", "REST APIs"],
+  ["Desktop & Systems", "C++", "Qt / QML", "WPF", ".NET 8"],
+  ["Mobile & Games", "Android", "Java", "Kotlin", "Unity"],
+  ["Data & DevOps", "PostgreSQL", "MySQL", "Cassandra", "Docker", "ELK Stack"],
+  ["Tooling", "Linux", "Python", "Vitest", "GitHub Actions", "Git"],
+];
+
+function skillSource(language: CodeLanguage) {
+  const values = skills.map(([group, ...items]) => ({ group, items }));
+  if (language === "python") return ["class OsamehStack:", ...values.map(({ group, items }) => `    ${group.toLowerCase().replace(/[^a-z]+/g, "_")} = [${items.map(item => `\"${item}\"`).join(", ")}]`)];
+  if (language === "php") return ["<?php", "$stack = [", ...values.map(({ group, items }) => `  '${group}' => [${items.map(item => `'${item}'`).join(", ")}],`), "];" ];
+  if (language === "cpp") return ["struct OsamehStack {", ...values.map(({ group, items }) => `  vector<string> ${group.toLowerCase().replace(/[^a-z]+/g, "_")} { ${items.map(item => `\"${item}\"`).join(", ")} };`), "};" ];
+  if (language === "csharp") return ["public sealed class OsamehStack", "{", ...values.map(({ group, items }) => `  public string[] ${group.replace(/[^a-zA-Z]+/g, "")} => [${items.map(item => `\"${item}\"`).join(", ")}];`), "}" ];
+  if (language === "java") return ["public final class OsamehStack {", ...values.map(({ group, items }) => `  List<String> ${group.toLowerCase().replace(/[^a-z]+/g, "_")} = List.of(${items.map(item => `\"${item}\"`).join(", ")});`), "}" ];
+  if (language === "go") return ["var osamehStack = map[string][]string{", ...values.map(({ group, items }) => `  \"${group}\": {${items.map(item => `\"${item}\"`).join(", ")}},`), "}" ];
+  return ["const osamehStack = {", ...values.map(({ group, items }) => `  ${group.toLowerCase().replace(/[^a-z]+/g, "_")}: [${items.map(item => `\"${item}\"`).join(", ")}],`), "};" ];
+}
+
+function BrandMark() {
+  return <div className="brand-mark" aria-label="Osameh Irandoust"><span>OI</span><i /></div>;
+}
+
+export default function Home() {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [fileMenuOpen, setFileMenuOpen] = useState(false);
+  const [theme, setTheme] = useState<ThemePreference>("dark");
+  const [font, setFont] = useState<FontPreference>("inter");
+  const [codeLanguage, setCodeLanguage] = useState<CodeLanguage>("typescript");
+  const [skillsView, setSkillsView] = useState<"code" | "ui">("code");
+  const [copied, setCopied] = useState(false);
+  const [repos, setRepos] = useState<GithubRepo[]>(fallbackRepos);
+  const [visibleRepos, setVisibleRepos] = useState(6);
+  const [repoState, setRepoState] = useState<"loading" | "ready" | "error">("loading");
+  const [activeRepo, setActiveRepo] = useState<GithubRepo | null>(null);
+  const [openedRepos, setOpenedRepos] = useState<GithubRepo[]>([]);
+  const [readmeHtml, setReadmeHtml] = useState<Record<string, string>>({});
+  const [loadingReadmes, setLoadingReadmes] = useState<string[]>([]);
+  const [repoImages, setRepoImages] = useState<Record<string, string>>({});
+  const [readmeMarkdown, setReadmeMarkdown] = useState<Record<string, string>>({});
+  const [repoGalleries, setRepoGalleries] = useState<Record<string, RepoGalleryImage[]>>({});
+  const [loadingGalleries, setLoadingGalleries] = useState<string[]>([]);
+  const [galleryLightbox, setGalleryLightbox] = useState<{ repo: string; index: number } | null>(null);
+  const readmeRequests = useRef<Map<string, Promise<string>>>(new Map());
+  const galleryRequests = useRef<Map<string, Promise<RepoGalleryImage[]>>>(new Map());
+  const readmeRenderRequests = useRef<Set<string>>(new Set());
+  const projectsSectionRef = useRef<HTMLElement>(null);
+  const [projectsNearViewport, setProjectsNearViewport] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [notFoundPath, setNotFoundPath] = useState<string | null>(null);
+  const [panelTab, setPanelTab] = useState<"outline" | "terminal">("terminal");
+  const [terminalInput, setTerminalInput] = useState("");
+  const [terminalLines, setTerminalLines] = useState<string[]>([
+    "› cat welcome.txt",
+    "Hi — I'm Osameh, software engineer in Tehran. This site is a small editor.",
+    "Type `help` for commands, or just scroll.",
+  ]);
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const terminalOutputRef = useRef<HTMLDivElement>(null);
+  const terminalInputRef = useRef<HTMLInputElement>(null);
+  const code = codeProfiles[codeLanguage];
+  const skillLines = skillSource(codeLanguage);
+
+  useEffect(() => {
+    const path = window.location.pathname;
+    const knownPaths = ["/", "/home", "/about", "/projects", "/experience", "/contact"];
+    const project = fallbackRepos.find(repo => `/${repo.name.toLowerCase()}` === path.toLowerCase() || `/projects/${repo.name.toLowerCase()}` === path.toLowerCase());
+    if (project) openProject(project);
+    else if (!knownPaths.includes(path.toLowerCase())) setNotFoundPath(path);
+  }, []);
+
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("portfolio-theme") as ThemePreference | null;
+    const savedFont = localStorage.getItem("portfolio-font") as FontPreference | null;
+    const savedLanguage = localStorage.getItem("portfolio-language") as CodeLanguage | null;
+    if (savedTheme && ["dark", "light", "system"].includes(savedTheme)) setTheme(savedTheme);
+    if (savedFont && fontOptions.some(option => option.id === savedFont)) setFont(savedFont);
+    if (savedLanguage && codeProfiles[savedLanguage]) setCodeLanguage(savedLanguage);
+  }, []);
+
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: light)");
+    const applyTheme = () => {
+      document.documentElement.dataset.theme = theme === "system" ? (media.matches ? "light" : "dark") : theme;
+      document.documentElement.dataset.themePreference = theme;
+    };
+    applyTheme();
+    localStorage.setItem("portfolio-theme", theme);
+    media.addEventListener("change", applyTheme);
+    return () => media.removeEventListener("change", applyTheme);
+  }, [theme]);
+
+  useEffect(() => {
+    document.documentElement.dataset.font = font;
+    localStorage.setItem("portfolio-font", font);
+  }, [font]);
+
+  useEffect(() => {
+    localStorage.setItem("portfolio-language", codeLanguage);
+  }, [codeLanguage]);
+
+  useEffect(() => {
+    const closeMenu = (event: PointerEvent) => {
+      if (!(event.target as HTMLElement).closest(".ide-file-menu")) setFileMenuOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") setFileMenuOpen(false); };
+    document.addEventListener("pointerdown", closeMenu);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => { document.removeEventListener("pointerdown", closeMenu); document.removeEventListener("keydown", closeOnEscape); };
+  }, []);
+
+  useEffect(() => {
+    const closeActiveTab = (event: KeyboardEvent) => {
+      if (galleryLightbox) {
+        const gallery = repoGalleries[galleryLightbox.repo] || [];
+        if (event.key === "Escape") {
+          event.preventDefault();
+          setGalleryLightbox(null);
+          return;
+        }
+        if (gallery.length > 1 && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {
+          event.preventDefault();
+          const direction = event.key === "ArrowRight" ? 1 : -1;
+          setGalleryLightbox(current => current ? { ...current, index: (current.index + direction + gallery.length) % gallery.length } : current);
+        }
+        return;
+      }
+      if (event.key !== "Escape" || fileMenuOpen) return;
+      if (notFoundPath) showHome();
+      else if (activeRepo) closeProject(activeRepo);
+    };
+    document.addEventListener("keydown", closeActiveTab);
+    return () => document.removeEventListener("keydown", closeActiveTab);
+  }, [activeRepo, notFoundPath, openedRepos, fileMenuOpen, galleryLightbox, repoGalleries]);
+
+  useEffect(() => {
+    const toggleTerminal = (event: KeyboardEvent) => {
+      if (event.key !== "`" || event.ctrlKey || event.metaKey || event.altKey) return;
+      event.preventDefault();
+      setPanelOpen(open => {
+        const next = !open;
+        if (next) {
+          setPanelTab("terminal");
+          window.setTimeout(() => terminalInputRef.current?.focus(), 0);
+        }
+        return next;
+      });
+    };
+    document.addEventListener("keydown", toggleTerminal);
+    return () => document.removeEventListener("keydown", toggleTerminal);
+  }, []);
+
+  useEffect(() => {
+    if (!panelOpen || panelTab !== "terminal") return;
+    const output = terminalOutputRef.current;
+    if (output) output.scrollTo({ top: output.scrollHeight, behavior: "smooth" });
+  }, [terminalLines, searchResults, panelOpen, panelTab]);
+
+  const loadReadme = (repo: GithubRepo) => {
+    const cached = readmeRequests.current.get(repo.name);
+    if (cached) return cached;
+
+    const request = (async () => {
+      if (window.location.protocol === "file:") return "";
+
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 9000);
+      try {
+        const response = await fetch(`/api/github/readme/${encodeURIComponent(repo.name)}`, {
+          headers: { Accept: "text/markdown, text/plain;q=0.9" },
+          signal: controller.signal,
+          cache: "no-store",
+        });
+        if (!response.ok) return "";
+        const contentType = response.headers.get("content-type") || "";
+        const markdown = await response.text();
+        // Never accept a repository-list JSON response as README content.
+        if (/application\/json/i.test(contentType) || /^\s*\[\s*\{/.test(markdown)) return "";
+
+        setReadmeMarkdown(current => ({ ...current, [repo.name]: markdown }));
+        setRepoImages(current => ({ ...current, [repo.name]: readmeImage(markdown, repo) }));
+        return markdown;
+      } catch {
+        setReadmeMarkdown(current => ({ ...current, [repo.name]: "" }));
+        setRepoImages(current => ({ ...current, [repo.name]: "" }));
+        return "";
+      } finally {
+        window.clearTimeout(timeout);
+      }
+    })();
+
+    readmeRequests.current.set(repo.name, request);
+    return request;
+  };
+
+  const loadGallery = (repo: GithubRepo) => {
+    const cached = galleryRequests.current.get(repo.name);
+    if (cached) return cached;
+
+    const request = (async () => {
+      setLoadingGalleries(current => current.includes(repo.name) ? current : [...current, repo.name]);
+      try {
+        let repositoryImages: RepoGalleryImage[] = [];
+        if (window.location.protocol !== "file:") {
+          const response = await fetch(`/api/github/images/${encodeURIComponent(repo.name)}`, {
+            headers: { Accept: "application/json" },
+            cache: "no-store",
+          });
+          if (response.ok) {
+            const payload = await response.json() as RepoGalleryImage[];
+            if (Array.isArray(payload)) repositoryImages = payload.filter(image => image && typeof image.url === "string" && typeof image.path === "string");
+          }
+        }
+
+        const markdown = readmeMarkdown[repo.name] !== undefined ? readmeMarkdown[repo.name] : await loadReadme(repo);
+        const fromReadme = markdown ? readmeImages(markdown, repo) : [];
+        const merged = mergeGalleryImages(repositoryImages, fromReadme);
+        setRepoGalleries(current => ({ ...current, [repo.name]: merged }));
+        if (merged.length) setRepoImages(current => current[repo.name] ? current : ({ ...current, [repo.name]: merged[0].url }));
+        return merged;
+      } catch {
+        const markdown = readmeMarkdown[repo.name] || "";
+        const fromReadme = markdown ? readmeImages(markdown, repo) : [];
+        setRepoGalleries(current => ({ ...current, [repo.name]: fromReadme }));
+        return fromReadme;
+      } finally {
+        setLoadingGalleries(current => current.filter(name => name !== repo.name));
+      }
+    })();
+
+    galleryRequests.current.set(repo.name, request);
+    return request;
+  };
+
+  useEffect(() => {
+    // A double-clicked dist/index.html runs on file:// and has no PHP server.
+    // Render the embedded projects immediately instead of attempting a file:// API request.
+    if (window.location.protocol === "file:") {
+      setRepos(fallbackRepos);
+      setRepoState("ready");
+      return;
+    }
+
+    const fetchRepositories = async () => {
+      for (const endpoint of ["/api/github/repos", "/api/github.php"]) {
+        try {
+          const response = await fetch(endpoint, { headers: { Accept: "application/json" }, cache: "no-store" });
+          if (!response.ok) continue;
+          const data = await response.json() as GithubRepo[];
+          if (Array.isArray(data) && data.length) return data;
+        } catch {
+          // Try the compatibility endpoint next.
+        }
+      }
+      throw new Error("GitHub request failed");
+    };
+
+    fetchRepositories()
+      .then((data: GithubRepo[]) => {
+        const activeRepos = data
+          .filter(repo => !repo.archived && repo.name.toLowerCase() !== "osameh15")
+          .sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at));
+        if (!activeRepos.length) throw new Error("No repositories returned");
+        setRepos(activeRepos);
+        setRepoState("ready");
+      })
+      .catch(() => {
+        setRepos(fallbackRepos);
+        setRepoState("ready");
+      });
+  }, []);
+
+  useEffect(() => {
+    if (repoState !== "ready" || projectsNearViewport) return;
+    const section = projectsSectionRef.current;
+    if (!section || !("IntersectionObserver" in window)) {
+      setProjectsNearViewport(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(entries => {
+      if (entries.some(entry => entry.isIntersecting)) {
+        setProjectsNearViewport(true);
+        observer.disconnect();
+      }
+    }, { rootMargin: "700px 0px" });
+
+    observer.observe(section);
+    return () => observer.disconnect();
+  }, [repoState, projectsNearViewport]);
+
+  useEffect(() => {
+    if (repoState !== "ready" || !projectsNearViewport) return;
+    repos.slice(0, visibleRepos).forEach(repo => { void loadReadme(repo); });
+  }, [repos, visibleRepos, repoState, projectsNearViewport]);
+  const copyEmail = async () => {
+    await navigator.clipboard.writeText("osirandoust@gmail.com");
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
+  };
+
+  const ensureReadmeHtml = (repo: GithubRepo) => {
+    if (readmeHtml[repo.name] !== undefined || readmeRenderRequests.current.has(repo.name)) return;
+    readmeRenderRequests.current.add(repo.name);
+    setLoadingReadmes(current => current.includes(repo.name) ? current : [...current, repo.name]);
+
+    void (async () => {
+      const existing = readmeMarkdown[repo.name];
+      const markdown = existing !== undefined ? existing : await loadReadme(repo);
+      const html = markdown ? await renderMarkdown(markdown, repo) : "";
+      setReadmeHtml(current => ({ ...current, [repo.name]: html }));
+    })().finally(() => {
+      readmeRenderRequests.current.delete(repo.name);
+      setLoadingReadmes(current => current.filter(name => name !== repo.name));
+    });
+  };
+
+  const openProject = (repo: GithubRepo) => {
+    setNotFoundPath(null);
+    setActiveRepo(repo);
+    setOpenedRepos(current => current.some(item => item.id === repo.id) ? current : [...current, repo]);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    setPanelOpen(false);
+    ensureReadmeHtml(repo);
+    void loadGallery(repo);
+  };
+
+  const showHome = () => {
+    setNotFoundPath(null);
+    setActiveRepo(null);
+    if (window.location.pathname !== "/") window.history.replaceState({}, "", "/");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const closeProject = (repo: GithubRepo, returnHome = false) => {
+    const remaining = openedRepos.filter(item => item.id !== repo.id);
+    setOpenedRepos(remaining);
+    if (returnHome) {
+      setActiveRepo(null);
+    } else if (activeRepo?.id === repo.id) {
+      setActiveRepo(remaining[remaining.length - 1] || null);
+    }
+  };
+
+  const goTo = (result: SearchResult) => {
+    if (result.kind === "project") {
+      const repo = repos.find(item => item.name.toLowerCase() === result.label.toLowerCase());
+      if (repo) openProject(repo);
+      return;
+    }
+    showHome();
+    const target = result.path === "/projects" ? "work" : result.path.slice(1);
+    window.setTimeout(() => document.getElementById(target)?.scrollIntoView({ behavior: "smooth" }), 50);
+  };
+
+  const runTerminal = (event: FormEvent) => {
+    event.preventDefault();
+    const raw = terminalInput.trim();
+    if (!raw) return;
+    setTerminalInput("");
+    const command = raw.toLowerCase();
+    if (command === "clear") { setTerminalLines([]); setSearchResults([]); return; }
+    if (command === "cat welcome.txt") {
+      setTerminalLines(lines => [...lines, "› " + raw, "Hi — I'm Osameh, software engineer in Tehran. This site is a small editor.", "Type `help` for commands, or just scroll."]);
+      setSearchResults([]); return;
+    }
+    if (command === "help" || command === "/help") {
+      setTerminalLines(lines => [...lines, "› " + raw,
+        "whoami        who is this guy",
+        "ls            list live open tabs",
+        "exp           work history",
+        "skills        tech stack",
+        "projects      jump to projects",
+        "cat <repo>    open a project in an IDE tab",
+        "contact       all the ways to reach me",
+        "open <where>  github | gitlab | linkedin | telegram | instagram | whatsapp | mail",
+        "search <text> search site content",
+        "version       show deployed build id",
+        "clear         clear the screen",
+        "`             toggle terminal  ·  esc closes the active tab"]);
+      setSearchResults([]);
+      return;
+    }
+    if (command === "version" || command === "build" || command === "--version") {
+      setTerminalLines(lines => [...lines, "› " + raw, `osameh.dev ${BUILD_ID}`, `built ${BUILD_TIME}`]);
+      setSearchResults([]); return;
+    }
+    if (command === "whoami") {
+      setTerminalLines(lines => [...lines, "› " + raw, "osameh irandoust — software engineer (backend | full-stack | systems)", "Tehran, Iran · B.Sc. University of Tehran · currently @ Navatel"]);
+      setSearchResults([]); return;
+    }
+    if (command === "ls") {
+      const liveTabs = [
+        `${!activeRepo && !notFoundPath ? "*" : " "} ${code.file}  [home]`,
+        ...openedRepos.map(repo => `${activeRepo?.id === repo.id ? "*" : " "} ${repo.name}.md  [project]`),
+        ...(notFoundPath ? ["* 404.md  [not found]"] : []),
+      ];
+      setTerminalLines(lines => [...lines, "› " + raw, `open tabs (${liveTabs.length}):`, ...liveTabs, "* = active tab"]);
+      setSearchResults([]); return;
+    }
+    if (command === "exp") {
+      setTerminalLines(lines => [...lines, "› " + raw,
+        "Navatel        Software Engineer        Apr 2026 — present",
+        "Fluxudio       Software Engineer        2024 — 2026",
+        "Datall         Full Stack Developer     2021 — 2024",
+        "Arrap Startup  Android Developer        2019 — 2021",
+        "Freelance      Software Developer       2017 — present"]);
+      setSearchResults([]); return;
+    }
+    if (command === "skills") {
+      setTerminalLines(lines => [...lines, "› " + raw,
+        "C++ · C# / .NET · Nuxt.js · Python · Java · Kotlin · PHP · Ruby",
+        "PostgreSQL · MySQL · Cassandra · Elasticsearch · Docker · ELK · Linux"]);
+      setSearchResults([]); return;
+    }
+    if (command === "projects") {
+      setTerminalLines(lines => [...lines, "› " + raw, `${repos.length} projects loaded from GitHub — scrolling down.`]);
+      setSearchResults([]); goTo(sections[2]); return;
+    }
+    if (command === "contact") {
+      setTerminalLines(lines => [...lines, "› " + raw,
+        "personal  osirandoust@gmail.com",
+        "business  support@osameh.dev",
+        "telegram  @osameh_ir",
+        "whatsapp  +98 936 964 2754",
+        "instagram @osameh.ir",
+        "linkedin  osameh-irandoust"]);
+      setSearchResults([]); return;
+    }
+    if (command.startsWith("cat ")) {
+      const name = raw.slice(4).trim().replace(/\.md$/i, "").toLowerCase();
+      const repo = repos.find(item => item.name.toLowerCase() === name);
+      if (repo) {
+        setTerminalLines(lines => [...lines, "› " + raw, `opening ${repo.name} in an IDE tab…`]);
+        setSearchResults([]); openProject(repo);
+      } else {
+        setTerminalLines(lines => [...lines, "› " + raw, `cat: ${name || "<repo>"}: project not found`, "Run `projects` to view available repositories."]);
+        setSearchResults([]);
+      }
+      return;
+    }
+    if (command.startsWith("open ")) {
+      const service = command.slice(5).trim();
+      const destinations: Record<string, string> = {
+        github: "https://github.com/osameh15", gitlab: "https://gitlab.com/osameh15",
+        linkedin: "https://www.linkedin.com/in/osameh-irandoust-493359173/", telegram: "https://t.me/osameh_ir",
+        instagram: "https://instagram.com/osameh.ir", whatsapp: "https://wa.me/989369642754",
+        mail: "mailto:osirandoust@gmail.com", business: "mailto:support@osameh.dev",
+      };
+      if (destinations[service]) {
+        setTerminalLines(lines => [...lines, "› " + raw, `opening ${service}…`]);
+        setSearchResults([]); window.open(destinations[service], "_blank", "noopener,noreferrer");
+      } else {
+        setTerminalLines(lines => [...lines, "› " + raw, `open: unknown destination “${service}”`, "Try github, gitlab, linkedin, telegram, instagram, whatsapp, mail, or business."]);
+        setSearchResults([]);
+      }
+      return;
+    }
+    const route = sections.find(item => item.path === raw.toLowerCase());
+    if (route) {
+      setTerminalLines(lines => [...lines, "› " + raw, "Opening " + route.label + "…"]);
+      setSearchResults([]);
+      goTo(route);
+      return;
+    }
+    if (raw.startsWith("/")) {
+      const name = raw.replace(/^\/projects?\//, "").replace(/^\//, "").toLowerCase();
+      const repo = repos.find(item => item.name.toLowerCase() === name);
+      if (repo) {
+        setTerminalLines(lines => [...lines, "› " + raw, "Opening " + repo.name + ".md…"]);
+        setSearchResults([]);
+        openProject(repo);
+      } else {
+        setTerminalLines(lines => [...lines, "› " + raw, "Command not found: " + raw, "Try /help or /projects."]);
+        setSearchResults([]);
+      }
+      return;
+    }
+    const query = raw.toLowerCase().replace(/^search\s+/, "").trim();
+    const candidates: SearchResult[] = [...sections, ...repos.map(repo => ({ label: repo.name, path: "/" + repo.name, kind: "project" as const }))];
+    const matches = candidates.filter(item => item.label.toLowerCase().includes(query) || item.path.toLowerCase().includes(query));
+    setTerminalLines(lines => [...lines, "› " + raw, matches.length ? "Found " + matches.length + " result" + (matches.length === 1 ? "." : "s.") : "No matches for “" + query + "”."]);
+    setSearchResults(matches.slice(0, 8));
+  };
+
+  return (
+    <main>
+      <header className="topbar">
+        <a href="#home" className="logo-link"><BrandMark /></a>
+        <div className="ide-file-menu">
+          <button className={fileMenuOpen ? "file-menu-trigger active" : "file-menu-trigger"} onClick={() => setFileMenuOpen(open => !open)} aria-expanded={fileMenuOpen} aria-haspopup="menu">File <ChevronDown size={12} /></button>
+          {fileMenuOpen && <div className="file-menu-popover" role="menu">
+            <div className="menu-group"><p><Sun size={13} /> Theme</p>
+              {(["light", "dark", "system"] as ThemePreference[]).map(option => <button key={option} onClick={() => setTheme(option)}><span>{option === "light" ? <Sun size={14} /> : option === "dark" ? <Moon size={14} /> : <Monitor size={14} />}{option[0].toUpperCase() + option.slice(1)}</span>{theme === option && <Check size={14} />}</button>)}
+            </div>
+            <div className="menu-group"><p><Type size={13} /> Font</p>
+              {fontOptions.map(option => <button key={option.id} onClick={() => setFont(option.id)}><span><i className={'font-sample sample-' + option.id}>{option.sample}</i>{option.label}</span>{font === option.id && <Check size={14} />}</button>)}
+            </div>
+            <div className="menu-group"><p><Code2 size={13} /> Programming language</p>
+              {(Object.entries(codeProfiles) as [CodeLanguage, typeof code][]).map(([id, profile]) => <button key={id} onClick={() => setCodeLanguage(id)}><span><i className="language-dot" />{profile.label}</span>{codeLanguage === id && <Check size={14} />}</button>)}
+            </div>
+            <div className="menu-foot">Preferences save automatically</div>
+          </div>}
+        </div>
+        <nav className={menuOpen ? "nav-links open" : "nav-links"} aria-label="Primary navigation">
+          {["about", "work", "experience", "contact"].map(item => <a href={'#' + item} key={item} onClick={event => { event.preventDefault(); setMenuOpen(false); showHome(); window.setTimeout(() => document.getElementById(item)?.scrollIntoView({ behavior: "smooth" }), 50); }}>{item}</a>)}
+        </nav>
+        <div className="header-actions">
+          <span className="availability"><i /> Available for meaningful work</span>
+          <button className="menu-button" onClick={() => setMenuOpen(!menuOpen)} aria-label="Toggle menu">{menuOpen ? <X size={20} /> : <Menu size={20} />}</button>
+        </div>
+      </header>
+
+      <div className="workspace">
+        <aside className="contact-dock" aria-label="Quick contact">
+          <a href="https://instagram.com/osameh.ir" target="_blank" rel="noreferrer" aria-label="Instagram"><Instagram size={19} /><span>Instagram</span></a>
+          <a href="https://wa.me/989369642754" target="_blank" rel="noreferrer" aria-label="WhatsApp"><MessageCircle size={19} /><span>WhatsApp</span></a>
+          <a href="https://t.me/osameh_ir" target="_blank" rel="noreferrer" aria-label="Telegram"><Send size={18} /><span>Telegram</span></a>
+        </aside>
+        <aside className="activity-bar" aria-label="Social links">
+          <Code2 className="active-icon" size={21} />
+          <a href="https://github.com/osameh15" target="_blank" rel="noreferrer" aria-label="GitHub"><Github size={20} /></a>
+          <a href="https://gitlab.com/osameh15" target="_blank" rel="noreferrer" aria-label="GitLab"><Gitlab size={20} /></a>
+          <a href="https://www.linkedin.com/in/osameh-irandoust-493359173/" target="_blank" rel="noreferrer" aria-label="LinkedIn"><Linkedin size={20} /></a>
+          <a href="https://t.me/osameh_ir" target="_blank" rel="noreferrer" aria-label="Telegram"><Send size={19} /></a>
+          <span className="activity-line" /><span className="vertical-name">OSAMEH.DEV</span>
+        </aside>
+
+        <aside className="explorer">
+          <p className="explorer-title">EXPLORER</p>
+          <p className="folder"><ChevronDown size={14} /> OSAMEH-PORTFOLIO</p>
+          <button className="file active" onClick={showHome}><FileCode2 size={15} /> {code.file}</button>
+          <button className="file" onClick={() => goTo(sections[1])}><Braces size={15} /> about.json</button>
+          <button className="file" onClick={() => goTo(sections[2])}><FileCode2 size={15} /> {code.projects}</button>
+          <button className="file" onClick={() => goTo(sections[3])}><ChevronRight size={14} /> experience</button>
+          <button className="file" onClick={() => goTo(sections[4])}><Mail size={14} /> contact.md</button>
+          <div className="explorer-footer">
+            <button onClick={() => { setPanelTab("outline"); setPanelOpen(true); }}><ListTree size={14} /> OUTLINE</button>
+            <button onClick={() => { setPanelTab("terminal"); setPanelOpen(true); }}><Terminal size={14} /> TERMINAL</button>
+          </div>
+        </aside>
+
+        <div className="editor">
+          <div className="tabs-row">
+            <button className={activeRepo || notFoundPath ? "editor-tab" : "editor-tab active"} onClick={showHome}><FileCode2 size={14} /> {code.file}</button>
+            {openedRepos.map(repo => <button key={repo.id} className={activeRepo?.id === repo.id ? "editor-tab project-tab active" : "editor-tab project-tab"} onClick={() => openProject(repo)}><Code2 size={14} /><span>{repo.name}.md</span><X size={12} onClick={event => { event.stopPropagation(); closeProject(repo); }} /></button>)}
+            {notFoundPath && <button className="editor-tab project-tab error-tab active"><FileCode2 size={14} /><span>404.md</span><X size={12} onClick={showHome} /></button>}
+          </div>
+
+          {notFoundPath ? <section className="not-found-view">
+            <div className="not-found-code" aria-hidden="true"><span>4</span><i>/</i><span>4</span></div>
+            <p className="eyebrow">ROUTE_RESOLUTION_ERROR</p>
+            <h1>File not found.</h1>
+            <p>The route <code>{notFoundPath}</code> doesn’t exist in this workspace. It may have moved, been renamed, or never made it past review.</p>
+            <div className="not-found-terminal"><span>osameh@portfolio:~$</span> resolve {notFoundPath}<br /><b>error:</b> no matching file or project route</div>
+            <div className="detail-actions">
+              <button className="primary-btn" onClick={showHome}>Return to home <ArrowUpRight size={16} /></button>
+              <button className="secondary-btn" onClick={() => { showHome(); window.setTimeout(() => document.getElementById("work")?.scrollIntoView({ behavior: "smooth" }), 50); }}>Browse projects</button>
+            </div>
+          </section> : activeRepo ? <section className="ide-project-view">
+            <header className="ide-project-hero">
+              <div>
+                <p className="eyebrow">PROJECT / {activeRepo.language || "CODE"}</p>
+                <h1>{activeRepo.name}</h1>
+                <p>{activeRepo.description || "Explore the source, architecture, and implementation of this project."}</p>
+                <div className="detail-actions">
+                  <a href={'https://github.com/osameh15/' + activeRepo.name} target="_blank" rel="noreferrer" className="primary-btn">View source <ArrowUpRight size={16} /></a>
+                  {npmUrl(activeRepo.name) && <a href={npmUrl(activeRepo.name)} target="_blank" rel="noreferrer" className="npm-btn"><Package size={16} /> View on npm <ArrowUpRight size={14} /></a>}
+                  <button className="secondary-btn back-portfolio" onClick={() => closeProject(activeRepo, true)}>Back to portfolio</button>
+                </div>
+              </div>
+              <div className="ide-project-image">{repoImages[activeRepo.name] && <img src={repoImages[activeRepo.name]} alt={'Preview from ' + activeRepo.name + ' README'} onError={event => { event.currentTarget.hidden = true; }} />}<div className="image-fallback"><Code2 size={34} /><span>README preview</span></div></div>
+            </header>
+            <div className="ide-project-body">
+              <aside className="repo-facts">
+                <div><Star size={17} /><span><b>{activeRepo.stargazers_count}</b> stars</span></div>
+                <div><Github size={17} /><span><b>{activeRepo.forks_count}</b> forks</span></div>
+                <div><Code2 size={17} /><span><b>{activeRepo.language || "Mixed"}</b> language</span></div>
+                <p className="facts-label">TECH & TOPICS</p>
+                <div className="tags">{[activeRepo.language, ...activeRepo.topics].filter(Boolean).map(tag => <span key={tag}>{tag}</span>)}</div>
+              </aside>
+              <article className="readme-card"><div className="readme-head"><span>README.md · Preview</span><span>github / {activeRepo.name}</span></div>
+                {loadingReadmes.includes(activeRepo.name) ? <div className="readme-loading"><LoaderCircle className="spin" size={19} /> Rendering README preview…</div> : readmeHtml[activeRepo.name] ? <div className="markdown-preview" dangerouslySetInnerHTML={{ __html: readmeHtml[activeRepo.name] }} /> : <div className="empty-readme">This repository does not include a public README yet. Open the source to explore its files and implementation.</div>}
+              </article>
+            </div>
+            <section className="project-gallery" aria-labelledby={`gallery-${activeRepo.id}`}>
+              <div className="project-gallery-heading">
+                <div><p className="eyebrow">PROJECT / GALLERY</p><h2 id={`gallery-${activeRepo.id}`}>Project visuals.</h2></div>
+                <span>{repoGalleries[activeRepo.name]?.length ? `${repoGalleries[activeRepo.name].length} images discovered in README, images/ or docs/` : "Images are discovered from the repository automatically."}</span>
+              </div>
+              {loadingGalleries.includes(activeRepo.name) ? <div className="gallery-loading"><LoaderCircle className="spin" size={19} /> Discovering project images…</div> : repoGalleries[activeRepo.name]?.length ? <div className="project-gallery-grid">
+                {repoGalleries[activeRepo.name].map((image, index) => <button type="button" className="project-gallery-item" key={`${image.url}-${index}`} onClick={() => setGalleryLightbox({ repo: activeRepo.name, index })} aria-label={`Open ${image.name || image.path} in gallery`}>
+                  <img src={image.url} alt={image.name || `${activeRepo.name} project image ${index + 1}`} loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={event => { event.currentTarget.closest("button")?.setAttribute("hidden", ""); }} />
+                  <span><ImageIcon size={13} />{image.path}</span>
+                </button>)}
+              </div> : <div className="gallery-empty"><ImageIcon size={22} /><span>No project images were found in README, images/, docs/, screenshots/ or media/.</span></div>}
+            </section>
+          </section> : <>
+          <section id="home" className="hero section-pad">
+            <div className="line-nums" aria-hidden="true">01<br />02<br />03<br />04<br />05<br />06<br />07<br />08<br />09<br />10<br />11<br />12</div>
+            <div className="hero-content">
+              <p className={'code-kicker language-' + codeLanguage}>{code.open}</p>
+              <p className="eyebrow">SOFTWARE ENGINEER · BACKEND · FULL-STACK · SYSTEMS</p>
+              <h1>I build software<br />that stays <em>solid.</em></h1>
+              <p className="hero-copy">I’m Osameh Irandoust — a software engineer turning complex systems into clear, fast, dependable products. From C++ internals to modern web experiences.</p>
+              <div className="hero-actions">
+                <a href="#work" className="primary-btn">Explore my work <ArrowUpRight size={17} /></a>
+                <button onClick={copyEmail} className="text-btn">{copied ? <><Check size={16} /> Email copied</> : <>Copy email <span>⌘E</span></>}</button>
+              </div>
+              <p className="code-close"><b>{code.close}</b> <span>{code.comment}</span></p>
+            </div>
+            <div className="hero-orbit" aria-hidden="true">
+              <div className="orbit-ring ring-one"><i /></div><div className="orbit-ring ring-two"><i /></div>
+              <div className="core"><Code2 size={30} /></div>
+              <span className="orbit-label label-one">.NET</span><span className="orbit-label label-two">C++</span><span className="orbit-label label-three">NUXT</span>
+            </div>
+          </section>
+
+          <section id="about" className="about section-pad">
+            <div className="section-heading"><span>01</span><div><p>ABOUT.ME</p><h2>Engineering with range.</h2></div></div>
+            <div className="about-grid">
+              <div className="about-copy">
+                <p>I work comfortably across the stack — close to the metal in C++ and Qt, inside production backends with .NET, or crafting polished interfaces with Nuxt.</p>
+                <p>My focus is always the same: <strong>understand the real problem, choose the right level of complexity, and ship work that people can trust.</strong></p>
+                <div className="signal-row"><span><Zap size={15} /> 4+ years in production</span><span><MapPin size={15} /> Tehran, Iran</span></div>
+              </div>
+              <div className="skills-viewer">
+                <div className="skills-view-toolbar"><div><button className={skillsView === "code" ? "active" : ""} onClick={() => setSkillsView("code")}><Code2 size={13} /> Code</button><button className={skillsView === "ui" ? "active" : ""} onClick={() => setSkillsView("ui")}><LayoutGrid size={13} /> Preview</button></div><span>{skillsView === "code" ? code.label + " source" : "Visual stack"}</span></div>
+                {skillsView === "code" ? <div className="skills-code" aria-label={'Skills rendered as ' + code.label + ' source code'}>
+                  <div className="skills-code-head"><span><i /><i /><i /></span><p>{code.stack}</p><small>{code.label}</small></div>
+                  <div className="skills-code-body"><div className="skill-line-numbers" aria-hidden="true">{skillLines.map((_, index) => <span key={index}>{String(index + 1).padStart(2, "0")}</span>)}</div><pre><code>{skillLines.join("\n")}</code></pre></div>
+                  <div className="skills-code-foot"><span><i /> Valid stack</span><span>UTF-8</span><span>Ln {skillLines.length}, Col 1</span></div>
+                </div> : <div className="skills-preview" aria-label="Skills card preview">
+                  {skills.map(([title, ...items], index) => <article key={title} className={'skill-card accent-' + index}><header><span>{String(index + 1).padStart(2, "0")}</span><i /></header><h3>{title}</h3><div>{items.map(item => <span key={item}>{item}</span>)}</div></article>)}
+                </div>}
+              </div>
+            </div>
+          </section>
+
+          <section id="work" ref={projectsSectionRef} className="work section-pad">
+            <div className="section-heading"><span>02</span><div><p>{code.projects.toUpperCase()}</p><h2>Everything I’m building.</h2></div><a href="https://github.com/osameh15?tab=repositories" target="_blank" rel="noreferrer" className="section-link">GitHub profile <ArrowUpRight size={15} /></a></div>
+            <p className="projects-intro">A live view of my public work, ordered by recent activity. Archived repositories stay out of the way.</p>
+            {repoState === "loading" && <div className="repo-status"><LoaderCircle className="spin" size={20} /> Fetching projects from GitHub…</div>}
+            {repoState === "error" && <div className="repo-status error"><Code2 size={20} /> GitHub is taking a break. Visit my profile to browse the repositories.</div>}
+            {repoState === "ready" && <>
+              <div className="project-grid">{repos.slice(0, visibleRepos).map((project, index) => (
+                <article role="button" tabIndex={0} onClick={() => openProject(project)} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openProject(project); } }} className={'project-card tone-' + (index % 3)} key={project.id} aria-label={'Open ' + project.name + ' project details'}>
+                  <div className="project-top"><span>{String(index + 1).padStart(2, "0")}</span><span className="project-stats"><Star size={13} /> {project.stargazers_count}<Github size={13} /> {project.forks_count}</span><ArrowUpRight size={19} /></div>
+                  <div className="project-image">
+                    {repoImages[project.name] && <img src={repoImages[project.name]} alt={'Preview from ' + project.name + ' README'} loading="lazy" onError={event => { event.currentTarget.hidden = true; }} />}
+                    <div className="image-fallback"><Code2 size={31} /><span>{project.language || "Code"}</span></div>
+                  </div>
+                  <p className="project-type">{project.language || "Repository"} · Updated {new Date(project.updated_at).toLocaleDateString("en", { month: "short", year: "numeric" })}</p>
+                  <h3>{project.name}</h3><p className="project-desc">{project.description || "Explore the source, architecture, and latest work in this repository."}</p>
+                  <div className="tags">{[project.language, ...project.topics].filter(Boolean).slice(0, 4).map(tag => <span key={tag}>{tag}</span>)}</div>
+                  <div className="project-links"><span className="open-detail">Open project details <ArrowUpRight size={14} /></span>{npmUrl(project.name) && <a className="npm-chip" href={npmUrl(project.name)} target="_blank" rel="noreferrer" onClick={event => event.stopPropagation()} aria-label={'View ' + npmPackages[project.name] + ' on npm'}><Package size={13} /> npm <ArrowUpRight size={12} /></a>}</div>
+                </article>
+              ))}</div>
+              {visibleRepos < repos.length && <div className="load-more-wrap"><button className="load-more" onClick={() => setVisibleRepos(count => count + 6)}>Load more projects <span>{visibleRepos} / {repos.length}</span></button></div>}
+            </>}
+          </section>
+
+          <section id="experience" className="experience section-pad">
+            <div className="section-heading"><span>03</span><div><p>EXPERIENCE/</p><h2>Built in the real world.</h2></div></div>
+            <div className="experience-layout">
+              <div className="role-list">{roles.map((role, index) => <article className="role" key={role.company}>
+                <div className="role-marker"><Circle size={10} fill="currentColor" />{index < roles.length - 1 && <i />}</div>
+                <p className="years">{role.years}</p><div><h3>{role.role}</h3><h4>@ {role.company}</h4><p>{role.detail}</p></div>
+              </article>)}</div>
+              <aside className="terminal-card">
+                <div className="terminal-head"><span><i /><i /><i /></span><p>osameh — zsh</p></div>
+                <div className="terminal-body"><p><b>~</b> whoami</p><span>Software Engineer</span><p><b>~</b> cat focus.txt</p><span>Backend Architecture<br />Performance Optimization<br />System Design<br />AI Integration</span><p><b>~</b> uptime</p><span>Always learning <i className="cursor" /></span></div>
+              </aside>
+            </div>
+          </section>
+
+          <section id="contact" className="contact section-pad">
+            <div className="contact-icon"><ServerCog size={27} /></div><p className="eyebrow">READY FOR THE NEXT BUILD</p>
+            <h2>Have a difficult problem?<br /><em>Let’s make it simple.</em></h2>
+            <p>Open to thoughtful engineering roles, ambitious products, and conversations about how software should work.</p>
+            <a href="mailto:osirandoust@gmail.com" className="primary-btn">Start a conversation <Mail size={17} /></a>
+            <div className="email-options" aria-label="Email contacts">
+              <a href="mailto:osirandoust@gmail.com"><span>Personal</span>osirandoust@gmail.com</a>
+              <a href="mailto:support@osameh.dev"><span>Business &amp; formal</span>support@osameh.dev</a>
+            </div>
+            <div className="social-row">
+              <a href="https://github.com/osameh15" target="_blank" rel="noreferrer"><Github size={17} /> GitHub</a>
+              <a href="https://gitlab.com/osameh15" target="_blank" rel="noreferrer"><Gitlab size={17} /> GitLab</a>
+              <a href="https://www.linkedin.com/in/osameh-irandoust-493359173/" target="_blank" rel="noreferrer"><Linkedin size={17} /> LinkedIn</a>
+              <a href="https://t.me/osameh_ir" target="_blank" rel="noreferrer"><Send size={17} /> Telegram</a>
+              <a href="https://instagram.com/osameh.ir" target="_blank" rel="noreferrer"><Instagram size={17} /> Instagram</a>
+              <a href="https://wa.me/989369642754" target="_blank" rel="noreferrer"><MessageCircle size={17} /> WhatsApp</a>
+            </div>
+          </section>
+          <footer><span>© 2026 Osameh Irandoust</span><span className="footer-status"><i /> All systems operational</span><span className="build-version" title={`${BUILD_ID} · built ${BUILD_TIME}`}>build {BUILD_DISPLAY}</span><span>Designed & built with intention.</span></footer>
+          </>}
+        </div>
+        {galleryLightbox && (() => {
+          const gallery = repoGalleries[galleryLightbox.repo] || [];
+          const image = gallery[galleryLightbox.index];
+          if (!image) return null;
+          const move = (direction: number) => setGalleryLightbox(current => current ? { ...current, index: (current.index + direction + gallery.length) % gallery.length } : current);
+          return <div className="gallery-lightbox" role="dialog" aria-modal="true" aria-label={`${galleryLightbox.repo} image gallery`} onClick={() => setGalleryLightbox(null)}>
+            <button type="button" className="gallery-lightbox-close" onClick={() => setGalleryLightbox(null)} aria-label="Close gallery"><X size={20} /></button>
+            {gallery.length > 1 && <button type="button" className="gallery-lightbox-nav previous" onClick={event => { event.stopPropagation(); move(-1); }} aria-label="Previous image"><ChevronLeft size={24} /></button>}
+            <figure onClick={event => event.stopPropagation()}>
+              <img src={image.url} alt={image.name || image.path} referrerPolicy="no-referrer" />
+              <figcaption><span>{galleryLightbox.index + 1} / {gallery.length}</span><code>{image.path}</code></figcaption>
+            </figure>
+            {gallery.length > 1 && <button type="button" className="gallery-lightbox-nav next" onClick={event => { event.stopPropagation(); move(1); }} aria-label="Next image"><ChevronRight size={24} /></button>}
+          </div>;
+        })()}
+        {panelOpen && <section className="bottom-panel" aria-label="IDE bottom panel">
+          <div className="panel-head">
+            <div className="panel-tabs">
+              <button className={panelTab === "outline" ? "active" : ""} onClick={() => setPanelTab("outline")}><ListTree size={13} /> OUTLINE</button>
+              <button className={panelTab === "terminal" ? "active" : ""} onClick={() => setPanelTab("terminal")}><Terminal size={13} /> TERMINAL</button>
+            </div>
+            <button className="panel-close" onClick={() => setPanelOpen(false)} aria-label="Close panel"><X size={15} /></button>
+          </div>
+          {panelTab === "outline" ? <div className="outline-panel">
+            <div className="outline-tree">
+              <p><ChevronDown size={13} /> OSAMEH-PORTFOLIO</p>
+              {sections.map(item => <button key={item.path} onClick={() => goTo(item)}><span>{item.path}</span><small>{item.label}</small></button>)}
+            </div>
+            <div className="outline-projects">
+              <p>PROJECT ROUTES</p>
+              {repos.map(repo => <button key={repo.id} onClick={() => openProject(repo)}><Code2 size={12} /><span>/{repo.name}</span></button>)}
+            </div>
+          </div> : <div className="terminal-panel">
+            <div className="terminal-output" ref={terminalOutputRef}>
+              {terminalLines.map((line, index) => <p key={index} className={line.startsWith("›") ? "command-line" : ""}>{line}</p>)}
+              {searchResults.map(result => <button key={result.path} onClick={() => goTo(result)}><Search size={12} /><span>{result.path}</span><small>{result.label}</small></button>)}
+            </div>
+            <form className="terminal-input-row" onSubmit={runTerminal}>
+              <span>osameh@portfolio:~$</span>
+              <input ref={terminalInputRef} value={terminalInput} onChange={event => setTerminalInput(event.target.value)} placeholder="Type help, whoami, projects…" aria-label="Terminal command" autoComplete="off" />
+              <button type="submit" aria-label="Run command"><CornerDownLeft size={15} /></button>
+            </form>
+          </div>}
+        </section>}
+        <div className="status-bar">
+          <span><Github size={12} /> main*</span><span className="status-build" title={`${BUILD_ID} · built ${BUILD_TIME}`}>{BUILD_VERSION}</span><span className="status-online"><i /> {code.label} mode</span>
+          <button onClick={() => { setPanelOpen(!panelOpen); if (!panelOpen) setPanelTab("terminal"); }}><PanelBottom size={13} /> {panelOpen ? "Close panel" : "Open panel"}</button>
+        </div>
+      </div>
+    </main>
+  );
+}
