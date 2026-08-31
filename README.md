@@ -367,6 +367,13 @@ The site also includes an in-app resume viewer and download/open controls.
 
 The five most recent releases are summarized here. See **[CHANGELOG.md](CHANGELOG.md)** for the complete production history.
 
+### v2.2.3 — Explorer state & resume plugin
+
+- Explorer selection follows clicks, scrolling, and project detail state
+- active items expose semantic selected state for accessibility
+- resume moved out of the project file tree into a dedicated Portfolio Plugins card
+- Resume Viewer plugin reflects whether the modal is currently open
+
 ### v2.2.2 — Release documentation
 
 - complete repository-level changelog
@@ -397,12 +404,6 @@ The five most recent releases are summarized here. See **[CHANGELOG.md](CHANGELO
 - resilient contact-form initialization and CSRF retry flow
 - refined header wrapping and resume PDF actions
 - ongoing freelance experience added from 2017 to present
-
-### v2.0.1 — Build UX & compile fixes
-
-- build information opens in an in-app modal
-- terminal `build` opens the modal while `version` remains text-only
-- fixed React event-handler typing and icon compatibility
 
 **Full history:** [CHANGELOG.md](CHANGELOG.md)
 

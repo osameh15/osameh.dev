@@ -73,6 +73,7 @@ export const nowItems = [
 ];
 
 export const changelog = [
+  { version: "2.2.3", title: "Explorer state & resume plugin", items: ["Explorer files now track the visible section and selected route", "Project views keep Projects selected in the sidebar", "Moved the resume out of the file tree into a dedicated Portfolio Plugins card", "Resume plugin reflects the modal open state"] },
   { version: "2.2.2", title: "Release documentation", items: ["Added a complete repository CHANGELOG.md", "README now shows the five latest releases and links to full history", "Added the production screenshots to docs/img", "Finalized CI/CD documentation for scoped ParsPack deployment"] },
   { version: "2.2.1", title: "Automated delivery", items: ["GitHub Actions production build and FTPS deployment", "Scoped deployment credentials and CDN-aware live build verification", "Manual workflow dispatch for controlled redeploys", "Clarified the 30-day GitHub public activity window"] },
   { version: "2.2.0", title: "Interaction & polish", items: ["Command Palette selection now scrolls into view", "Resizable and maximizable IDE terminal panel", "Unified success, info, warning, and error toasts", "Contact filename follows the selected programming language", "Repository gallery discovers authored images across the full repository", "Status-bar build hover contrast refined"] },

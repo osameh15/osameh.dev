@@ -318,6 +318,8 @@ function BrandMark() {
 export default function Home() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
+  const [activeSectionPath, setActiveSectionPath] = useState<string>("/home");
+  const [resumeOpen, setResumeOpen] = useState(false);
   const [theme, setTheme] = useState<ThemePreference>("dark");
   const [font, setFont] = useState<FontPreference>("inter");
   const [codeLanguage, setCodeLanguage] = useState<CodeLanguage>("typescript");
@@ -461,6 +463,7 @@ export default function Home() {
     if (project) openProject(project, false);
     else if (path.toLowerCase() === "/resume") window.setTimeout(() => window.dispatchEvent(new Event("portfolio:resume")), 50);
     else if (knownPaths.includes(path.toLowerCase()) && !["/", "/home", "/resume"].includes(path.toLowerCase())) {
+      setActiveSectionPath(path.toLowerCase());
       const target = path.toLowerCase() === "/projects" ? "work" : path.slice(1);
       window.setTimeout(() => document.getElementById(target)?.scrollIntoView({ block: "start" }), 80);
     } else if (!knownPaths.includes(path.toLowerCase()) && !/^\/projects\/[^/]+\/?$/i.test(path)) setNotFoundPath(path);
@@ -840,6 +843,46 @@ export default function Home() {
   };
 
   useEffect(() => {
+    if (activeRepo || notFoundPath || resumeOpen) return;
+
+    const targets = [
+      { path: "/home", id: "home" },
+      { path: "/about", id: "about" },
+      { path: "/projects", id: "work" },
+      { path: "/experience", id: "experience" },
+      { path: "/now", id: "now" },
+      { path: "/changelog", id: "changelog" },
+      { path: "/contact", id: "contact" },
+    ].map(item => ({ ...item, element: document.getElementById(item.id) })).filter(item => item.element) as Array<{ path: string; id: string; element: HTMLElement }>;
+
+    if (!targets.length) return;
+    let frame = 0;
+    const syncExplorerSelection = () => {
+      frame = 0;
+      const probe = Math.min(190, Math.max(105, window.innerHeight * 0.24));
+      let current = targets[0];
+      for (const target of targets) {
+        if (target.element.getBoundingClientRect().top <= probe) current = target;
+        else break;
+      }
+      setActiveSectionPath(path => path === current.path ? path : current.path);
+    };
+    const scheduleSync = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(syncExplorerSelection);
+    };
+
+    syncExplorerSelection();
+    window.addEventListener("scroll", scheduleSync, { passive: true });
+    window.addEventListener("resize", scheduleSync);
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", scheduleSync);
+      window.removeEventListener("resize", scheduleSync);
+    };
+  }, [activeRepo, notFoundPath, resumeOpen]);
+
+  useEffect(() => {
     // A double-clicked dist/index.html runs on file:// and has no PHP server.
     // Render the embedded projects immediately instead of attempting a file:// API request.
     if (window.location.protocol === "file:") {
@@ -941,6 +984,7 @@ export default function Home() {
 
   const openProject = (repo: GithubRepo, updateHistory = true) => {
     setNotFoundPath(null);
+    setActiveSectionPath("/projects");
     setActiveRepo(repo);
     setOpenedRepos(current => current.some(item => item.id === repo.id) ? current : [...current, repo]);
     if (updateHistory) {
@@ -957,6 +1001,7 @@ export default function Home() {
 
   const showHome = (updateHistory = true) => {
     setNotFoundPath(null);
+    setActiveSectionPath("/home");
     setActiveRepo(null);
     document.title = "Osameh Irandoust — Software Engineer";
     if (updateHistory && window.location.pathname !== "/") window.history.pushState({}, "", "/");
@@ -967,6 +1012,7 @@ export default function Home() {
     const remaining = openedRepos.filter(item => item.id !== repo.id);
     setOpenedRepos(remaining);
     if (returnHome) {
+      setActiveSectionPath("/home");
       setActiveRepo(null);
       document.title = "Osameh Irandoust — Software Engineer";
       if (window.location.pathname !== "/") window.history.pushState({}, "", "/");
@@ -984,7 +1030,9 @@ export default function Home() {
       if (repo) openProject(repo);
       return;
     }
+    setActiveSectionPath(result.path);
     showHome(false);
+    setActiveSectionPath(result.path);
     if (window.location.pathname !== result.path) window.history.pushState({}, "", result.path);
     const target = result.path === "/projects" ? "work" : result.path === "/home" ? "home" : result.path.slice(1);
     window.setTimeout(() => document.getElementById(target)?.scrollIntoView({ behavior: "smooth" }), 50);
@@ -1003,6 +1051,7 @@ export default function Home() {
       const section = sections.find(item => item.path === path);
       if (section) {
         showHome(false);
+        setActiveSectionPath(section.path);
         const target = section.path === "/projects" ? "work" : section.path === "/home" ? "home" : section.path.slice(1);
         window.setTimeout(() => document.getElementById(target)?.scrollIntoView({ block: "start" }), 20);
         return;
@@ -1330,14 +1379,22 @@ export default function Home() {
         <aside className="explorer">
           <p className="explorer-title">EXPLORER</p>
           <p className="folder"><ChevronDown size={14} /> OSAMEH-PORTFOLIO</p>
-          <button className="file active" onClick={() => showHome()}><FileCode2 size={15} /> {code.file}</button>
-          <button className="file" onClick={() => goTo(sections[1])}><Braces size={15} /> about.json</button>
-          <button className="file" onClick={() => goTo(sections[2])}><FileCode2 size={15} /> {code.projects}</button>
-          <button className="file" onClick={() => goTo(sections[3])}><ChevronRight size={14} /> experience</button>
-          <button className="file" onClick={() => goTo(sections[4])}><Zap size={14} /> now.md</button>
-          <button className="file" onClick={() => goTo(sections[5])}><RefreshCw size={14} /> changelog.md</button>
-          <button className="file" onClick={() => window.dispatchEvent(new Event("portfolio:resume"))}><FileCode2 size={14} /> resume.pdf</button>
-          <button className="file" onClick={() => goTo(sections[6])}><Mail size={14} /> contact.md</button>
+          <button className={activeSectionPath === "/home" && !activeRepo && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/home" && !activeRepo && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => showHome()}><FileCode2 size={15} /> {code.file}</button>
+          <button className={activeSectionPath === "/about" && !activeRepo && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/about" && !activeRepo && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => goTo(sections[1])}><Braces size={15} /> about.json</button>
+          <button className={activeSectionPath === "/projects" && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/projects" && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => goTo(sections[2])}><FileCode2 size={15} /> {code.projects}</button>
+          <button className={activeSectionPath === "/experience" && !activeRepo && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/experience" && !activeRepo && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => goTo(sections[3])}><ChevronRight size={14} /> experience</button>
+          <button className={activeSectionPath === "/now" && !activeRepo && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/now" && !activeRepo && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => goTo(sections[4])}><Zap size={14} /> now.md</button>
+          <button className={activeSectionPath === "/changelog" && !activeRepo && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/changelog" && !activeRepo && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => goTo(sections[5])}><RefreshCw size={14} /> changelog.md</button>
+          <button className={activeSectionPath === "/contact" && !activeRepo && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/contact" && !activeRepo && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => goTo(sections[6])}><Mail size={14} /> contact.md</button>
+
+          <div className="explorer-plugins" aria-label="Portfolio tools">
+            <p className="explorer-plugins-title"><PanelBottom size={13} /> PORTFOLIO PLUGINS</p>
+            <button className={resumeOpen ? "explorer-plugin active" : "explorer-plugin"} aria-pressed={resumeOpen} onClick={() => window.dispatchEvent(new Event("portfolio:resume"))}>
+              <span className="explorer-plugin-icon"><Download size={16} /></span>
+              <span className="explorer-plugin-copy"><b>Resume Viewer</b><small>CV preview · local PDF</small></span>
+              <span className="explorer-plugin-badge">PDF</span>
+            </button>
+          </div>
           <div className="explorer-footer">
             <button onClick={() => { setPanelTab("outline"); setPanelOpen(true); }}><ListTree size={14} /> OUTLINE</button>
             <button onClick={() => openTerminal()}><Terminal size={14} /> TERMINAL</button>
@@ -1575,7 +1632,7 @@ export default function Home() {
           <span>{actionToast.message}</span>
         </div>}
         {compareRepos.length > 0 && <div className="compare-bar"><span><Code2 size={14} /> Compare queue</span><div>{compareRepos.map(repo => <button key={repo.id} onClick={() => toggleCompareRepo(repo)}>{repo.name} <X size={12} /></button>)}</div><button className="compare-run" disabled={compareRepos.length !== 2} onClick={() => { if (compareRepos.length === 2) { setCompareModalOpen(true); trackEvent("project_compare", compareRepos.map(repo => repo.name).join(" vs ")); } }}>{compareRepos.length === 2 ? "Compare 2 projects" : "Select one more"}</button></div>}
-        <ResumeViewer />
+        <ResumeViewer onOpenChange={setResumeOpen} />
         <BuildInfoModal />
         <SystemDiagnostics />
         <ShortcutGuide />

@@ -66,17 +66,18 @@ export function ChangelogSection() {
   </section>;
 }
 
-export function ResumeViewer() {
+export function ResumeViewer({ onOpenChange }: { onOpenChange?: (open: boolean) => void } = {}) {
   const [open, setOpen] = useState(false);
+  const changeOpen = (next: boolean) => { setOpen(next); onOpenChange?.(next); };
   useEffect(() => {
-    const listener = () => { setOpen(true); trackEvent("resume_open"); };
+    const listener = () => { changeOpen(true); trackEvent("resume_open"); };
     window.addEventListener("portfolio:resume", listener);
     return () => window.removeEventListener("portfolio:resume", listener);
-  }, []);
-  useEffect(() => { if (!open) return; const close = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); }; document.addEventListener("keydown", close); return () => document.removeEventListener("keydown", close); }, [open]);
+  }, [onOpenChange]);
+  useEffect(() => { if (!open) return; const close = (e: KeyboardEvent) => { if (e.key === "Escape") changeOpen(false); }; document.addEventListener("keydown", close); return () => document.removeEventListener("keydown", close); }, [open, onOpenChange]);
   if (!open) return null;
-  return <div className="advanced-modal-backdrop" onMouseDown={() => setOpen(false)}><section className="advanced-modal resume-modal" role="dialog" aria-modal="true" aria-label="Resume viewer" onMouseDown={e => e.stopPropagation()}>
-    <header><div><FileText size={17} /><span>resume.pdf</span></div><div className="resume-header-actions"><a href="/resume/Osameh_Irandoust_CV.pdf" target="_blank" rel="noreferrer" className="icon-text-btn"><ExternalLink size={14} /> Open PDF</a><a href="/resume/Osameh_Irandoust_CV.pdf" download className="icon-text-btn"><Download size={14} /> Download</a><button onClick={() => setOpen(false)} aria-label="Close resume"><X size={17} /></button></div></header>
+  return <div className="advanced-modal-backdrop" onMouseDown={() => changeOpen(false)}><section className="advanced-modal resume-modal" role="dialog" aria-modal="true" aria-label="Resume viewer" onMouseDown={e => e.stopPropagation()}>
+    <header><div><FileText size={17} /><span>resume.pdf</span></div><div className="resume-header-actions"><a href="/resume/Osameh_Irandoust_CV.pdf" target="_blank" rel="noreferrer" className="icon-text-btn"><ExternalLink size={14} /> Open PDF</a><a href="/resume/Osameh_Irandoust_CV.pdf" download className="icon-text-btn"><Download size={14} /> Download</a><button onClick={() => changeOpen(false)} aria-label="Close resume"><X size={17} /></button></div></header>
     <div className="resume-summary"><div><p className="eyebrow">CV / QUICK VIEW</p><h2>{resumeSummary.headline}</h2><p>{resumeSummary.profile}</p><small>{resumeSummary.education}</small></div><div className="resume-skill-cloud">{resumeSummary.skills.map(skill => <span key={skill}>{skill}</span>)}</div></div>
     <div className="resume-document">
       <article><small>PROFILE</small><p>{resumeSummary.profile}</p></article>

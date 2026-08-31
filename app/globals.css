@@ -374,3 +374,15 @@ html[data-theme="light"] .action-toast.error{background:#fff3f3f8;border-color:#
   .action-toast{right:10px;left:10px;bottom:40px;max-width:none;font-size:11px}
   .panel-resize-handle span{width:44px}
 }
+
+
+/* v2.2.3 — Explorer selection state & resume plugin */
+.explorer-plugins{margin:14px 9px 0;padding-top:11px;border-top:1px solid var(--line)}
+.explorer-plugins-title{margin:0 6px 7px;display:flex;align-items:center;gap:6px;color:#747e76;font:700 9px var(--code-font);letter-spacing:.1em}
+.explorer-plugin{width:100%;min-height:58px;padding:8px;border:1px solid #29332b;border-radius:7px;background:#121813;color:#96a099;display:grid;grid-template-columns:30px minmax(0,1fr) auto;align-items:center;gap:8px;text-align:left;cursor:pointer;transition:border-color .14s ease,background .14s ease,color .14s ease,transform .14s ease}
+.explorer-plugin:hover{border-color:#435047;background:#171f18;color:#e1e7e2;transform:translateY(-1px)}
+.explorer-plugin.active{border-color:#5b7653;background:#1a2519;color:#edf5e8;box-shadow:inset 2px 0 0 var(--green)}
+.explorer-plugin-icon{width:30px;height:30px;border:1px solid #344037;border-radius:6px;display:grid;place-items:center;background:#0d120e;color:#9ccf74}
+.explorer-plugin-copy{min-width:0;display:flex;flex-direction:column;gap:3px}.explorer-plugin-copy b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:700 10.5px var(--ui-font);color:inherit}.explorer-plugin-copy small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#6f7a71;font:8.5px var(--code-font)}
+.explorer-plugin-badge{padding:3px 4px;border:1px solid #3c493e;border-radius:4px;color:#859089;font:700 7px var(--code-font);letter-spacing:.06em}
+html[data-theme="light"] .explorer>.file:hover{background:#e8eee9;color:#28362d}html[data-theme="light"] .explorer>.file.active{background:#dfe9df;color:#1d2c21;border-left-color:#397a31}html[data-theme="light"] .explorer-plugin{border-color:#c9d3cb;background:#f9fbf9;color:#455249}html[data-theme="light"] .explorer-plugin:hover{border-color:#9fb0a2;background:#edf3ee;color:#1f2b23}html[data-theme="light"] .explorer-plugin.active{border-color:#76a16e;background:#e7f0e6;color:#1b2b1d}html[data-theme="light"] .explorer-plugin-icon{border-color:#bdc9bf;background:#f3f7f3;color:#397a31}html[data-theme="light"] .explorer-plugin-copy small{color:#667269}html[data-theme="light"] .explorer-plugin-badge{border-color:#b9c5bb;color:#5f6c62}

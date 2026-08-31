@@ -4,6 +4,17 @@ All notable changes to **osameh.dev** are documented here.
 
 The project follows [Semantic Versioning](https://semver.org/). The early production releases were shipped in rapid succession while the portfolio was moved from its hosted prototype to the current ParsPack/CDN deployment.
 
+## 2.2.3 - 2026-08-31
+
+### Fixed
+- Explorer/sidebar entries now receive a selected state when clicked and while their section is visible during scrolling.
+- Project detail routes keep the Projects entry selected instead of leaving the Explorer state ambiguous.
+
+### Changed
+- Moved the resume out of the `OSAMEH-PORTFOLIO` file tree.
+- Added a distinct `PORTFOLIO PLUGINS` area with a Resume Viewer card that reflects modal open/closed state.
+- Added `aria-current`/`aria-pressed` state to the Explorer and Resume Viewer controls for clearer keyboard and assistive-technology feedback.
+
 ## 2.2.2 - 2026-08-31
 
 ### Added
