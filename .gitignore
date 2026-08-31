@@ -7,3 +7,7 @@ dist/
 .DS_Store
 # Generated production fingerprint
 public/build-info.json
+
+# Never commit server-side secrets/private runtime data
+**/osameh-portfolio-secrets.php
+private/

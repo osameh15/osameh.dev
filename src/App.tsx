@@ -3,12 +3,13 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   ArrowUpRight, Braces, BriefcaseBusiness as Linkedin, Camera as Instagram,
-  Check, ChevronDown, ChevronLeft, ChevronRight, Circle, Code2, Command, Copy, ExternalLink, FileCode2,
+  Check, ChevronDown, ChevronLeft, ChevronRight, Circle, Code2, Command, Copy, Download, ExternalLink, FileCode2,
   FolderOpen, GitBranch as Github, GitFork as Gitlab, Home as HomeIcon, Link2, Mail, MapPin, Menu,
   CornerDownLeft, ListTree, LoaderCircle, MessageCircle, PanelBottom, RefreshCw,
   Image as ImageIcon, LayoutGrid, Monitor, Moon, Package, Search, Send, ServerCog, Star, Sun, Terminal, Type, X, Zap,
 } from "lucide-react";
 import { BUILD_DISPLAY, BUILD_ID, BUILD_TIME, BUILD_VERSION } from "./generated/build";
+import { BuildInfoModal, ChangelogSection, ContactForm, GithubActivity, NowSection, ProjectCaseStudy, ProjectCompare, PwaInstallControl, ResumeViewer, ShortcutGuide, SystemDiagnostics, shareProject, trackEvent } from "./AdvancedUI";
 
 type ThemePreference = "dark" | "light" | "system";
 type FontPreference = "inter" | "mono" | "humanist" | "serif";
@@ -88,6 +89,8 @@ const sections: SearchResult[] = [
   { label: "About me", path: "/about", kind: "section" },
   { label: "Projects", path: "/projects", kind: "section" },
   { label: "Experience", path: "/experience", kind: "section" },
+  { label: "Now", path: "/now", kind: "section" },
+  { label: "Changelog", path: "/changelog", kind: "section" },
   { label: "Contact", path: "/contact", kind: "section" },
 ];
 
@@ -332,6 +335,12 @@ export default function Home() {
   const [commandQuery, setCommandQuery] = useState("");
   const [commandIndex, setCommandIndex] = useState(0);
   const [actionToast, setActionToast] = useState("");
+  const [projectQuery, setProjectQuery] = useState("");
+  const [projectTech, setProjectTech] = useState("all");
+  const [projectSort, setProjectSort] = useState<"recent" | "stars" | "name">("recent");
+  const [compareRepos, setCompareRepos] = useState<GithubRepo[]>([]);
+  const [compareModalOpen, setCompareModalOpen] = useState(false);
+  const [offline, setOffline] = useState(!navigator.onLine);
   const [terminalLines, setTerminalLines] = useState<string[]>([
     "› cat welcome.txt",
     "Hi — I'm Osameh, software engineer in Tehran. This site is a small editor.",
@@ -342,6 +351,8 @@ export default function Home() {
   const terminalInputRef = useRef<HTMLInputElement>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const commandPaletteInputRef = useRef<HTMLInputElement>(null);
+  const projectSearchRef = useRef<HTMLInputElement>(null);
+  const keyboardChordRef = useRef<{ key: string; at: number } | null>(null);
   const actionToastTimerRef = useRef<number | null>(null);
   const code = codeProfiles[codeLanguage];
   const skillLines = skillSource(codeLanguage);
@@ -399,11 +410,17 @@ export default function Home() {
 
   useEffect(() => {
     const path = window.location.pathname;
-    const knownPaths = ["/", "/home", "/about", "/projects", "/experience", "/contact"];
+    const knownPaths = ["/", "/home", "/about", "/projects", "/experience", "/now", "/changelog", "/contact", "/resume"];
     const project = fallbackRepos.find(repo => `/${repo.name.toLowerCase()}` === path.toLowerCase() || `/projects/${repo.name.toLowerCase()}` === path.toLowerCase());
-    if (project) openProject(project);
-    else if (!knownPaths.includes(path.toLowerCase()) && !/^\/projects\/[^/]+\/?$/i.test(path)) setNotFoundPath(path);
+    if (project) openProject(project, false);
+    else if (path.toLowerCase() === "/resume") window.setTimeout(() => window.dispatchEvent(new Event("portfolio:resume")), 50);
+    else if (knownPaths.includes(path.toLowerCase()) && !["/", "/home", "/resume"].includes(path.toLowerCase())) {
+      const target = path.toLowerCase() === "/projects" ? "work" : path.slice(1);
+      window.setTimeout(() => document.getElementById(target)?.scrollIntoView({ block: "start" }), 80);
+    } else if (!knownPaths.includes(path.toLowerCase()) && !/^\/projects\/[^/]+\/?$/i.test(path)) setNotFoundPath(path);
   }, []);
+
+  useEffect(() => { trackEvent("page_view"); }, []);
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("portfolio-theme") as ThemePreference | null;
@@ -454,6 +471,51 @@ export default function Home() {
   }, [commandPaletteOpen]);
 
   useEffect(() => { setCommandIndex(0); }, [commandQuery]);
+
+  useEffect(() => {
+    const sync = () => setOffline(!navigator.onLine);
+    window.addEventListener("online", sync);
+    window.addEventListener("offline", sync);
+    return () => { window.removeEventListener("online", sync); window.removeEventListener("offline", sync); };
+  }, []);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const target = event.target instanceof HTMLElement ? event.target : null;
+      const typing = !!target?.closest("input, textarea, select, [contenteditable='true']");
+      if (typing || event.ctrlKey || event.metaKey || event.altKey) return;
+      if (event.key === "?") { event.preventDefault(); window.dispatchEvent(new Event("portfolio:shortcuts")); return; }
+      if (event.key === "/") {
+        if (!activeRepo && !notFoundPath) { event.preventDefault(); projectSearchRef.current?.focus({ preventScroll: false }); document.getElementById("work")?.scrollIntoView({ behavior: "smooth", block: "start" }); }
+        return;
+      }
+      const now = Date.now();
+      if (event.key.toLowerCase() === "g") { keyboardChordRef.current = { key: "g", at: now }; return; }
+      const chord = keyboardChordRef.current;
+      keyboardChordRef.current = null;
+      if (!chord || now - chord.at > 900) return;
+      const map: Record<string, SearchResult> = { h: sections[0], a: sections[1], p: sections[2], e: sections[3], n: sections[4], c: sections[6] };
+      const destination = map[event.key.toLowerCase()];
+      if (destination) { event.preventDefault(); goTo(destination); }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [activeRepo, notFoundPath, repos]);
+
+  useEffect(() => {
+    const sequence = ["ArrowUp", "ArrowUp", "ArrowDown", "ArrowDown", "ArrowLeft", "ArrowRight", "ArrowLeft", "ArrowRight", "b", "a"];
+    let index = 0;
+    const konami = (event: KeyboardEvent) => {
+      if (event.key === sequence[index]) index += 1; else index = event.key === sequence[0] ? 1 : 0;
+      if (index === sequence.length) {
+        index = 0;
+        setTerminalLines(lines => [...lines, "› konami", "Achievement unlocked: curious engineer ✦", "You found the hidden input sequence. Type `neofetch` for another one."]);
+        openTerminal();
+      }
+    };
+    document.addEventListener("keydown", konami);
+    return () => document.removeEventListener("keydown", konami);
+  }, []);
 
   useEffect(() => {
     const openPalette = (event: KeyboardEvent) => {
@@ -808,20 +870,27 @@ export default function Home() {
     });
   };
 
-  const openProject = (repo: GithubRepo) => {
+  const openProject = (repo: GithubRepo, updateHistory = true) => {
     setNotFoundPath(null);
     setActiveRepo(repo);
     setOpenedRepos(current => current.some(item => item.id === repo.id) ? current : [...current, repo]);
+    if (updateHistory) {
+      const path = `/projects/${encodeURIComponent(repo.name)}`;
+      if (window.location.pathname !== path) window.history.pushState({ project: repo.name }, "", path);
+    }
+    document.title = `${repo.name} — Osameh Irandoust`;
+    trackEvent("project_open", repo.name);
     window.scrollTo({ top: 0, behavior: "smooth" });
     setPanelOpen(false);
     ensureReadmeHtml(repo);
     void loadGallery(repo);
   };
 
-  const showHome = () => {
+  const showHome = (updateHistory = true) => {
     setNotFoundPath(null);
     setActiveRepo(null);
-    if (window.location.pathname !== "/") window.history.replaceState({}, "", "/");
+    document.title = "Osameh Irandoust — Software Engineer";
+    if (updateHistory && window.location.pathname !== "/") window.history.pushState({}, "", "/");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -830,8 +899,13 @@ export default function Home() {
     setOpenedRepos(remaining);
     if (returnHome) {
       setActiveRepo(null);
+      document.title = "Osameh Irandoust — Software Engineer";
+      if (window.location.pathname !== "/") window.history.pushState({}, "", "/");
     } else if (activeRepo?.id === repo.id) {
-      setActiveRepo(remaining[remaining.length - 1] || null);
+      const next = remaining[remaining.length - 1] || null;
+      setActiveRepo(next);
+      if (next) window.history.replaceState({ project: next.name }, "", `/projects/${encodeURIComponent(next.name)}`);
+      else { document.title = "Osameh Irandoust — Software Engineer"; window.history.replaceState({}, "", "/"); }
     }
   };
 
@@ -841,10 +915,35 @@ export default function Home() {
       if (repo) openProject(repo);
       return;
     }
-    showHome();
-    const target = result.path === "/projects" ? "work" : result.path.slice(1);
+    showHome(false);
+    if (window.location.pathname !== result.path) window.history.pushState({}, "", result.path);
+    const target = result.path === "/projects" ? "work" : result.path === "/home" ? "home" : result.path.slice(1);
     window.setTimeout(() => document.getElementById(target)?.scrollIntoView({ behavior: "smooth" }), 50);
   };
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const path = window.location.pathname;
+      const projectMatch = path.match(/^\/projects\/([^/]+)\/?$/i);
+      if (projectMatch) {
+        let requested = projectMatch[1];
+        try { requested = decodeURIComponent(requested); } catch { /* ignore */ }
+        const repo = repos.find(item => item.name.toLowerCase() === requested.toLowerCase());
+        if (repo) { openProject(repo, false); return; }
+      }
+      const section = sections.find(item => item.path === path);
+      if (section) {
+        showHome(false);
+        const target = section.path === "/projects" ? "work" : section.path === "/home" ? "home" : section.path.slice(1);
+        window.setTimeout(() => document.getElementById(target)?.scrollIntoView({ block: "start" }), 20);
+        return;
+      }
+      if (path === "/") { showHome(false); return; }
+      setNotFoundPath(path);
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [repos]);
 
   const runTerminal = (event: FormEvent) => {
     event.preventDefault();
@@ -868,16 +967,31 @@ export default function Home() {
         "contact       all the ways to reach me",
         "open <where>  github | gitlab | linkedin | telegram | instagram | whatsapp | mail",
         "search <text> search site content",
-        "version       show deployed build id",
+        "version       print deployed version",
+        "build         open build information",
+        "neofetch      portfolio system summary",
+        "resume        open the embedded CV",
+        "now           current focus",
+        "changelog     portfolio release history",
+        "status        local diagnostics",
+        "install       install the PWA when available",
+        "shortcuts     keyboard navigation map",
+        "share <repo>  share a project deep link",
         "hire          run a tiny easter egg",
         "clear         clear the screen",
         "`             toggle terminal  ·  esc closes the active tab"]);
       setSearchResults([]);
       return;
     }
-    if (command === "version" || command === "build" || command === "--version") {
-      setTerminalLines(lines => [...lines, "› " + raw, `osameh.dev ${BUILD_ID}`, `built ${BUILD_TIME}`]);
+    if (command === "version" || command === "--version") {
+      setTerminalLines(lines => [...lines, "› " + raw, `osameh.dev v${BUILD_VERSION}`]);
       setSearchResults([]); return;
+    }
+    if (command === "build") {
+      setTerminalLines(lines => [...lines, "› " + raw, "opening build-info.json…"]);
+      setSearchResults([]);
+      window.dispatchEvent(new Event("portfolio:build"));
+      return;
     }
     if (command === "sudo hire osameh" || command === "hire" || command === "hire osameh") {
       setTerminalLines(lines => [...lines, "› " + raw,
@@ -890,6 +1004,39 @@ export default function Home() {
         "Access granted.",
         "Let's build something great.",
       ]);
+      setSearchResults([]); return;
+    }
+    if (command === "neofetch") {
+      setTerminalLines(lines => [...lines, "› " + raw,
+        "        OI // OSAMEH.DEV",
+        "  -----------------------------",
+        "  Role      Software Engineer",
+        "  Focus     Backend · Full-Stack · Systems",
+        "  Stack     .NET · C++ · Nuxt · PHP · SQL",
+        `  Projects  ${repos.length} public repositories`,
+        `  Build     ${BUILD_VERSION}`,
+        `  Theme     ${document.documentElement.dataset.theme || "dark"}`,
+        `  Network   ${navigator.onLine ? "online" : "offline"}`,
+        "  Status    Ready to build_",
+      ]); setSearchResults([]); return;
+    }
+    if (command === "sudo su") {
+      setTerminalLines(lines => [...lines, "› " + raw, "root access denied: this portfolio follows least privilege.", "Nice try though. ✦"]); setSearchResults([]); return;
+    }
+    if (command === "resume" || command === "cv") {
+      setTerminalLines(lines => [...lines, "› " + raw, "opening resume.pdf…"]); setSearchResults([]); window.dispatchEvent(new Event("portfolio:resume")); return;
+    }
+    if (command === "now") { setTerminalLines(lines => [...lines, "› " + raw, "opening /now…"]); setSearchResults([]); goTo(sections[4]); return; }
+    if (command === "changelog") { setTerminalLines(lines => [...lines, "› " + raw, "opening /changelog…"]); setSearchResults([]); goTo(sections[5]); return; }
+    if (command === "status" || command === "diagnostics") { setTerminalLines(lines => [...lines, "› " + raw, "opening local system diagnostics…"]); setSearchResults([]); window.dispatchEvent(new Event("portfolio:diagnostics")); return; }
+    if (command === "shortcuts" || command === "keys") { setTerminalLines(lines => [...lines, "› " + raw, "opening keyboard-shortcuts.md…"]); setSearchResults([]); window.dispatchEvent(new Event("portfolio:shortcuts")); return; }
+    if (command === "install" || command === "pwa") { setTerminalLines(lines => [...lines, "› " + raw, "requesting install prompt…"]); setSearchResults([]); window.dispatchEvent(new Event("portfolio:install")); return; }
+    if (command === "theme") { toggleThemeMode(); setTerminalLines(lines => [...lines, "› " + raw, "theme toggled."]); setSearchResults([]); return; }
+    if (command.startsWith("share ")) {
+      const name = raw.slice(6).trim().toLowerCase();
+      const repo = repos.find(item => item.name.toLowerCase() === name);
+      if (repo) { void shareProject(repo).then(ok => showActionToast(ok ? "Project shared" : "Share cancelled")); setTerminalLines(lines => [...lines, "› " + raw, `sharing ${repo.name}…`]); }
+      else setTerminalLines(lines => [...lines, "› " + raw, `share: project “${name}” not found`]);
       setSearchResults([]); return;
     }
     if (command === "whoami") {
@@ -995,14 +1142,21 @@ export default function Home() {
     { id: "projects", label: "Go to Projects", hint: "/projects", keywords: "work repos github projects", icon: "code", action: () => goTo(sections[2]) },
     { id: "about", label: "Go to About", hint: "/about", keywords: "about profile bio", icon: "about", action: () => goTo(sections[1]) },
     { id: "experience", label: "Go to Experience", hint: "/experience", keywords: "experience jobs career", icon: "experience", action: () => goTo(sections[3]) },
-    { id: "contact", label: "Go to Contact", hint: "/contact", keywords: "contact email social", icon: "contact", action: () => goTo(sections[4]) },
+    { id: "contact", label: "Go to Contact", hint: "/contact", keywords: "contact email social", icon: "contact", action: () => goTo(sections[6]) },
+    { id: "now", label: "Go to Now", hint: "/now", keywords: "now current working learning", icon: "about", action: () => goTo(sections[4]) },
+    { id: "changelog", label: "Open Changelog", hint: "/changelog", keywords: "changelog releases versions updates", icon: "build", action: () => goTo(sections[5]) },
+    { id: "resume", label: "Open Resume", hint: "resume.pdf", keywords: "resume cv download career", icon: "experience", action: () => window.dispatchEvent(new Event("portfolio:resume")) },
+    { id: "diagnostics", label: "System Diagnostics", hint: "status", keywords: "status diagnostics system pwa api build", icon: "build", action: () => window.dispatchEvent(new Event("portfolio:diagnostics")) },
+    { id: "shortcuts", label: "Keyboard Shortcuts", hint: "?", keywords: "keyboard shortcuts keys navigation", icon: "copy", action: () => window.dispatchEvent(new Event("portfolio:shortcuts")) },
+    { id: "install", label: "Install Portfolio App", hint: "PWA", keywords: "install pwa offline app", icon: "build", action: () => window.dispatchEvent(new Event("portfolio:install")) },
     { id: "terminal", label: "Open Terminal", hint: "`", keywords: "terminal shell cli command", icon: "terminal", action: () => openTerminal() },
     { id: "theme", label: `Switch to ${document.documentElement.dataset.theme === "light" ? "Dark" : "Light"} Theme`, hint: "theme", keywords: "theme dark light appearance", icon: "theme", action: toggleThemeMode },
     { id: "github", label: "Open GitHub", hint: "github.com/osameh15", keywords: "github source repositories", icon: "github", action: () => window.open("https://github.com/osameh15", "_blank", "noopener,noreferrer") },
     { id: "linkedin", label: "Open LinkedIn", hint: "linkedin", keywords: "linkedin career profile", icon: "linkedin", action: () => window.open("https://www.linkedin.com/in/osameh-irandoust-493359173/", "_blank", "noopener,noreferrer") },
     { id: "copy-url", label: "Copy Portfolio URL", hint: "osameh.dev", keywords: "copy link url share", icon: "copy", action: () => { void copyText(window.location.origin + "/", "Portfolio URL copied"); } },
-    { id: "build", label: "View Build Info", hint: BUILD_DISPLAY, keywords: "build version deploy cache", icon: "build", action: () => window.open("/build-info.json", "_blank", "noopener,noreferrer") },
+    { id: "build", label: "View Build Info", hint: BUILD_DISPLAY, keywords: "build version deploy cache", icon: "build", action: () => window.dispatchEvent(new Event("portfolio:build")) },
     { id: "hire", label: "sudo hire osameh", hint: "easter egg", keywords: "hire sudo easter egg terminal", icon: "hire", action: runHireEasterEgg },
+    ...repos.map(repo => ({ id: `project-${repo.id}`, label: `Open project: ${repo.name}`, hint: repo.language || "GitHub", keywords: `project repo ${repo.name} ${repo.language || ""} ${repo.topics.join(" ")}`, icon: "code" as const, action: () => openProject(repo) })),
   ];
   const normalizedCommandQuery = commandQuery.trim().toLowerCase();
   const filteredPaletteCommands = paletteCommands.filter(item => !normalizedCommandQuery || `${item.label} ${item.hint} ${item.keywords}`.toLowerCase().includes(normalizedCommandQuery));
@@ -1029,6 +1183,28 @@ export default function Home() {
   const contextRepo = contextMenu?.repoName ? repos.find(repo => repo.name.toLowerCase() === contextMenu.repoName?.toLowerCase()) || fallbackRepos.find(repo => repo.name.toLowerCase() === contextMenu.repoName?.toLowerCase()) || null : null;
   const projectShareUrl = (repo: GithubRepo) => `${window.location.origin}/projects/${encodeURIComponent(repo.name)}`;
   const runContextAction = (action: () => void) => { setContextMenu(null); action(); };
+  const projectTechOptions = Array.from(new Set(repos.flatMap(repo => [repo.language || "", ...repo.topics]).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+  const normalizedProjectQuery = projectQuery.trim().toLowerCase();
+  const filteredRepos = [...repos].filter(repo => {
+    const haystack = `${repo.name} ${repo.description || ""} ${repo.language || ""} ${repo.topics.join(" ")}`.toLowerCase();
+    const queryMatch = !normalizedProjectQuery || haystack.includes(normalizedProjectQuery);
+    const techMatch = projectTech === "all" || [repo.language, ...repo.topics].filter(Boolean).some(value => String(value).toLowerCase() === projectTech.toLowerCase());
+    return queryMatch && techMatch;
+  }).sort((a, b) => projectSort === "stars" ? b.stargazers_count - a.stargazers_count : projectSort === "name" ? a.name.localeCompare(b.name) : Date.parse(b.updated_at) - Date.parse(a.updated_at));
+  const toggleCompareRepo = (repo: GithubRepo) => setCompareRepos(current => current.some(item => item.id === repo.id) ? current.filter(item => item.id !== repo.id) : current.length >= 2 ? [current[1], repo] : [...current, repo]);
+  const exploreTech = (tech: string) => {
+    const aliases: Record<string, string> = {
+      "c# / .net": "C#", ".net 8": "C#", "nuxt 3 / 4": "nuxt", "laravel / php": "PHP",
+      "qt / qml": "C++", "wpf": "C#", "android": "android", "github actions": "github-actions",
+      "elk stack": "elk", "rest apis": "api", "postgresql": "postgresql", "mysql": "mysql",
+    };
+    const resolved = aliases[tech.toLowerCase()] || tech;
+    const available = projectTechOptions.find(option => option.toLowerCase() === resolved.toLowerCase());
+    if (available) { setProjectTech(available); setProjectQuery(""); }
+    else { setProjectTech("all"); setProjectQuery(resolved); }
+    showHome();
+    window.setTimeout(() => document.getElementById("work")?.scrollIntoView({ behavior: "smooth", block: "start" }), 70);
+  };
 
   return (
     <main>
@@ -1050,13 +1226,15 @@ export default function Home() {
           </div>}
         </div>
         <nav className={menuOpen ? "nav-links open" : "nav-links"} aria-label="Primary navigation">
-          {["about", "work", "experience", "contact"].map(item => <a href={'#' + item} key={item} onClick={event => { event.preventDefault(); setMenuOpen(false); showHome(); window.setTimeout(() => document.getElementById(item)?.scrollIntoView({ behavior: "smooth" }), 50); }}>{item}</a>)}
+          {[{ label: "about", section: sections[1] }, { label: "work", section: sections[2] }, { label: "experience", section: sections[3] }, { label: "now", section: sections[4] }, { label: "contact", section: sections[6] }].map(item => <a href={item.section.path} key={item.label} onClick={event => { event.preventDefault(); setMenuOpen(false); goTo(item.section); }}>{item.label}</a>)}
         </nav>
         <div className="header-actions">
+          <PwaInstallControl />
           <span className="availability"><i /> Available for meaningful work</span>
           <button className="menu-button" onClick={() => setMenuOpen(!menuOpen)} aria-label="Toggle menu">{menuOpen ? <X size={20} /> : <Menu size={20} />}</button>
         </div>
       </header>
+      {offline && <div className="offline-banner" role="status"><span>OFFLINE MODE</span> Cached portfolio shell is active. GitHub content may use the last available data.</div>}
 
       <div className="workspace">
         <aside className="contact-dock" aria-label="Quick contact">
@@ -1076,11 +1254,14 @@ export default function Home() {
         <aside className="explorer">
           <p className="explorer-title">EXPLORER</p>
           <p className="folder"><ChevronDown size={14} /> OSAMEH-PORTFOLIO</p>
-          <button className="file active" onClick={showHome}><FileCode2 size={15} /> {code.file}</button>
+          <button className="file active" onClick={() => showHome()}><FileCode2 size={15} /> {code.file}</button>
           <button className="file" onClick={() => goTo(sections[1])}><Braces size={15} /> about.json</button>
           <button className="file" onClick={() => goTo(sections[2])}><FileCode2 size={15} /> {code.projects}</button>
           <button className="file" onClick={() => goTo(sections[3])}><ChevronRight size={14} /> experience</button>
-          <button className="file" onClick={() => goTo(sections[4])}><Mail size={14} /> contact.md</button>
+          <button className="file" onClick={() => goTo(sections[4])}><Zap size={14} /> now.md</button>
+          <button className="file" onClick={() => goTo(sections[5])}><RefreshCw size={14} /> changelog.md</button>
+          <button className="file" onClick={() => window.dispatchEvent(new Event("portfolio:resume"))}><FileCode2 size={14} /> resume.pdf</button>
+          <button className="file" onClick={() => goTo(sections[6])}><Mail size={14} /> contact.md</button>
           <div className="explorer-footer">
             <button onClick={() => { setPanelTab("outline"); setPanelOpen(true); }}><ListTree size={14} /> OUTLINE</button>
             <button onClick={() => openTerminal()}><Terminal size={14} /> TERMINAL</button>
@@ -1089,9 +1270,9 @@ export default function Home() {
 
         <div className="editor">
           <div className="tabs-row">
-            <button className={activeRepo || notFoundPath ? "editor-tab" : "editor-tab active"} onClick={showHome}><FileCode2 size={14} /> {code.file}</button>
+            <button className={activeRepo || notFoundPath ? "editor-tab" : "editor-tab active"} onClick={() => showHome()}><FileCode2 size={14} /> {code.file}</button>
             {openedRepos.map(repo => <button key={repo.id} className={activeRepo?.id === repo.id ? "editor-tab project-tab active" : "editor-tab project-tab"} onClick={() => openProject(repo)}><Code2 size={14} /><span>{repo.name}.md</span><X size={12} onClick={event => { event.stopPropagation(); closeProject(repo); }} /></button>)}
-            {notFoundPath && <button className="editor-tab project-tab error-tab active"><FileCode2 size={14} /><span>404.md</span><X size={12} onClick={showHome} /></button>}
+            {notFoundPath && <button className="editor-tab project-tab error-tab active"><FileCode2 size={14} /><span>404.md</span><X size={12} onClick={event => { event.stopPropagation(); showHome(); }} /></button>}
           </div>
 
           {notFoundPath ? <section className="not-found-view">
@@ -1101,7 +1282,7 @@ export default function Home() {
             <p>The route <code>{notFoundPath}</code> doesn’t exist in this workspace. It may have moved, been renamed, or never made it past review.</p>
             <div className="not-found-terminal"><span>osameh@portfolio:~$</span> resolve {notFoundPath}<br /><b>error:</b> no matching file or project route</div>
             <div className="detail-actions">
-              <button className="primary-btn" onClick={showHome}>Return to home <ArrowUpRight size={16} /></button>
+              <button className="primary-btn" onClick={() => showHome()}>Return to home <ArrowUpRight size={16} /></button>
               <button className="secondary-btn" onClick={() => { showHome(); window.setTimeout(() => document.getElementById("work")?.scrollIntoView({ behavior: "smooth" }), 50); }}>Browse projects</button>
             </div>
           </section> : activeRepo ? <section className="ide-project-view" data-project-name={activeRepo.name}>
@@ -1113,6 +1294,7 @@ export default function Home() {
                 <div className="detail-actions">
                   <a href={'https://github.com/osameh15/' + activeRepo.name} target="_blank" rel="noreferrer" className="primary-btn">View source <ArrowUpRight size={16} /></a>
                   {npmUrl(activeRepo.name) && <a href={npmUrl(activeRepo.name)} target="_blank" rel="noreferrer" className="npm-btn"><Package size={16} /> View on npm <ArrowUpRight size={14} /></a>}
+                  <button className="secondary-btn" onClick={() => { void shareProject(activeRepo).then(ok => showActionToast(ok ? "Project shared" : "Share cancelled")); }}>Share project <Send size={15} /></button>
                   <button className="secondary-btn back-portfolio" onClick={() => closeProject(activeRepo, true)}>Back to portfolio</button>
                 </div>
               </div>
@@ -1130,6 +1312,7 @@ export default function Home() {
                 {loadingReadmes.includes(activeRepo.name) ? <div className="readme-loading"><LoaderCircle className="spin" size={19} /> Rendering README preview…</div> : readmeHtml[activeRepo.name] ? <div className="markdown-preview" dangerouslySetInnerHTML={{ __html: readmeHtml[activeRepo.name] }} /> : <div className="empty-readme">This repository does not include a public README yet. Open the source to explore its files and implementation.</div>}
               </article>
             </div>
+            <ProjectCaseStudy repo={activeRepo} />
             <section className="project-gallery" aria-labelledby={`gallery-${activeRepo.id}`}>
               <div className="project-gallery-heading">
                 <div><p className="eyebrow">PROJECT / GALLERY</p><h2 id={`gallery-${activeRepo.id}`}>Project visuals.</h2></div>
@@ -1178,7 +1361,7 @@ export default function Home() {
                   <div className="skills-code-body"><div className="skill-line-numbers" aria-hidden="true">{skillLines.map((_, index) => <span key={index}>{String(index + 1).padStart(2, "0")}</span>)}</div><pre><code>{skillLines.join("\n")}</code></pre></div>
                   <div className="skills-code-foot"><span><i /> Valid stack</span><span>UTF-8</span><span>Ln {skillLines.length}, Col 1</span></div>
                 </div> : <div className="skills-preview" aria-label="Skills card preview">
-                  {skills.map(([title, ...items], index) => <article key={title} className={'skill-card accent-' + index}><header><span>{String(index + 1).padStart(2, "0")}</span><i /></header><h3>{title}</h3><div>{items.map(item => <span key={item}>{item}</span>)}</div></article>)}
+                  {skills.map(([title, ...items], index) => <article key={title} className={'skill-card accent-' + index}><header><span>{String(index + 1).padStart(2, "0")}</span><i /></header><h3>{title}</h3><div>{items.map(item => <button type="button" key={item} onClick={() => exploreTech(item)} title={`Show projects related to ${item}`}>{item}</button>)}</div></article>)}
                 </div>}
               </div>
             </div>
@@ -1187,10 +1370,17 @@ export default function Home() {
           <section id="work" ref={projectsSectionRef} className="work section-pad">
             <div className="section-heading"><span>02</span><div><p>{code.projects.toUpperCase()}</p><h2>Everything I’m building.</h2></div><a href="https://github.com/osameh15?tab=repositories" target="_blank" rel="noreferrer" className="section-link">GitHub profile <ArrowUpRight size={15} /></a></div>
             <p className="projects-intro">A live view of my public work, ordered by recent activity. Archived repositories stay out of the way.</p>
+            <div className="project-controls" aria-label="Project search and filters">
+              <label className="project-search"><Search size={15} /><input ref={projectSearchRef} value={projectQuery} onChange={event => { setProjectQuery(event.target.value); setVisibleRepos(6); }} placeholder="Search repositories, stack, topics…" aria-label="Search projects" /><kbd>/</kbd></label>
+              <select value={projectTech} onChange={event => { setProjectTech(event.target.value); setVisibleRepos(6); }} aria-label="Filter by technology"><option value="all">All technologies</option>{projectTechOptions.map(tech => <option key={tech} value={tech}>{tech}</option>)}</select>
+              <select value={projectSort} onChange={event => setProjectSort(event.target.value as "recent" | "stars" | "name")} aria-label="Sort projects"><option value="recent">Recently updated</option><option value="stars">Most starred</option><option value="name">Name A-Z</option></select>
+              {(projectQuery || projectTech !== "all") && <button className="clear-filter" onClick={() => { setProjectQuery(""); setProjectTech("all"); }}><X size={14} /> Clear</button>}
+            </div>
+            <div className="stack-explorer" aria-label="Technology explorer"><span>Explore by stack</span>{["C#", "Vue", "TypeScript", "PHP", "Java", "Kotlin", "Nuxt", "Android"].map(tech => <button key={tech} className={projectTech.toLowerCase() === tech.toLowerCase() ? "active" : ""} onClick={() => exploreTech(tech)}>{tech}</button>)}</div>
             {repoState === "loading" && <div className="repo-status"><LoaderCircle className="spin" size={20} /> Fetching projects from GitHub…</div>}
             {repoState === "error" && <div className="repo-status error"><Code2 size={20} /> GitHub is taking a break. Visit my profile to browse the repositories.</div>}
             {repoState === "ready" && <>
-              <div className="project-grid">{repos.slice(0, visibleRepos).map((project, index) => (
+              <div className="project-grid">{filteredRepos.slice(0, visibleRepos).map((project, index) => (
                 <article role="button" tabIndex={0} onClick={() => openProject(project)} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openProject(project); } }} className={'project-card tone-' + (index % 3)} key={project.id} data-project-name={project.name} aria-label={'Open ' + project.name + ' project details'}>
                   <div className="project-top"><span>{String(index + 1).padStart(2, "0")}</span><span className="project-stats"><Star size={13} /> {project.stargazers_count}<Github size={13} /> {project.forks_count}</span><ArrowUpRight size={19} /></div>
                   <div className="project-image">
@@ -1200,10 +1390,11 @@ export default function Home() {
                   <p className="project-type">{project.language || "Repository"} · Updated {new Date(project.updated_at).toLocaleDateString("en", { month: "short", year: "numeric" })}</p>
                   <h3>{project.name}</h3><p className="project-desc">{project.description || "Explore the source, architecture, and latest work in this repository."}</p>
                   <div className="tags">{[project.language, ...project.topics].filter(Boolean).slice(0, 4).map(tag => <span key={tag}>{tag}</span>)}</div>
-                  <div className="project-links"><span className="open-detail">Open project details <ArrowUpRight size={14} /></span>{npmUrl(project.name) && <a className="npm-chip" href={npmUrl(project.name)} target="_blank" rel="noreferrer" onClick={event => event.stopPropagation()} aria-label={'View ' + npmPackages[project.name] + ' on npm'}><Package size={13} /> npm <ArrowUpRight size={12} /></a>}</div>
+                  <div className="project-links"><span className="open-detail">Open project details <ArrowUpRight size={14} /></span><button className={compareRepos.some(item => item.id === project.id) ? "compare-chip active" : "compare-chip"} onClick={event => { event.stopPropagation(); toggleCompareRepo(project); }} aria-pressed={compareRepos.some(item => item.id === project.id)}><Code2 size={13} /> {compareRepos.some(item => item.id === project.id) ? "Selected" : "Compare"}</button>{npmUrl(project.name) && <a className="npm-chip" href={npmUrl(project.name)} target="_blank" rel="noreferrer" onClick={event => event.stopPropagation()} aria-label={'View ' + npmPackages[project.name] + ' on npm'}><Package size={13} /> npm <ArrowUpRight size={12} /></a>}</div>
                 </article>
               ))}</div>
-              {visibleRepos < repos.length && <div className="load-more-wrap"><button className="load-more" onClick={() => setVisibleRepos(count => count + 6)}>Load more projects <span>{visibleRepos} / {repos.length}</span></button></div>}
+              {!filteredRepos.length && <div className="project-empty"><Search size={20} /><p>No project matches the current search/filter.</p><button onClick={() => { setProjectQuery(""); setProjectTech("all"); }}>Reset filters</button></div>}
+              {visibleRepos < filteredRepos.length && <div className="load-more-wrap"><button className="load-more" onClick={() => setVisibleRepos(count => count + 6)}>Load more projects <span>{Math.min(visibleRepos, filteredRepos.length)} / {filteredRepos.length}</span></button></div>}
             </>}
           </section>
 
@@ -1221,11 +1412,16 @@ export default function Home() {
             </div>
           </section>
 
+          <GithubActivity />
+          <NowSection />
+          <ChangelogSection />
+
           <section id="contact" className="contact section-pad">
             <div className="contact-icon"><ServerCog size={27} /></div><p className="eyebrow">READY FOR THE NEXT BUILD</p>
             <h2>Have a difficult problem?<br /><em>Let’s make it simple.</em></h2>
             <p>Open to thoughtful engineering roles, ambitious products, and conversations about how software should work.</p>
             <a href="mailto:osirandoust@gmail.com" className="primary-btn">Start a conversation <Mail size={17} /></a>
+            <ContactForm />
             <div className="email-options" aria-label="Email contacts">
               <a href="mailto:osirandoust@gmail.com"><span>Personal</span>osirandoust@gmail.com</a>
               <a href="mailto:support@osameh.dev"><span>Business &amp; formal</span>support@osameh.dev</a>
@@ -1239,7 +1435,7 @@ export default function Home() {
               <a href="https://wa.me/989369642754" target="_blank" rel="noreferrer"><MessageCircle size={17} /> WhatsApp</a>
             </div>
           </section>
-          <footer><span>© 2026 Osameh Irandoust</span><span className="footer-status"><i /> All systems operational</span><span className="build-version" title={`${BUILD_ID} · built ${BUILD_TIME}`}>build {BUILD_DISPLAY}</span><span>Designed & built with intention.</span></footer>
+          <footer><span>© 2026 Osameh Irandoust</span><span className="footer-status"><i /> All systems operational</span><button type="button" className="build-version build-version-button" title={`${BUILD_ID} · built ${BUILD_TIME}`} onClick={() => window.dispatchEvent(new Event("portfolio:build"))}>build {BUILD_DISPLAY}</button><span>Designed & built with intention.</span></footer>
           </>}
         </div>
         {contextMenu && <div className="custom-context-menu" ref={contextMenuRef} role="menu" aria-label="Portfolio context menu">
@@ -1253,6 +1449,7 @@ export default function Home() {
           {contextRepo && <div className="context-menu-group"><p>PROJECT</p>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => openProject(contextRepo))}><FolderOpen size={15} /><span>Open project</span><small>{contextRepo.name}.md</small></button>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => window.open(`https://github.com/${GITHUB_OWNER}/${contextRepo.name}`, "_blank", "noopener,noreferrer"))}><Github size={15} /><span>View on GitHub</span><small>Source</small></button>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => { void shareProject(contextRepo).then(ok => showActionToast(ok ? "Project shared" : "Share cancelled")); })}><Send size={15} /><span>Share project</span><small>Native share</small></button>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => { void copyText(projectShareUrl(contextRepo), "Project link copied"); })}><Link2 size={15} /><span>Copy project link</span></button>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => { openProject(contextRepo); window.setTimeout(() => document.getElementById(`gallery-${contextRepo.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 120); })}><ImageIcon size={15} /><span>Open gallery</span><small>{repoGalleries[contextRepo.name]?.length || "Auto"}</small></button>
           </div>}
@@ -1266,11 +1463,17 @@ export default function Home() {
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => goTo(sections[2]))}><Code2 size={15} /><span>Projects</span><small>/projects</small></button>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => goTo(sections[1]))}><Braces size={15} /><span>About</span><small>/about</small></button>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => goTo(sections[3]))}><FileCode2 size={15} /><span>Experience</span><small>/experience</small></button>
-            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => goTo(sections[4]))}><Mail size={15} /><span>Contact</span><small>/contact</small></button>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => goTo(sections[4]))}><Zap size={15} /><span>Now</span><small>/now</small></button>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => goTo(sections[5]))}><RefreshCw size={15} /><span>Changelog</span><small>/changelog</small></button>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => goTo(sections[6]))}><Mail size={15} /><span>Contact</span><small>/contact</small></button>
           </div>}
           <div className="context-menu-group"><p>WORKSPACE</p>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => { setCommandQuery(""); setCommandIndex(0); setCommandPaletteOpen(true); })}><Command size={15} /><span>Command Palette</span><kbd>⌘K</kbd></button>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => openTerminal())}><Terminal size={15} /><span>Open Terminal</span><kbd>`</kbd></button>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => window.dispatchEvent(new Event("portfolio:resume")))}><FileCode2 size={15} /><span>Open Resume</span><small>PDF</small></button>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => window.dispatchEvent(new Event("portfolio:diagnostics")))}><Monitor size={15} /><span>System diagnostics</span><small>status</small></button>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => window.dispatchEvent(new Event("portfolio:shortcuts")))}><Command size={15} /><span>Keyboard shortcuts</span><kbd>?</kbd></button>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => window.dispatchEvent(new Event("portfolio:install")))}><Download size={15} /><span>Install app</span><small>PWA</small></button>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(toggleThemeMode)}>{document.documentElement.dataset.theme === "light" ? <Moon size={15} /> : <Sun size={15} />}<span>Switch theme</span><small>{document.documentElement.dataset.theme === "light" ? "Dark" : "Light"}</small></button>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => { void copyText(window.location.href, "Page URL copied"); })}><Copy size={15} /><span>Copy page URL</span></button>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => window.location.reload())}><RefreshCw size={15} /><span>Refresh</span><kbd>⌘R</kbd></button>
@@ -1293,6 +1496,12 @@ export default function Home() {
           </section>
         </div>}
         {actionToast && <div className="action-toast" role="status" aria-live="polite"><Check size={14} />{actionToast}</div>}
+        {compareRepos.length > 0 && <div className="compare-bar"><span><Code2 size={14} /> Compare queue</span><div>{compareRepos.map(repo => <button key={repo.id} onClick={() => toggleCompareRepo(repo)}>{repo.name} <X size={12} /></button>)}</div><button className="compare-run" disabled={compareRepos.length !== 2} onClick={() => { if (compareRepos.length === 2) { setCompareModalOpen(true); trackEvent("project_compare", compareRepos.map(repo => repo.name).join(" vs ")); } }}>{compareRepos.length === 2 ? "Compare 2 projects" : "Select one more"}</button></div>}
+        <ResumeViewer />
+        <BuildInfoModal />
+        <SystemDiagnostics />
+        <ShortcutGuide />
+        {compareModalOpen && compareRepos.length === 2 && <ProjectCompare repos={compareRepos} onClose={() => setCompareModalOpen(false)} />}
         {galleryLightbox && (() => {
           const gallery = repoGalleries[galleryLightbox.repo] || [];
           const image = gallery[galleryLightbox.index];
@@ -1338,7 +1547,7 @@ export default function Home() {
           </div>}
         </section>}
         <div className="status-bar">
-          <span><Github size={12} /> main*</span><span className="status-build" title={`${BUILD_ID} · built ${BUILD_TIME}`}>{BUILD_VERSION}</span><span className="status-online"><i /> {code.label} mode</span>
+          <span><Github size={12} /> main*</span><button type="button" className="status-build status-build-button" title={`${BUILD_ID} · built ${BUILD_TIME}`} onClick={() => window.dispatchEvent(new Event("portfolio:build"))}>{BUILD_VERSION}</button><span className="status-online"><i /> {code.label} mode</span>
           <button onClick={() => { if (panelOpen) setPanelOpen(false); else openTerminal(); }}><PanelBottom size={13} /> {panelOpen ? "Close panel" : "Open panel"}</button>
         </div>
       </div>

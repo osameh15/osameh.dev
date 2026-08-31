@@ -6,17 +6,31 @@ Options -Indexes
   RewriteCond %{HTTP_HOST} ^www\.osameh\.dev$ [NC]
   RewriteRule ^ https://osameh.dev%{REQUEST_URI} [R=301,L]
 
-  # Stable path-based API URLs.
+  # Project deep links are rendered through a tiny PHP meta layer so social
+  # crawlers receive project-specific Open Graph tags before React boots.
+  RewriteRule ^projects/([A-Za-z0-9._-]+)/?$ project.php?repo=$1 [QSA,L]
+
+  # Stable same-origin API URLs.
   RewriteRule ^api/github/repos/?$ api/github.php [QSA,L]
+  RewriteRule ^api/github/activity/?$ api/github.php?activity=1 [QSA,L]
   RewriteRule ^api/github/readme/([A-Za-z0-9._-]+)/?$ api/github.php?repo=$1 [QSA,L]
   RewriteRule ^api/github/images/([A-Za-z0-9._-]+)/?$ api/github.php?images=$1 [QSA,L]
+  RewriteRule ^api/contact/?$ api/contact.php [QSA,L]
+  RewriteRule ^api/analytics/?$ api/analytics.php [QSA,L]
+  RewriteRule ^og/projects/([A-Za-z0-9._-]+)\.jpg$ project-og.php?repo=$1 [QSA,L]
 
   # API requests must never fall through to the SPA document.
   RewriteRule ^api/ - [L]
 
+  # First-class client routes. /resume must be handled explicitly because a
+  # real public/resume directory also exists for the PDF asset.
+  RewriteRule ^(?:home|about|projects|experience|now|changelog|contact|resume)/?$ index.html [L]
+
+  # Existing files/directories are served normally. Everything else is a real
+  # HTTP 404 while React renders the matching developer-style 404 workspace.
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
-  RewriteRule ^ index.html [L]
+  RewriteRule ^ not-found.php [L]
 </IfModule>
 
 <IfModule mod_headers.c>
@@ -26,11 +40,11 @@ Options -Indexes
   Header always set Referrer-Policy "strict-origin-when-cross-origin"
   Header always set Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
   Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
-  Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'sha256-__JSONLD_CSP_HASH__'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'; frame-src 'none'; frame-ancestors 'none'; manifest-src 'self'; worker-src 'none'; upgrade-insecure-requests"
+  Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'sha256-__JSONLD_CSP_HASH__'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'; frame-src 'none'; frame-ancestors 'none'; manifest-src 'self'; worker-src 'self'; upgrade-insecure-requests"
 </IfModule>
 
 <IfModule mod_deflate.c>
-  AddOutputFilterByType DEFLATE text/html text/plain text/css text/javascript application/javascript application/json application/xml image/svg+xml
+  AddOutputFilterByType DEFLATE text/html text/plain text/css text/javascript application/javascript application/json application/manifest+json application/xml image/svg+xml
 </IfModule>
 
 <IfModule mod_expires.c>
@@ -44,6 +58,7 @@ Options -Indexes
   ExpiresByType image/jpeg "access plus 30 days"
   ExpiresByType image/webp "access plus 30 days"
   ExpiresByType image/avif "access plus 30 days"
+  ExpiresByType application/pdf "access plus 1 day"
 </IfModule>
 
 <IfModule mod_headers.c>
@@ -59,7 +74,10 @@ Options -Indexes
   <FilesMatch "^og-cover(?:-social)?\.(?:webp|jpg)$">
     Header set Cache-Control "public, max-age=86400"
   </FilesMatch>
-  <FilesMatch "^(?:index\.html|robots\.txt|sitemap\.xml|build-info\.json)$">
+  <FilesMatch "^(?:index\.html|robots\.txt|sitemap\.xml|build-info\.json|manifest\.webmanifest|sw\.js)$">
     Header set Cache-Control "no-cache, must-revalidate"
+  </FilesMatch>
+  <FilesMatch "\.pdf$">
+    Header set Cache-Control "public, max-age=86400"
   </FilesMatch>
 </IfModule>

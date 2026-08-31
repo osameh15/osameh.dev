@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 const GITHUB_USER = 'osameh15';
 const API_VERSION = '2022-11-28';
-const REPOSITORY_CACHE_KEY = 'repos-v5';
+const REPOSITORY_CACHE_KEY = 'repos-v8';
 
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') {
     header('Allow: GET');
@@ -13,9 +13,66 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') {
 $imagesRepo = isset($_GET['images']) ? trim((string) $_GET['images']) : '';
 if ($imagesRepo !== '') serveImages($imagesRepo);
 
+$activity = isset($_GET['activity']) ? trim((string) $_GET['activity']) : '';
+if ($activity !== '') serveActivity();
+
 $repo = isset($_GET['repo']) ? trim((string) $_GET['repo']) : '';
 if ($repo !== '') serveReadme($repo);
 serveRepositories();
+
+function serveActivity(): never
+{
+    $cacheKey = 'activity-v8';
+    $fresh = cacheRead($cacheKey, 900);
+    if ($fresh !== null) {
+        $decoded = json_decode($fresh, true);
+        if (is_array($decoded)) respondJson($decoded, 200);
+    }
+
+    $result = githubRequest('https://api.github.com/users/' . rawurlencode(GITHUB_USER) . '/events/public?per_page=30', 'application/vnd.github+json');
+    if ($result['ok']) {
+        $decoded = json_decode($result['body'], true);
+        $items = [];
+        if (is_array($decoded)) {
+            foreach ($decoded as $event) {
+                if (!is_array($event)) continue;
+                $repoName = (string)($event['repo']['name'] ?? '');
+                if ($repoName === '' || !str_starts_with(strtolower($repoName), strtolower(GITHUB_USER) . '/')) continue;
+                $short = substr($repoName, strlen(GITHUB_USER) + 1);
+                $type = (string)($event['type'] ?? 'Activity');
+                $payload = is_array($event['payload'] ?? null) ? $event['payload'] : [];
+                $message = match ($type) {
+                    'PushEvent' => 'Pushed ' . max(1, count(is_array($payload['commits'] ?? null) ? $payload['commits'] : [])) . ' commit(s)',
+                    'CreateEvent' => 'Created ' . ((string)($payload['ref_type'] ?? 'repository item')) . (($payload['ref'] ?? null) ? ': ' . (string)$payload['ref'] : ''),
+                    'ReleaseEvent' => 'Published a release',
+                    'PullRequestEvent' => ucfirst((string)($payload['action'] ?? 'updated')) . ' a pull request',
+                    'IssuesEvent' => ucfirst((string)($payload['action'] ?? 'updated')) . ' an issue',
+                    'WatchEvent' => 'Starred the repository',
+                    default => preg_replace('/Event$/', '', $type) ?: 'Repository activity',
+                };
+                $items[] = [
+                    'id' => (string)($event['id'] ?? hash('sha256', $repoName . ($event['created_at'] ?? ''))),
+                    'type' => $type,
+                    'repo' => $short,
+                    'message' => $message,
+                    'created_at' => (string)($event['created_at'] ?? ''),
+                    'url' => 'https://github.com/' . rawurlencode(GITHUB_USER) . '/' . rawurlencode($short),
+                ];
+                if (count($items) >= 8) break;
+            }
+        }
+        $body = json_encode($items, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        if (is_string($body)) cacheWrite($cacheKey, $body);
+        respondJson($items, 200);
+    }
+
+    $stale = cacheRead($cacheKey, 86400 * 7);
+    if ($stale !== null) {
+        $decoded = json_decode($stale, true);
+        if (is_array($decoded)) respondJson($decoded, 200);
+    }
+    respondJson([], 200);
+}
 
 function serveRepositories(): never
 {
