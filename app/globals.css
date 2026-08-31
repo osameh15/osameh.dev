@@ -169,3 +169,170 @@ html[data-theme="light"] .offline-banner{background:#fff2cfee;border-color:#d0ae
 html[data-theme="light"] .build-info-grid article{background:#f7faf7}
 html[data-theme="light"] .build-info-badge{background:#e4f1e0;border-color:#99b993}
 html[data-theme="light"] .build-info-hero p,html[data-theme="light"] .build-info-grid span,html[data-theme="light"] .build-info-tip{color:#68756b}
+
+/* v2.1.0 — Readability, header flow, contact form and light-theme harmony */
+.header-actions{
+  width:min(360px,34vw);
+  min-width:max-content;
+  padding:4px 12px 4px 8px;
+  gap:8px;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+  align-content:center;
+}
+.pwa-install,
+.availability{
+  white-space:nowrap;
+  flex:0 0 auto;
+}
+.pwa-install{
+  margin-right:0;
+  min-height:30px;
+  padding:6px 9px;
+  font-size:10.5px;
+}
+.availability{font-size:11.5px}
+
+/* Developer UI should be compact, not difficult to read. */
+.eyebrow{font-size:11.5px;color:#b7f264}
+.section-heading>span{font-size:12px}
+.section-heading p{
+  color:#93a297;
+  font-size:11.5px;
+  font-weight:650;
+  letter-spacing:.15em;
+}
+.section-link{font-size:12px;color:#b2bbb4}
+.advanced-section-head>span{font-size:9.5px;color:#839087}
+.advanced-section-head .eyebrow{font-size:10.5px}
+
+.explorer-title{font-size:11px;color:#a7b0a9}
+.folder,.file,.explorer-footer p{font-size:11.5px}
+.editor-tab{font-size:10.5px}
+.skills-code-head p{font-size:10px}.skills-code-head small{font-size:9px}
+.skills-code-foot{font-size:9px}
+.skills-view-toolbar button{font-size:10px}.skills-view-toolbar>span{font-size:9px}
+.skill-card header{font-size:9px}.skill-card>div span{font-size:9px}
+.project-top{font-size:10.5px}.project-type{font-size:10px}.tags span{font-size:9.5px}
+.years{font-size:11px}.role h4{font-size:12px}.role div>p{font-size:14px;line-height:1.7}
+.terminal-head p{font-size:10px}.terminal-body{font-size:12px;line-height:1.85}
+.social-row a{font-size:11.5px}
+footer{font-size:10px}
+
+/* Context menu: keep the IDE personality but reach native-menu readability. */
+.custom-context-menu{width:min(330px,calc(100vw - 20px));padding:8px}
+.context-menu-head{height:39px;font-size:10.5px}
+.context-menu-head code{font-size:10px;max-width:145px}
+.context-menu-group>p{font-size:9.5px;color:#738077;margin-top:4px}
+.context-menu-item{min-height:38px;padding:7px 10px;grid-template-columns:22px minmax(0,1fr) auto;font-size:11.5px}
+.context-menu-item small{font-size:9.5px;color:#758178;max-width:98px}
+.context-menu-item kbd,.context-menu-foot kbd{font-size:9.5px}
+.context-menu-foot{font-size:9.5px;color:#707b72}
+
+/* Command palette and advanced dialogs get the same readability pass. */
+.command-palette-search input{font-size:13px}
+.command-palette-list>button b{font-size:12px}
+.command-palette-list>button small{font-size:9.5px;color:#77847a}
+.command-palette-search>kbd,.command-palette-foot kbd{font-size:9px}
+.command-palette-foot{font-size:9.5px;color:#768278}
+.advanced-modal>header{min-height:48px;font-size:10.5px}
+.advanced-modal>header a.icon-text-btn{min-height:31px;padding:6px 9px;font-size:10.5px;white-space:nowrap}
+.resume-header-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:flex-end}
+.resume-summary p,.resume-summary small{font-size:13px}
+.resume-skill-cloud span{font-size:9.5px}
+.resume-document small{font-size:9.5px}.resume-document p{font-size:13px}
+.diagnostics-grid small{font-size:9.5px}.diagnostics-grid code{font-size:9px}.diagnostics-note{font-size:10px}
+.shortcut-grid>div{font-size:11px}
+.compare-labels{font-size:9.5px}.compare-grid article b{font-size:11px}.compare-grid article p{font-size:12px}.compare-tags span{font-size:8.5px}
+.compare-bar,.compare-bar>div button,.compare-run{font-size:9.5px}
+
+/* Contact/message area: readable labels, inputs and status text. */
+.contact>p:not(.eyebrow){font-size:16px}
+.contact-form{width:min(840px,100%)}
+.contact-form-head{min-height:43px;font-size:10px;color:#909c93}
+.contact-form-head>div{color:#c0c9c2}.contact-form-head small{font-size:9.5px;color:#849188}
+.contact-form label{padding:12px 13px;color:#9aa69d;font-size:10px;font-weight:650;letter-spacing:.075em}
+.contact-form input,.contact-form textarea{margin-top:8px;padding:11px 12px;font-size:13px;line-height:1.55}
+.contact-form-actions{min-height:64px}.form-message{font-size:11px;line-height:1.5}
+.email-options{gap:12px 30px}
+.email-options a{font-size:14px}.email-options a span{font-size:10.5px;color:#98a39b}
+
+/* Better hierarchy for secondary section content. */
+.activity-timeline b{font-size:12px}.activity-timeline p{font-size:13px;line-height:1.6}.activity-timeline small{font-size:9.5px}
+.now-grid small{font-size:10px}.changelog-list header code{font-size:10px}.changelog-list ul{font-size:13px}
+.case-study-grid article small{font-size:9.5px}.case-study-grid article p,.case-study-grid li{font-size:13px}
+
+/* Light theme: remove nested white input slabs and restore clear controls/labels. */
+html[data-theme="light"] .section-heading p{color:#4f6c55}
+html[data-theme="light"] .section-heading>span{color:#397a31}
+html[data-theme="light"] .advanced-section-head>span{color:#63756a}
+html[data-theme="light"] .project-search{
+  background:#fbfdfb;
+  border-color:#b8c6ba;
+  color:#607166;
+  box-shadow:0 1px 0 #fff inset;
+}
+html[data-theme="light"] .project-search>svg{color:#55705b}
+html[data-theme="light"] .project-search input{
+  appearance:none;
+  -webkit-appearance:none;
+  background:transparent!important;
+  border:0!important;
+  box-shadow:none!important;
+  color:#1f2e24;
+}
+html[data-theme="light"] .project-search input::placeholder{color:#718078}
+html[data-theme="light"] .project-search kbd{
+  background:#e7efe8;
+  border-color:#b7c6ba;
+  color:#405849;
+  box-shadow:0 1px 0 #fff;
+}
+html[data-theme="light"] .project-search:focus-within{border-color:#6f9b68;box-shadow:0 0 0 2px #397a3116}
+html[data-theme="light"] .project-controls select,
+html[data-theme="light"] .clear-filter{
+  background:#fbfdfb;
+  border-color:#b8c6ba;
+  color:#31443a;
+}
+html[data-theme="light"] .stack-explorer button{background:#f7faf7;border-color:#c0ccc2;color:#516159}
+html[data-theme="light"] .stack-explorer button:hover,html[data-theme="light"] .stack-explorer button.active{background:#e4efe2;border-color:#82a77c;color:#2f6c2b}
+html[data-theme="light"] .pwa-install{background:#f7faf7;border-color:#b7c5b9;color:#405047}
+html[data-theme="light"] .pwa-install:hover{background:#e8f1e7;border-color:#7d9f78;color:#2e6d2a}
+html[data-theme="light"] .availability{color:#4e5f55}
+html[data-theme="light"] .contact-form-head{color:#607168;background:#f0f5f1}
+html[data-theme="light"] .contact-form-head>div{color:#2b3e32}
+html[data-theme="light"] .contact-form-head small{color:#66776d}
+html[data-theme="light"] .contact-form label{color:#54675b}
+html[data-theme="light"] .contact-form input,html[data-theme="light"] .contact-form textarea{background:#fff!important;border-color:#bac7bc;color:#1f2e24;box-shadow:none}
+html[data-theme="light"] .contact-form input:focus,html[data-theme="light"] .contact-form textarea:focus{border-color:#6f9b68;box-shadow:0 0 0 2px #397a3114}
+html[data-theme="light"] .email-options a span{color:#5d7064}
+html[data-theme="light"] .custom-context-menu{background:#fcfefcf7;border-color:#a9b9ac}
+html[data-theme="light"] .context-menu-head{color:#586a5e}.context-menu-head>span{color:#aab3ac}
+html[data-theme="light"] .context-menu-head>span{color:#26382d}
+html[data-theme="light"] .context-menu-group>p{color:#697b70}
+html[data-theme="light"] .context-menu-item{color:#2d4034}
+html[data-theme="light"] .context-menu-item small{color:#63756a}
+html[data-theme="light"] .context-menu-foot{color:#65766b}
+html[data-theme="light"] .command-palette-search{color:#53675a}
+html[data-theme="light"] .command-palette-list>button small{color:#63766a}
+html[data-theme="light"] .advanced-modal>header{color:#34483b;border-color:#c4d0c6}
+html[data-theme="light"] .advanced-modal>header a.icon-text-btn{background:#fff;border-color:#b8c6ba;color:#354a3d}
+html[data-theme="light"] .advanced-modal>header a.icon-text-btn:hover{background:#e7f0e6;border-color:#83a67d;color:#2f6e2a}
+
+@media(max-width:1050px){
+  .header-actions{width:auto;min-width:0;max-width:260px;padding-right:10px}
+}
+@media(max-width:1000px){
+  .header-actions{max-width:none;flex-wrap:nowrap}
+}
+@media(max-width:720px){
+  .header-actions{padding:0;gap:5px;flex-wrap:nowrap}
+  .pwa-install{font-size:0;min-width:31px;justify-content:center;padding:6px}
+  .contact-form-head{align-items:flex-start;gap:7px;padding:9px 11px;flex-direction:column}
+  .contact-form-head small{line-height:1.45}
+  .resume-header-actions{gap:5px}
+  .advanced-modal>header a.icon-text-btn{font-size:9.5px;padding:5px 7px}
+  .section-heading p{font-size:10.5px}
+  .context-menu-item{font-size:11px}
+}

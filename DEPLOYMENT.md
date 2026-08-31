@@ -1,4 +1,4 @@
-# Production deployment — osameh.dev v2.0.1
+# Production deployment — osameh.dev v2.1.0
 
 Target: ParsPack shared Linux hosting + ParsPack CDN + PHP 8+.
 
@@ -156,7 +156,7 @@ In browser DevTools -> Application:
 1. open Contact
 2. submit a real test message
 3. confirm the email arrives
-4. confirm `GET /api/contact` returns a CSRF token
+4. confirm `GET /api/contact` returns JSON with a CSRF token (the form also has a same-origin fallback if bootstrap is delayed)
 5. verify repeated abuse attempts receive HTTP 429
 
 If the form returns a server-mail error, check that PHP `mail()` is enabled and that the hosting mail routing accepts `support@osameh.dev` as the sender.

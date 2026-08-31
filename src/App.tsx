@@ -272,6 +272,7 @@ async function renderMarkdown(markdown: string, repo: GithubRepo) {
 
 const roles = [
   { years: "Apr 2026 — Present", company: "Navatel", role: "Software Engineer", detail: "Building and improving production software as part of Navatel’s engineering team." },
+  { years: "2017 — Present", company: "Independent / Freelance", role: "Freelance Software Developer", detail: "Delivering end-to-end client work across full-stack web applications, backend services, WordPress solutions, custom themes and plugins, automation, integrations, deployment, and long-term maintenance. I enjoy taking freelance projects from requirements and architecture through implementation, launch, optimization, and support." },
   { years: "2024 — 2026", company: "Fluxudio", role: "Software Engineer", detail: "Scalable .NET and Ruby services, Nuxt applications, ELK observability, Docker, and AI-assisted workflows." },
   { years: "2021 — 2024", company: "Datall", role: "Full Stack Developer", detail: "High-performance C++/Qt systems, PostgreSQL and Cassandra optimization, architecture built for reliability." },
   { years: "2019 — 2021", company: "Arrap Startup", role: "Android Developer", detail: "End-to-end Android products with Java and Kotlin, backed by Laravel, MySQL, and Python automation." },

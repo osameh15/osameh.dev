@@ -71,13 +71,13 @@ export function ResumeViewer() {
   useEffect(() => { if (!open) return; const close = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); }; document.addEventListener("keydown", close); return () => document.removeEventListener("keydown", close); }, [open]);
   if (!open) return null;
   return <div className="advanced-modal-backdrop" onMouseDown={() => setOpen(false)}><section className="advanced-modal resume-modal" role="dialog" aria-modal="true" aria-label="Resume viewer" onMouseDown={e => e.stopPropagation()}>
-    <header><div><FileText size={17} /><span>resume.pdf</span></div><div><a href="/resume/Osameh_Irandoust_CV.pdf" download className="icon-text-btn"><Download size={14} /> Download</a><button onClick={() => setOpen(false)} aria-label="Close resume"><X size={17} /></button></div></header>
+    <header><div><FileText size={17} /><span>resume.pdf</span></div><div className="resume-header-actions"><a href="/resume/Osameh_Irandoust_CV.pdf" target="_blank" rel="noreferrer" className="icon-text-btn"><ExternalLink size={14} /> Open PDF</a><a href="/resume/Osameh_Irandoust_CV.pdf" download className="icon-text-btn"><Download size={14} /> Download</a><button onClick={() => setOpen(false)} aria-label="Close resume"><X size={17} /></button></div></header>
     <div className="resume-summary"><div><p className="eyebrow">CV / QUICK VIEW</p><h2>{resumeSummary.headline}</h2><p>{resumeSummary.profile}</p><small>{resumeSummary.education}</small></div><div className="resume-skill-cloud">{resumeSummary.skills.map(skill => <span key={skill}>{skill}</span>)}</div></div>
     <div className="resume-document">
       <article><small>PROFILE</small><p>{resumeSummary.profile}</p></article>
       <article><small>EDUCATION</small><p>{resumeSummary.education}</p></article>
       <article><small>LANGUAGES</small><p>{resumeSummary.languages.join(" · ")}</p></article>
-      <article><small>FULL PDF</small><p>A downloadable CV is packaged with the portfolio. Open it in the browser's native PDF viewer for the complete resume.</p><a className="primary-btn" href="/resume/Osameh_Irandoust_CV.pdf" target="_blank" rel="noreferrer">Open PDF <ExternalLink size={15} /></a></article>
+      <article><small>FULL PDF</small><p>The complete PDF is packaged with the portfolio. Use the Open PDF or Download controls in the viewer header.</p></article>
     </div>
   </section></div>;
 }
@@ -207,27 +207,91 @@ export function ContactForm() {
   const [csrf, setCsrf] = useState("");
   const [state, setState] = useState<"idle" | "sending" | "success" | "error">("idle");
   const [message, setMessage] = useState("");
-  useEffect(() => { fetch("/api/contact", { credentials: "same-origin" }).then(r => r.json()).then(data => setCsrf(String(data.csrf || ""))).catch(() => undefined); }, []);
+  const [securityState, setSecurityState] = useState<"loading" | "ready" | "fallback">("loading");
+
+  const loadCsrf = async () => {
+    try {
+      const response = await fetch("/api/contact", {
+        credentials: "same-origin",
+        cache: "no-store",
+        headers: { Accept: "application/json" },
+      });
+      if (!response.ok) throw new Error("csrf-bootstrap");
+      const data = await response.json();
+      const token = String(data.csrf || "");
+      setCsrf(token);
+      setSecurityState(token ? "ready" : "fallback");
+      return token;
+    } catch {
+      setSecurityState("fallback");
+      return "";
+    }
+  };
+
+  useEffect(() => { void loadCsrf(); }, []);
+
   const submit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault(); setState("sending"); setMessage("");
+    event.preventDefault();
+    if (state === "sending") return;
+    setState("sending");
+    setMessage("");
     const formElement = event.currentTarget;
     const form = new FormData(formElement);
-    const payload = { name: String(form.get("name") || ""), email: String(form.get("email") || ""), subject: String(form.get("subject") || ""), message: String(form.get("message") || ""), website: String(form.get("website") || ""), csrf };
+    const token = csrf || await loadCsrf();
+    const payload = {
+      name: String(form.get("name") || ""),
+      email: String(form.get("email") || ""),
+      subject: String(form.get("subject") || ""),
+      message: String(form.get("message") || ""),
+      website: String(form.get("website") || ""),
+      csrf: token,
+    };
     try {
-      const response = await fetch("/api/contact", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin", body: JSON.stringify(payload) });
-      const data = await response.json();
-      if (!response.ok || !data.success) throw new Error(data.message || "Message could not be sent.");
-      setState("success"); setMessage("Message sent. I’ll get back to you as soon as I can."); formElement.reset(); trackEvent("contact_submit", payload.subject || "general");
-      if (data.csrf) setCsrf(String(data.csrf));
-    } catch (error) { setState("error"); setMessage(error instanceof Error ? error.message : "Message could not be sent."); }
+      const postMessage = async (body: typeof payload) => {
+        const response = await fetch("/api/contact", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          credentials: "same-origin",
+          cache: "no-store",
+          body: JSON.stringify(body),
+        });
+        const data = await response.json().catch(() => ({}));
+        return { response, data };
+      };
+
+      let result = await postMessage(payload);
+      if (result.response.status === 419 && result.data.csrf) {
+        const refreshed = String(result.data.csrf);
+        setCsrf(refreshed);
+        setSecurityState("ready");
+        result = await postMessage({ ...payload, csrf: refreshed });
+      }
+
+      if (result.data.csrf) { setCsrf(String(result.data.csrf)); setSecurityState("ready"); }
+      if (!result.response.ok || !result.data.success) throw new Error(result.data.message || "Message could not be sent.");
+      setState("success");
+      setMessage("Message sent. I’ll get back to you as soon as I can.");
+      formElement.reset();
+      trackEvent("contact_submit", payload.subject || "general");
+    } catch (error) {
+      setState("error");
+      setMessage(error instanceof Error ? error.message : "Message could not be sent.");
+    }
   };
+
+  const securityLabel = securityState === "ready"
+    ? "same-origin · CSRF · honeypot · rate limited"
+    : securityState === "loading"
+      ? "preparing secure channel…"
+      : "same-origin · origin checked · honeypot · rate limited";
+
   return <form className="contact-form" onSubmit={submit}>
-    <div className="contact-form-head"><div><Mail size={17} /><span>send-message.ts</span></div><small>same-origin · CSRF · honeypot · rate limited</small></div>
+    <div className="contact-form-head"><div><Mail size={17} /><span>send-message.ts</span></div><small>{securityLabel}</small></div>
     <div className="contact-form-grid"><label>Name<input name="name" required minLength={2} maxLength={80} autoComplete="name" /></label><label>Email<input name="email" type="email" required maxLength={160} autoComplete="email" /></label></div>
     <label>Subject<input name="subject" required minLength={3} maxLength={120} /></label>
     <label>Message<textarea name="message" required minLength={20} maxLength={5000} rows={6} /></label>
     <label className="honeypot" aria-hidden="true">Website<input name="website" tabIndex={-1} autoComplete="off" /></label>
-    <div className="contact-form-actions"><button className="primary-btn" disabled={state === "sending" || !csrf}>{state === "sending" ? <><LoaderCircle className="spin" size={16} /> Sending…</> : <><Send size={16} /> Send message</>}</button>{message && <p className={state === "success" ? "form-message success" : "form-message error"}>{state === "success" && <Check size={14} />}{message}</p>}</div>
+    <div className="contact-form-actions"><button type="submit" className="primary-btn" disabled={state === "sending"}>{state === "sending" ? <><LoaderCircle className="spin" size={16} /> Sending…</> : <><Send size={16} /> Send message</>}</button>{message && <p className={state === "success" ? "form-message success" : "form-message error"}>{state === "success" && <Check size={14} />}{message}</p>}</div>
   </form>;
 }
 

@@ -14,22 +14,35 @@ function jsonResponse(array $payload, int $status = 200): never {
     exit;
 }
 
-if (session_status() !== PHP_SESSION_ACTIVE) {
-    session_set_cookie_params([
-        'lifetime' => 0,
+function csrfCookieName(): string {
+    return 'osameh_portfolio_csrf';
+}
+
+function issueCsrfToken(bool $rotate = false): string {
+    $name = csrfCookieName();
+    $existing = isset($_COOKIE[$name]) && is_string($_COOKIE[$name]) ? trim($_COOKIE[$name]) : '';
+    $validExisting = preg_match('/^[a-f0-9]{48}$/', $existing) === 1;
+    $token = (!$rotate && $validExisting) ? $existing : bin2hex(random_bytes(24));
+
+    setcookie($name, $token, [
+        'expires' => 0,
         'path' => '/',
         'secure' => true,
         'httponly' => true,
         'samesite' => 'Strict',
     ]);
-    session_start();
+    $_COOKIE[$name] = $token;
+    return $token;
 }
 
-function csrfToken(bool $rotate = false): string {
-    if ($rotate || !isset($_SESSION['portfolio_csrf']) || !is_string($_SESSION['portfolio_csrf'])) {
-        $_SESSION['portfolio_csrf'] = bin2hex(random_bytes(24));
-    }
-    return $_SESSION['portfolio_csrf'];
+function requestIsSameOrigin(): bool {
+    $origin = trim((string)($_SERVER['HTTP_ORIGIN'] ?? ''));
+    if ($origin !== '' && !in_array($origin, ['https://osameh.dev', 'https://www.osameh.dev'], true)) return false;
+
+    $fetchSite = strtolower(trim((string)($_SERVER['HTTP_SEC_FETCH_SITE'] ?? '')));
+    if ($fetchSite !== '' && !in_array($fetchSite, ['same-origin', 'same-site', 'none'], true)) return false;
+
+    return true;
 }
 
 function rateDirectory(): ?string {
@@ -66,22 +79,41 @@ function rateAllowed(): bool {
 }
 
 $method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
-if ($method === 'GET') jsonResponse(['csrf' => csrfToken()]);
-if ($method !== 'POST') { header('Allow: GET, POST'); jsonResponse(['success' => false, 'message' => 'Method not allowed.'], 405); }
+if ($method === 'GET') {
+    jsonResponse(['csrf' => issueCsrfToken(), 'success' => true]);
+}
+if ($method !== 'POST') {
+    header('Allow: GET, POST');
+    jsonResponse(['success' => false, 'message' => 'Method not allowed.'], 405);
+}
 
-$origin = trim((string)($_SERVER['HTTP_ORIGIN'] ?? ''));
-if ($origin !== '' && !in_array($origin, ['https://osameh.dev', 'https://www.osameh.dev'], true)) {
+if (!requestIsSameOrigin()) {
     jsonResponse(['success' => false, 'message' => 'Origin rejected.'], 403);
+}
+
+$contentType = strtolower((string)($_SERVER['CONTENT_TYPE'] ?? ''));
+if ($contentType !== '' && !str_starts_with($contentType, 'application/json')) {
+    jsonResponse(['success' => false, 'message' => 'Unsupported request type.'], 415);
 }
 
 $raw = (string)file_get_contents('php://input');
 $payload = json_decode($raw, true);
 if (!is_array($payload)) jsonResponse(['success' => false, 'message' => 'Invalid request body.'], 400);
 
-$csrf = (string)($payload['csrf'] ?? '');
-if ($csrf === '' || !hash_equals(csrfToken(), $csrf)) jsonResponse(['success' => false, 'message' => 'Your form session expired. Refresh and try again.'], 419);
+// Prefer a double-submit CSRF check. If the bootstrap cookie is unavailable on a
+// particular shared-host/CDN path, the exact-Origin + JSON + Sec-Fetch-Site checks
+// above remain the enforced fallback so the form is never permanently disabled.
+$payloadCsrf = trim((string)($payload['csrf'] ?? ''));
+$cookieCsrf = isset($_COOKIE[csrfCookieName()]) && is_string($_COOKIE[csrfCookieName()]) ? trim($_COOKIE[csrfCookieName()]) : '';
+if ($payloadCsrf !== '' || $cookieCsrf !== '') {
+    if ($payloadCsrf === '' || $cookieCsrf === '' || !hash_equals($cookieCsrf, $payloadCsrf)) {
+        jsonResponse(['success' => false, 'message' => 'Your form security token expired. Refresh and try again.', 'csrf' => issueCsrfToken(true)], 419);
+    }
+}
 
-if (trim((string)($payload['website'] ?? '')) !== '') jsonResponse(['success' => true, 'message' => 'Message accepted.', 'csrf' => csrfToken(true)]);
+if (trim((string)($payload['website'] ?? '')) !== '') {
+    jsonResponse(['success' => true, 'message' => 'Message accepted.', 'csrf' => issueCsrfToken(true)]);
+}
 if (!rateAllowed()) jsonResponse(['success' => false, 'message' => 'Too many messages from this connection. Please try again later.'], 429);
 
 $name = trim((string)($payload['name'] ?? ''));
@@ -107,4 +139,4 @@ $headers = [
 $sent = @mail('osirandoust@gmail.com', $mailSubject, $body, implode("\r\n", $headers));
 if (!$sent) jsonResponse(['success' => false, 'message' => 'The server could not hand the message to the mail service. You can still email osirandoust@gmail.com directly.'], 503);
 
-jsonResponse(['success' => true, 'message' => 'Message sent.', 'csrf' => csrfToken(true)]);
+jsonResponse(['success' => true, 'message' => 'Message sent.', 'csrf' => issueCsrfToken(true)]);

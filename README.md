@@ -8,6 +8,7 @@ The site keeps the original dark/light visual language, editor layout, animation
 
 ## Highlights
 
+- **Readable developer UI** with larger microcopy, context-menu typography, stronger section labels, and tuned dark/light contrast.
 - **Live GitHub projects** through a same-origin PHP proxy with a fine-grained read-only token, origin caching, stale-cache fallback, README rendering, and repository image discovery.
 - **Project case studies** with problem, solution, architecture, engineering challenges, and results.
 - **Project search, technology filters, sorting, stack explorer, and two-project comparison.**
@@ -20,7 +21,7 @@ The site keeps the original dark/light visual language, editor layout, animation
 - **Developer terminal** (`\`` shortcut) with commands such as `neofetch`, `projects`, `resume`, `status`, `share <repo>`, and `sudo hire osameh`.
 - **Keyboard-first navigation** (`G` then `P/A/E/N/C`, `/` to focus project search, `?` for shortcuts).
 - **PWA/offline shell** with install support and cached navigation/assets.
-- **Secure contact form** with same-origin CSRF validation, honeypot protection, server-side validation, and IP-based rate limiting.
+- **Secure contact form** with same-origin request validation, resilient double-submit CSRF protection when available, honeypot protection, server-side validation, and IP-based rate limiting.
 - **Privacy-friendly analytics** that store aggregate event/path counters only — no user IDs, cookies, user-agent fingerprints, or raw IP addresses.
 - **Local system diagnostics** showing build, network/API status, PWA registration, viewport, theme, and build timestamp.
 - **Custom developer-style real HTTP 404 state**, offline state, stale GitHub fallbacks, and build fingerprints for CDN troubleshooting.
@@ -206,7 +207,7 @@ The existing **backtick (`\``)** shortcut remains the terminal toggle, and openi
 - clickjacking protection
 - restrictive Permissions Policy
 - no directory indexes
-- contact CSRF token + honeypot + validation + rate limit
+- contact same-origin/origin validation + resilient CSRF token + honeypot + validation + rate limit
 - private analytics/cache/secret directories outside `public_html`
 - API responses request `no-store` from browser/CDN
 
@@ -248,7 +249,7 @@ can produce their own link preview without requiring SSR/Node.js.
 Protection includes:
 
 - same-origin check
-- PHP session CSRF token
+- resilient double-submit CSRF token with exact-Origin / Fetch Metadata fallback
 - hidden honeypot
 - server-side length/email validation
 - maximum 4 accepted attempts per IP/hour
@@ -316,6 +317,16 @@ Once the files exist, this ready-made Markdown can be pasted directly under this
 
 ## Release history
 
+### v2.1.0 — Readability & contact polish
+
+- larger micro-UI typography, context menu text, contact form text, and section labels
+- stronger dark/light contrast and harmonized light-theme form/search controls
+- header actions keep labels on one line and wrap as complete controls when space is tight
+- contact submit no longer remains disabled while CSRF bootstrap is unavailable
+- stateless CSRF cookie + same-origin/Fetch Metadata fallback for shared-host reliability
+- Open PDF moved beside Download in the resume viewer header
+- ongoing Independent / Freelance experience added from 2017 to present
+
 ### v2.0.1 — Build UX & compile fixes
 
 - build version opens an in-app modal instead of raw JSON
@@ -363,3 +374,15 @@ The repository can remain private while the production build is deployed. If you
 ### Build information modal
 
 Clicking the build version in the footer or status bar opens an in-app build details modal. The terminal command `build` opens the same modal, while `version` prints the current version/build ID directly in the terminal.
+
+
+## Recent release
+
+### v2.1.0 — Readability & contact polish
+
+- Increased micro-UI typography and section-label contrast.
+- Improved dark/light color harmony, including project search controls.
+- Made PWA/install and availability header actions wrap as whole items instead of splitting words.
+- Fixed contact form startup so the submit action is not blocked by CSRF bootstrap latency/failure.
+- Added Open PDF beside Download in the resume viewer header.
+- Added Independent / Freelance experience (2017-present).
