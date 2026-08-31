@@ -35,9 +35,9 @@ The repository uses the following screenshot names under `docs/img/`:
 | Custom context menu | `context-menu.webp` |
 | Command Palette | `command-palette.webp` |
 | Terminal / neofetch | `terminal-neofetch.webp` |
-| Resume viewer | `resume-viewer.webp` |
-| Contact form | `contact-form.webp` |
-| System diagnostics | `diagnostics.webp` |
+| Project comparison | `compare.webp` |
+| Contact form | `contacts.webp` |
+| Changelog | `change-log.webp` |
 | Responsive mobile view | `mobile.webp` |
 
 Once those files are present, the gallery below renders directly on GitHub:
@@ -60,11 +60,11 @@ Once those files are present, the gallery below renders directly on GitHub:
     <td><img src="docs/img/terminal-neofetch.webp" alt="Terminal neofetch output" /></td>
   </tr>
   <tr>
-    <td><img src="docs/img/resume-viewer.webp" alt="Resume viewer" /></td>
-    <td><img src="docs/img/contact-form.webp" alt="Contact form" /></td>
+    <td><img src="docs/img/compare.webp" alt="Project comparison" /></td>
+    <td><img src="docs/img/contacts.webp" alt="Contact form" /></td>
   </tr>
   <tr>
-    <td><img src="docs/img/diagnostics.webp" alt="System diagnostics" /></td>
+    <td><img src="docs/img/change-log.webp" alt="Portfolio changelog" /></td>
     <td><img src="docs/img/mobile.webp" alt="Responsive mobile layout" /></td>
   </tr>
 </table>
