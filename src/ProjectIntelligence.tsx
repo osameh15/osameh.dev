@@ -32,9 +32,9 @@ export function ProjectMetadataPanel({ repo, metadata }: { repo: RepoLike; metad
     ...meta.stack.platforms,
   ].filter((value, index, all) => all.indexOf(value) === index).slice(0, 12);
 
-  return <section className="project-metadata-panel" aria-labelledby={`metadata-${repo.id}`}>
+  return <section id={`metadata-${repo.name}`} className="project-metadata-panel" aria-labelledby={`metadata-title-${repo.id}`}>
     <div className="advanced-section-head">
-      <div><p className="eyebrow">PROJECT / METADATA</p><h2 id={`metadata-${repo.id}`}>Repository-owned context.</h2></div>
+      <div><p className="eyebrow">PROJECT / METADATA</p><h2 id={`metadata-title-${repo.id}`}>Repository-owned context.</h2></div>
       <span>{meta.schemaVersion === "fallback" ? "Generated fallback" : `portfolio.json · schema ${meta.schemaVersion}`}</span>
     </div>
     <div className="project-metadata-grid">
@@ -77,9 +77,9 @@ export function ProjectMetrics({ repo }: { repo: RepoLike }) {
   const formatDate = (value: string) => value ? new Intl.DateTimeFormat("en", { year: "numeric", month: "short", day: "numeric" }).format(new Date(value)) : "—";
   const formatSize = (kb: number) => kb >= 1024 ? `${(kb / 1024).toFixed(kb >= 10240 ? 0 : 1)} MB` : `${kb.toLocaleString()} KB`;
 
-  return <section className="project-metrics" aria-labelledby={`metrics-${repo.id}`}>
+  return <section id={`metrics-${repo.name}`} className="project-metrics" aria-labelledby={`metrics-title-${repo.id}`}>
     <div className="advanced-section-head">
-      <div><p className="eyebrow">PROJECT / METRICS</p><h2 id={`metrics-${repo.id}`}>Repository signals.</h2></div>
+      <div><p className="eyebrow">PROJECT / METRICS</p><h2 id={`metrics-title-${repo.id}`}>Repository signals.</h2></div>
       <span>Live GitHub data · 1h origin cache</span>
     </div>
     {state === "loading" && <div className="project-metrics-loading"><LoaderCircle size={17} className="spin" /> Loading repository metrics…</div>}
@@ -110,8 +110,8 @@ export function ProjectMetrics({ repo }: { repo: RepoLike }) {
 export function ProjectCaseStudyV3({ repo, metadata }: { repo: RepoLike; metadata?: PortfolioMetadata }) {
   const meta = metadataFor(repo, metadata);
   const study = meta.caseStudy;
-  return <section className="case-study case-study-v3" aria-labelledby={`case-study-${repo.id}`}>
-    <div className="advanced-section-head"><div><p className="eyebrow">PROJECT / CASE STUDY</p><h2 id={`case-study-${repo.id}`}>How it was engineered.</h2></div><span>Problem → decisions → results</span></div>
+  return <section id={`case-study-${repo.name}`} className="case-study case-study-v3" aria-labelledby={`case-study-title-${repo.id}`}>
+    <div className="advanced-section-head"><div><p className="eyebrow">PROJECT / CASE STUDY</p><h2 id={`case-study-title-${repo.id}`}>How it was engineered.</h2></div><span>Problem → decisions → results</span></div>
     <div className="case-study-grid">
       <article><small>01 / PROBLEM</small><h3>The problem</h3><p>{study.problem}</p></article>
       <article><small>02 / SOLUTION</small><h3>The approach</h3><p>{study.solution}</p></article>
@@ -249,15 +249,20 @@ export function ProjectSourceExplorer({ repo, metadata }: { repo: RepoLike; meta
   }, [repo.name]);
 
   useEffect(() => {
-    if (!nearViewport || !meta.sourceExplorer.enabled || treeState !== "idle") return;
+    if (!nearViewport || !meta.sourceExplorer.enabled) return;
     let live = true;
+    const controller = new AbortController();
     setTreeState("loading");
-    fetch(`/api/github/tree/${encodeURIComponent(repo.name)}`, { headers: { Accept: "application/json" }, cache: "no-store" })
+    fetch(`/api/github/tree/${encodeURIComponent(repo.name)}`, { headers: { Accept: "application/json" }, cache: "no-store", signal: controller.signal })
       .then(response => { if (!response.ok) throw new Error("tree"); return response.json(); })
       .then((payload: SourceTreePayload) => { if (!live) return; setTree(payload); setTreeState("ready"); })
-      .catch(() => { if (!live) return; setTreeState("error"); notify(`Source tree for ${repo.name} is temporarily unavailable.`, "warning", 4200); });
-    return () => { live = false; };
-  }, [nearViewport, meta.sourceExplorer.enabled, repo.name, treeState]);
+      .catch(error => {
+        if (!live || error instanceof DOMException && error.name === "AbortError") return;
+        setTreeState("error");
+        notify(`Source tree for ${repo.name} is temporarily unavailable.`, "warning", 4200);
+      });
+    return () => { live = false; controller.abort(); };
+  }, [nearViewport, meta.sourceExplorer.enabled, repo.name]);
 
   const files = useMemo(() => tree?.files || [], [tree]);
   const filteredFiles = useMemo(() => {
@@ -312,6 +317,45 @@ export function ProjectSourceExplorer({ repo, metadata }: { repo: RepoLike; meta
   </section>;
 }
 
+export function ProjectQuickAccess({ repo }: { repo: RepoLike }) {
+  const items = useMemo(() => [
+    { id: `overview-${repo.name}`, label: "Overview", short: "OV", icon: <LayoutGrid size={15} /> },
+    { id: `readme-${repo.name}`, label: "README", short: "RD", icon: <FileCode2 size={15} /> },
+    { id: `metadata-${repo.name}`, label: "Metadata", short: "MD", icon: <Package size={15} /> },
+    { id: `metrics-${repo.name}`, label: "Metrics", short: "MX", icon: <Star size={15} /> },
+    { id: `case-study-${repo.name}`, label: "Case study", short: "CS", icon: <BriefcaseBusiness size={15} /> },
+    { id: `architecture-${repo.name}`, label: "Architecture", short: "AR", icon: <GitBranch size={15} /> },
+    { id: `source-${repo.name}`, label: "Source", short: "SC", icon: <Code2 size={15} /> },
+    { id: `gallery-${repo.name}`, label: "Gallery", short: "GL", icon: <Sparkles size={15} /> },
+  ], [repo.name]);
+  const [active, setActive] = useState(items[0]?.id || "");
+
+  useEffect(() => {
+    const elements = items.map(item => document.getElementById(item.id)).filter((element): element is HTMLElement => Boolean(element));
+    if (!elements.length || !("IntersectionObserver" in window)) return;
+    const observer = new IntersectionObserver(entries => {
+      const visible = entries.filter(entry => entry.isIntersecting).sort((a, b) => Math.abs(a.boundingClientRect.top - 150) - Math.abs(b.boundingClientRect.top - 150));
+      if (visible[0]?.target.id) setActive(visible[0].target.id);
+    }, { rootMargin: "-18% 0px -62% 0px", threshold: [0, .05, .2] });
+    elements.forEach(element => observer.observe(element));
+    return () => observer.disconnect();
+  }, [items]);
+
+  const jump = (id: string) => {
+    setActive(id);
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  return <nav className="project-quick-access" aria-label={`${repo.name} project quick access`}>
+    <div className="project-quick-access-rail" />
+    {items.map(item => <button key={item.id} type="button" className={active === item.id ? "active" : ""} onClick={() => jump(item.id)} aria-label={`Jump to ${item.label}`} aria-current={active === item.id ? "location" : undefined}>
+      <span className="project-quick-icon">{item.icon}</span>
+      <span className="project-quick-short">{item.short}</span>
+      <span className="project-quick-label">{item.label}</span>
+    </button>)}
+  </nav>;
+}
+
 export function FeaturedProjects({ repos, metadata, onOpen, onRecruiterMode }: { repos: RepoLike[]; metadata: RepoMetadataMap; onOpen: (repo: RepoLike) => void; onRecruiterMode: () => void }) {
   const featured = repos
     .map(repo => ({ repo, meta: metadata[repo.name] }))
@@ -321,7 +365,7 @@ export function FeaturedProjects({ repos, metadata, onOpen, onRecruiterMode }: {
   if (!featured.length) return null;
   return <section className="featured-projects" aria-label="Featured projects">
     <header><div><Sparkles size={16} /><span>FEATURED / RECRUITER SHORTLIST</span></div><button type="button" onClick={onRecruiterMode}>Start recruiter mode <ArrowUpRight size={14} /></button></header>
-    <div className="featured-project-grid">{featured.map(({ repo, meta }, index) => <button type="button" key={repo.name} onClick={() => onOpen(repo)}><span className="featured-index">0{index + 1}</span><div><small>{meta?.project.type}</small><h3>{meta?.project.name || repo.name}</h3><p>{meta?.recruiter.headline || repo.description}</p><div>{meta?.recruiter.skillsDemonstrated.slice(0, 4).map(skill => <span key={skill}>{skill}</span>)}</div></div><ArrowUpRight size={16} /></button>)}</div>
+    <div className="featured-project-grid">{featured.map(({ repo, meta }, index) => <button type="button" key={repo.name} data-project-name={repo.name} onClick={() => onOpen(repo)}><span className="featured-index">0{index + 1}</span><div><small>{meta?.project.type}</small><h3>{meta?.project.name || repo.name}</h3><p>{meta?.recruiter.headline || repo.description}</p><div>{meta?.recruiter.skillsDemonstrated.slice(0, 4).map(skill => <span key={skill}>{skill}</span>)}</div></div><ArrowUpRight size={16} /></button>)}</div>
   </section>;
 }
 

@@ -403,6 +403,14 @@ The site also includes an in-app resume viewer and download/open controls.
 
 The five most recent releases are summarized here. See **[CHANGELOG.md](CHANGELOG.md)** for the complete production history.
 
+### v3.0.2 — Project navigation & readability
+
+- added a floating quick-access rail for every major project section
+- fixed Source Explorer tree responses getting stuck in the loading state
+- featured projects now participate in the project-aware context menu
+- balanced the changelog graph into equal-height scrollable panels
+- improved Recruiter Mode and repository-intelligence readability in dark and light themes
+
 ### v3.0.1 — Release graph experience
 
 - replaced the static changelog boxes with an interactive release graph and detail panel
@@ -430,13 +438,6 @@ The five most recent releases are summarized here. See **[CHANGELOG.md](CHANGELO
 - active items expose semantic selected state for accessibility
 - resume moved out of the project file tree into a dedicated Portfolio Plugins card
 - Resume Viewer plugin reflects whether the modal is currently open
-
-### v2.2.2 — Release documentation
-
-- complete repository-level changelog
-- production screenshots committed under `docs/img/`
-- README reduced to a concise five-release summary
-- CI/CD documentation finalized for the scoped ParsPack deployment account
 
 **Full history:** [CHANGELOG.md](CHANGELOG.md)
 

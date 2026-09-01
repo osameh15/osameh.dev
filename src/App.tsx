@@ -11,7 +11,7 @@ import {
 import { BUILD_DISPLAY, BUILD_ID, BUILD_TIME, BUILD_VERSION } from "./generated/build";
 import { BuildInfoModal, ChangelogSection, ContactForm, GithubActivity, NowSection, ProjectCompare, PwaInstallControl, ResumeViewer, ShortcutGuide, SystemDiagnostics, shareProject, trackEvent } from "./AdvancedUI";
 import type { ToastKind, ToastPayload } from "./toast";
-import { FeaturedProjects, ProjectArchitecture, ProjectCaseStudyV3, ProjectMetadataPanel, ProjectMetrics, ProjectSourceExplorer, RecruiterMode } from "./ProjectIntelligence";
+import { FeaturedProjects, ProjectArchitecture, ProjectCaseStudyV3, ProjectMetadataPanel, ProjectMetrics, ProjectQuickAccess, ProjectSourceExplorer, RecruiterMode } from "./ProjectIntelligence";
 import { fetchPortfolioMetadata, type PortfolioMetadata } from "./projectMetadata";
 
 type ThemePreference = "dark" | "light" | "system";
@@ -1462,7 +1462,8 @@ export default function Home() {
               <button className="secondary-btn" onClick={() => { showHome(); window.setTimeout(() => document.getElementById("work")?.scrollIntoView({ behavior: "smooth" }), 50); }}>Browse projects</button>
             </div>
           </section> : activeRepo ? <section className="ide-project-view" data-project-name={activeRepo.name}>
-            <header className="ide-project-hero">
+            <ProjectQuickAccess repo={activeRepo} />
+            <header id={`overview-${activeRepo.name}`} className="ide-project-hero">
               <div>
                 <p className="eyebrow">PROJECT / {activeRepo.language || "CODE"}</p>
                 <h1>{repoMetadata[activeRepo.name]?.project.name || activeRepo.name}</h1>
@@ -1484,7 +1485,7 @@ export default function Home() {
                 <p className="facts-label">TECH & TOPICS</p>
                 <div className="tags">{[activeRepo.language, ...activeRepo.topics].filter(Boolean).map(tag => <span key={tag}>{tag}</span>)}</div>
               </aside>
-              <article className="readme-card"><div className="readme-head"><span>README.md · Preview</span><span>github / {activeRepo.name}</span></div>
+              <article id={`readme-${activeRepo.name}`} className="readme-card"><div className="readme-head"><span>README.md · Preview</span><span>github / {activeRepo.name}</span></div>
                 {loadingReadmes.includes(activeRepo.name) ? <div className="readme-loading"><LoaderCircle className="spin" size={19} /> Rendering README preview…</div> : readmeHtml[activeRepo.name] ? <div className="markdown-preview" dangerouslySetInnerHTML={{ __html: readmeHtml[activeRepo.name] }} /> : <div className="empty-readme">This repository does not include a public README yet. Open the source to explore its files and implementation.</div>}
               </article>
             </div>
@@ -1493,9 +1494,9 @@ export default function Home() {
             <ProjectCaseStudyV3 repo={activeRepo} metadata={repoMetadata[activeRepo.name]} />
             <ProjectArchitecture repo={activeRepo} metadata={repoMetadata[activeRepo.name]} />
             <ProjectSourceExplorer repo={activeRepo} metadata={repoMetadata[activeRepo.name]} />
-            <section className="project-gallery" aria-labelledby={`gallery-${activeRepo.id}`}>
+            <section id={`gallery-${activeRepo.name}`} className="project-gallery" aria-labelledby={`gallery-title-${activeRepo.id}`}>
               <div className="project-gallery-heading">
-                <div><p className="eyebrow">PROJECT / GALLERY</p><h2 id={`gallery-${activeRepo.id}`}>Project visuals.</h2></div>
+                <div><p className="eyebrow">PROJECT / GALLERY</p><h2 id={`gallery-title-${activeRepo.id}`}>Project visuals.</h2></div>
                 <span>{repoGalleries[activeRepo.name]?.length ? `${repoGalleries[activeRepo.name].length} repository images discovered automatically` : "Images are discovered across the repository automatically."}</span>
               </div>
               {loadingGalleries.includes(activeRepo.name) ? <div className="gallery-loading"><LoaderCircle className="spin" size={19} /> Discovering project images…</div> : repoGalleries[activeRepo.name]?.length ? <div className="project-gallery-grid">

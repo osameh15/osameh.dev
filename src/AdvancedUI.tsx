@@ -94,20 +94,20 @@ export function ChangelogSection() {
               type="button"
               role="option"
               aria-selected={isActive}
-              title={`v${item.version}`}
               className={isActive ? "changelog-node active" : "changelog-node"}
               onMouseEnter={() => setSelectedVersion(item.version)}
               onFocus={() => setSelectedVersion(item.version)}
               onClick={() => setSelectedVersion(item.version)}
               style={{ animationDelay: `${index * 70}ms` }}
             >
-              <span className="changelog-node-point" aria-hidden="true"><span /></span>
+              <span className="changelog-node-axis" aria-hidden="true">
+                <span className="changelog-node-point"><span /></span>
+                <small>v{item.version}</small>
+              </span>
               <span className="changelog-node-content">
                 <small>{index === 0 ? "LATEST" : !expanded ? "RECENT" : index < initialVisible ? "RECENT" : "ARCHIVE"}</small>
                 <strong>{item.title}</strong>
-                <span className="changelog-node-version">v{item.version}</span>
               </span>
-              <span className="changelog-node-badge">v{item.version}</span>
             </button>;
           })}
           {!expanded && hiddenCount > 0 && <div className="changelog-node-pending"><span />+{hiddenCount} older releases</div>}

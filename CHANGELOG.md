@@ -4,6 +4,21 @@ All notable changes to **osameh.dev** are documented here.
 
 The project follows [Semantic Versioning](https://semver.org/). The early production releases were shipped in rapid succession while the portfolio was moved from its hosted prototype to the current ParsPack/CDN deployment.
 
+## 3.0.2 - 2026-09-01
+
+### Added
+- Floating project quick-access rail for Overview, README, Metadata, Metrics, Case Study, Architecture, Source, and Gallery.
+
+### Fixed
+- Source Explorer request lifecycle so a successful repository-tree response can no longer remain stuck on `Loading repository tree…`.
+- Featured project cards now expose project context to the custom right-click menu.
+- Changelog graph panels now share the same height and scroll independently, keeping release details visible while browsing older history.
+- Changelog version labels no longer overlap release titles.
+
+### Changed
+- Increased Recruiter Mode typography, progress/navigation visibility, and dark-theme contrast.
+- Applied a readability pass to repository metadata, architecture, source explorer, and featured-project microcopy in both themes.
+
 ## 3.0.1 - 2026-09-01
 
 ### Added
