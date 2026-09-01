@@ -5,9 +5,11 @@
   <url><loc>https://osameh.dev/projects</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
   <url><loc>https://osameh.dev/experience</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://osameh.dev/now</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://osameh.dev/changelog</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>
+  <url><loc>https://osameh.dev/changelog</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://osameh.dev/notes</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
   <url><loc>https://osameh.dev/contact</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
   <url><loc>https://osameh.dev/resume</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://osameh.dev/projects/osameh.dev</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
   <url><loc>https://osameh.dev/projects/Mizekar</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
   <url><loc>https://osameh.dev/projects/Dialysis</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://osameh.dev/projects/YariZan</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
@@ -18,4 +20,8 @@
   <url><loc>https://osameh.dev/projects/ArappMain</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
   <url><loc>https://osameh.dev/projects/ArappMainBack-End</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
   <url><loc>https://osameh.dev/projects/ArappOfficialSite</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://osameh.dev/notes/repository-driven-portfolio</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://osameh.dev/notes/pinned-ftps-deployments</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://osameh.dev/notes/safe-github-source-explorer</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://osameh.dev/notes/shared-hosting-cache-strategy</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
 </urlset>

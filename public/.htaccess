@@ -6,9 +6,11 @@ Options -Indexes
   RewriteCond %{HTTP_HOST} ^www\.osameh\.dev$ [NC]
   RewriteRule ^ https://osameh.dev%{REQUEST_URI} [R=301,L]
 
-  # Project deep links are rendered through a tiny PHP meta layer so social
-  # crawlers receive project-specific Open Graph tags before React boots.
+  # Deep links are rendered through tiny PHP meta layers so crawlers receive
+  # canonical, social, and structured metadata before React boots.
   RewriteRule ^projects/([A-Za-z0-9._-]+)/?$ project.php?repo=$1 [QSA,L]
+  RewriteRule ^notes/([a-z0-9-]+)/?$ note.php?slug=$1 [QSA,L]
+  RewriteRule ^sitemap\.xml$ sitemap.php [QSA,L]
 
   # Stable same-origin API URLs.
   RewriteRule ^api/github/repos/?$ api/github.php [QSA,L]
@@ -21,6 +23,7 @@ RewriteRule ^api/github/meta/([A-Za-z0-9._-]+)/?$ api/github.php?meta=$1 [QSA,L]
   RewriteRule ^api/github/images/([A-Za-z0-9._-]+)/?$ api/github.php?images=$1 [QSA,L]
   RewriteRule ^api/contact/?$ api/contact.php [QSA,L]
   RewriteRule ^api/analytics/?$ api/analytics.php [QSA,L]
+  RewriteRule ^api/health/?$ api/health.php [QSA,L]
   RewriteRule ^og/projects/([A-Za-z0-9._-]+)\.jpg$ project-og.php?repo=$1 [QSA,L]
 
   # API requests must never fall through to the SPA document.
@@ -28,7 +31,7 @@ RewriteRule ^api/github/meta/([A-Za-z0-9._-]+)/?$ api/github.php?meta=$1 [QSA,L]
 
   # First-class client routes. /resume must be handled explicitly because a
   # real public/resume directory also exists for the PDF asset.
-  RewriteRule ^(?:home|about|projects|experience|now|changelog|contact|resume)/?$ index.html [L]
+  RewriteRule ^(?:home|about|projects|experience|now|changelog|notes|contact|resume|status)/?$ index.html [L]
 
   # Existing files/directories are served normally. Unknown browser routes are
   # sent through not-found.php. It intentionally returns HTTP 200 + noindex because
@@ -79,10 +82,17 @@ RewriteRule ^api/github/meta/([A-Za-z0-9._-]+)/?$ api/github.php?meta=$1 [QSA,L]
   <FilesMatch "^og-cover(?:-social)?\.(?:webp|jpg)$">
     Header set Cache-Control "public, max-age=86400"
   </FilesMatch>
-  <FilesMatch "^(?:index\.html|robots\.txt|sitemap\.xml|build-info\.json|manifest\.webmanifest|sw\.js)$">
+  <FilesMatch "^(?:index\.html|robots\.txt|sitemap\.xml|build-info\.json|manifest\.webmanifest|sw\.js|notes-index\.json)$">
     Header set Cache-Control "no-cache, must-revalidate"
   </FilesMatch>
   <FilesMatch "\.pdf$">
     Header set Cache-Control "public, max-age=86400"
+  </FilesMatch>
+</IfModule>
+
+<IfModule mod_headers.c>
+  <FilesMatch "\.md$">
+    Header set Cache-Control "public, max-age=3600, stale-while-revalidate=86400"
+    Header set X-Robots-Tag "noindex, nofollow"
   </FilesMatch>
 </IfModule>

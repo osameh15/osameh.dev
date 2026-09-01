@@ -5,7 +5,7 @@
     "slug": "osameh.dev",
     "name": "osameh.dev",
     "tagline": "An IDE-inspired, repository-driven software engineering portfolio with secure GitHub integration and automated deployment.",
-    "summary": "A React/Vite portfolio that behaves like a developer workspace and a repository-driven engineering platform: public GitHub projects self-describe through portfolio.json, project pages expose architecture and source exploration, recruiter mode surfaces featured engineering evidence, and secure PHP APIs, PWA behavior, CDN-aware routing, and GitHub Actions deliver the production experience.",
+    "summary": "A React/Vite portfolio that behaves like a developer workspace and repository-driven engineering platform: public GitHub projects self-describe through portfolio.json, project pages expose architecture and source exploration, engineering notes document real implementation decisions, live health diagnostics expose safe operational signals, and staged quality-gated CI/CD delivers the production experience.",
     "type": "Portfolio / developer platform",
     "lifecycle": "active",
     "featured": true,
@@ -71,7 +71,9 @@
       "lftp / FTPS",
       "npm",
       "TypeScript",
-      "Service Worker"
+      "Service Worker",
+      "Playwright",
+      "Lighthouse CI"
     ],
     "concepts": [
       "Repository-driven portfolio",
@@ -83,7 +85,13 @@
       "SEO",
       "OpenGraph",
       "Lazy loading",
-      "Soft-404 compatibility"
+      "Soft-404 compatibility",
+      "Dynamic structured data",
+      "Dynamic sitemap",
+      "Staging environment",
+      "CI quality gates",
+      "Live health checks",
+      "Engineering notes"
     ]
   },
   "caseStudy": {
@@ -101,7 +109,10 @@
       "Project case studies, comparison, context menu, command palette and terminal",
       "PWA/offline support, resume viewer and secure contact form",
       "Per-project social previews and CDN-safe 404 routing",
-      "GitHub Actions CI/CD with certificate-pinned FTPS deployment"
+      "GitHub Actions CI/CD with certificate-pinned FTPS deployment",
+      "Dynamic project/note structured data and runtime sitemap generation",
+      "Staging deployment channel with noindex protection and CI quality gates",
+      "Live privacy-safe health center plus Markdown engineering notes"
     ],
     "challenges": [
       {
@@ -309,7 +320,13 @@
       "public/api/",
       ".github/workflows/deploy.yml",
       "README.md",
-      "CHANGELOG.md"
+      "CHANGELOG.md",
+      "src/EngineeringNotes.tsx",
+      "src/notesData.ts",
+      "public/api/health.php",
+      "public/sitemap.php",
+      ".github/workflows/quality.yml",
+      ".github/workflows/staging.yml"
     ]
   },
   "recruiter": {
@@ -334,12 +351,14 @@
       "Public source is proxied through same-origin PHP endpoints with repository validation, caching and preview limits",
       "Deliberately adapted a modern frontend to constrained shared hosting without exposing secrets",
       "Deployment uses a least-privilege account and pinned FTPS certificate",
-      "Project views combine repository-owned metadata with live GitHub language, release, license and activity signals"
+      "Project views combine repository-owned metadata with live GitHub language, release, license and activity signals",
+      "Uses staging, automated quality gates, browser smoke tests, and Lighthouse checks before production delivery.",
+      "Exposes safe live system-health diagnostics and repository-backed engineering notes as first-class product features."
     ]
   },
   "seo": {
     "title": "osameh.dev Portfolio — Osameh Irandoust",
-    "description": "A React/Vite portfolio that behaves like a developer workspace and a repository-driven engineering platform: public GitHub projects self-describe through portfolio.json, project pages expose architecture and source exploration, recruiter mode surfaces featured engineering evidence, and secure PHP APIs, PWA behavior, CDN-aware routing, and GitHub Actions deliver the production experience.",
+    "description": "A React/Vite portfolio that behaves like a developer workspace and repository-driven engineering platform: public GitHub projects self-describe through portfolio.json, project pages expose architecture and source exploration, engineering notes document real implementation decisions, live health diagnostics expose safe operational signals, and staged quality-gated CI/CD delivers the production experience.",
     "keywords": [
       "software engineer portfolio",
       "React",
@@ -349,7 +368,12 @@
       "CI/CD",
       "DevOps",
       "PWA",
-      "CDN"
+      "CDN",
+      "engineering blog",
+      "structured data",
+      "software source code",
+      "Playwright",
+      "Lighthouse"
     ]
   }
 }

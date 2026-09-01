@@ -13,6 +13,8 @@ import { BuildInfoModal, ChangelogSection, ContactForm, GithubActivity, NowSecti
 import type { ToastKind, ToastPayload } from "./toast";
 import { FeaturedProjects, ProjectArchitecture, ProjectCaseStudyV3, ProjectMetadataPanel, ProjectMetrics, ProjectQuickAccess, ProjectSourceExplorer, RecruiterMode } from "./ProjectIntelligence";
 import { fetchPortfolioMetadata, type PortfolioMetadata } from "./projectMetadata";
+import { EngineeringNotesSection, EngineeringNoteView } from "./EngineeringNotes";
+import { engineeringNotes } from "./notesData";
 
 type ThemePreference = "dark" | "light" | "system";
 type FontPreference = "inter" | "mono" | "humanist" | "serif";
@@ -106,6 +108,7 @@ const sections: SearchResult[] = [
   { label: "Now", path: "/now", kind: "section" },
   { label: "Changelog", path: "/changelog", kind: "section" },
   { label: "Contact", path: "/contact", kind: "section" },
+  { label: "Engineering Notes", path: "/notes", kind: "section" },
 ];
 
 const GITHUB_OWNER = "osameh15";
@@ -468,6 +471,7 @@ export default function Home() {
   const [visibleRepos, setVisibleRepos] = useState(6);
   const [repoState, setRepoState] = useState<"loading" | "ready">("loading");
   const [activeRepo, setActiveRepo] = useState<GithubRepo | null>(null);
+  const [activeNoteSlug, setActiveNoteSlug] = useState<string | null>(null);
   const [openedRepos, setOpenedRepos] = useState<GithubRepo[]>([]);
   const [readmeHtml, setReadmeHtml] = useState<Record<string, string>>({});
   const [loadingReadmes, setLoadingReadmes] = useState<string[]>([]);
@@ -598,15 +602,21 @@ export default function Home() {
 
   useEffect(() => {
     const path = window.location.pathname;
-    const knownPaths = ["/", "/home", "/about", "/projects", "/experience", "/now", "/changelog", "/contact", "/resume"];
+    const knownPaths = ["/", "/home", "/about", "/projects", "/experience", "/now", "/changelog", "/notes", "/contact", "/resume", "/status"];
+    const noteMatch = path.match(/^\/notes\/([a-z0-9-]+)\/?$/i);
     const project = fallbackRepos.find(repo => `/${repo.name.toLowerCase()}` === path.toLowerCase() || `/projects/${repo.name.toLowerCase()}` === path.toLowerCase());
-    if (project) openProject(project, false);
+    if (noteMatch && engineeringNotes.some(note => note.slug === noteMatch[1].toLowerCase())) {
+      setActiveNoteSlug(noteMatch[1].toLowerCase());
+      setActiveSectionPath("/notes");
+    } else if (noteMatch) setNotFoundPath(path);
+    else if (project) openProject(project, false);
     else if (path.toLowerCase() === "/resume") window.setTimeout(() => window.dispatchEvent(new Event("portfolio:resume")), 50);
-    else if (knownPaths.includes(path.toLowerCase()) && !["/", "/home", "/resume"].includes(path.toLowerCase())) {
+    else if (path.toLowerCase() === "/status") window.setTimeout(() => window.dispatchEvent(new Event("portfolio:diagnostics")), 80);
+    else if (knownPaths.includes(path.toLowerCase()) && !["/", "/home", "/resume", "/status"].includes(path.toLowerCase())) {
       setActiveSectionPath(path.toLowerCase());
       const target = path.toLowerCase() === "/projects" ? "work" : path.slice(1);
       window.setTimeout(() => document.getElementById(target)?.scrollIntoView({ block: "start" }), 80);
-    } else if (!knownPaths.includes(path.toLowerCase()) && !/^\/projects\/[^/]+\/?$/i.test(path)) setNotFoundPath(path);
+    } else if (!knownPaths.includes(path.toLowerCase()) && !/^\/projects\/[^/]+\/?$/i.test(path) && !/^\/notes\/[^/]+\/?$/i.test(path)) setNotFoundPath(path);
   }, []);
 
   useEffect(() => { trackEvent("page_view"); }, []);
@@ -880,11 +890,12 @@ export default function Home() {
       }
       if (event.key !== "Escape" || fileMenuOpen) return;
       if (notFoundPath) showHome();
+      else if (activeNoteSlug) closeNote();
       else if (activeRepo) closeProject(activeRepo);
     };
     document.addEventListener("keydown", closeActiveTab);
     return () => document.removeEventListener("keydown", closeActiveTab);
-  }, [activeRepo, notFoundPath, openedRepos, fileMenuOpen, galleryLightbox, repoGalleries, contextMenu, commandPaletteOpen]);
+  }, [activeRepo, activeNoteSlug, notFoundPath, openedRepos, fileMenuOpen, galleryLightbox, repoGalleries, contextMenu, commandPaletteOpen]);
 
   useEffect(() => {
     const toggleTerminal = (event: KeyboardEvent) => {
@@ -983,7 +994,7 @@ export default function Home() {
   };
 
   useEffect(() => {
-    if (activeRepo || notFoundPath || resumeOpen) return;
+    if (activeRepo || activeNoteSlug || notFoundPath || resumeOpen) return;
 
     const targets = [
       { path: "/home", id: "home" },
@@ -992,6 +1003,7 @@ export default function Home() {
       { path: "/experience", id: "experience" },
       { path: "/now", id: "now" },
       { path: "/changelog", id: "changelog" },
+      { path: "/notes", id: "notes" },
       { path: "/contact", id: "contact" },
     ].map(item => ({ ...item, element: document.getElementById(item.id) })).filter(item => item.element) as Array<{ path: string; id: string; element: HTMLElement }>;
 
@@ -1020,7 +1032,7 @@ export default function Home() {
       window.removeEventListener("scroll", scheduleSync);
       window.removeEventListener("resize", scheduleSync);
     };
-  }, [activeRepo, notFoundPath, resumeOpen]);
+  }, [activeRepo, activeNoteSlug, notFoundPath, resumeOpen]);
 
   useEffect(() => {
     // A double-clicked dist/index.html runs on file:// and has no PHP server.
@@ -1150,6 +1162,7 @@ export default function Home() {
 
   const openProject = (repo: GithubRepo, updateHistory = true) => {
     setNotFoundPath(null);
+    setActiveNoteSlug(null);
     setActiveSectionPath("/projects");
     setActiveRepo(repo);
     setOpenedRepos(current => current.some(item => item.id === repo.id) ? current : [...current, repo]);
@@ -1169,9 +1182,41 @@ export default function Home() {
     setNotFoundPath(null);
     setActiveSectionPath("/home");
     setActiveRepo(null);
+    setActiveNoteSlug(null);
     document.title = "Osameh Irandoust — Software Engineer";
     if (updateHistory && window.location.pathname !== "/") window.history.pushState({}, "", "/");
     window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const openNote = (slug: string, updateHistory = true) => {
+    const note = engineeringNotes.find(item => item.slug === slug);
+    if (!note) { setNotFoundPath(`/notes/${slug}`); return; }
+    setNotFoundPath(null);
+    setActiveRepo(null);
+    setActiveNoteSlug(slug);
+    setActiveSectionPath("/notes");
+    if (updateHistory) {
+      const path = `/notes/${encodeURIComponent(slug)}`;
+      if (window.location.pathname !== path) window.history.pushState({ note: slug }, "", path);
+    }
+    document.title = `${note.title} — Osameh Irandoust`;
+    trackEvent("note_open", slug);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    setPanelOpen(false);
+  };
+
+  const closeNote = (returnToNotes = true) => {
+    setActiveNoteSlug(null);
+    document.title = "Osameh Irandoust — Software Engineer";
+    if (returnToNotes) {
+      setActiveSectionPath("/notes");
+      window.history.pushState({}, "", "/notes");
+      window.setTimeout(() => document.getElementById("notes")?.scrollIntoView({ behavior: "smooth", block: "start" }), 40);
+    } else {
+      setActiveSectionPath("/home");
+      window.history.pushState({}, "", "/");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
   };
 
   const closeProject = (repo: GithubRepo, returnHome = false) => {
@@ -1191,6 +1236,10 @@ export default function Home() {
   };
 
   const goTo = (result: SearchResult) => {
+    if (result.path.startsWith("/notes/") && result.path !== "/notes") {
+      openNote(result.path.slice("/notes/".length));
+      return;
+    }
     if (result.kind === "project") {
       const repo = repos.find(item => item.name.toLowerCase() === result.label.toLowerCase());
       if (repo) openProject(repo);
@@ -1207,6 +1256,11 @@ export default function Home() {
   useEffect(() => {
     const handlePopState = () => {
       const path = window.location.pathname;
+      const noteMatch = path.match(/^\/notes\/([a-z0-9-]+)\/?$/i);
+      if (noteMatch) {
+        const slug = noteMatch[1].toLowerCase();
+        if (engineeringNotes.some(note => note.slug === slug)) { openNote(slug, false); return; }
+      }
       const projectMatch = path.match(/^\/projects\/([^/]+)\/?$/i);
       if (projectMatch) {
         let requested = projectMatch[1];
@@ -1248,7 +1302,7 @@ export default function Home() {
 
   const terminalBaseCommands = [
     "help", "whoami", "ls", "exp", "skills", "projects", "contact", "version", "build", "neofetch",
-    "resume", "recruiter", "now", "changelog", "status", "diagnostics", "install", "shortcuts", "theme",
+    "resume", "recruiter", "now", "changelog", "notes", "health", "status", "diagnostics", "install", "shortcuts", "theme",
     "clear", "sudo hire osameh", "sudo su", "cat welcome.txt",
     ...sections.map(item => item.path),
   ];
@@ -1258,11 +1312,13 @@ export default function Home() {
     const lower = raw.toLowerCase();
     const projectNames = repos.map(repo => repo.name);
     let candidates: string[];
-    if (lower.startsWith("cat ")) candidates = projectNames.map(name => `cat ${name}`);
+    if (lower.startsWith("cat note ")) candidates = engineeringNotes.map(note => `cat note ${note.slug}`);
+    else if (lower.startsWith("cat ")) candidates = [...projectNames.map(name => `cat ${name}`), "cat note "];
+    else if (lower.startsWith("notes ")) candidates = engineeringNotes.flatMap(note => [note.slug, ...note.tags]).map(term => `notes ${term}`);
     else if (lower.startsWith("share ")) candidates = projectNames.map(name => `share ${name}`);
     else if (lower.startsWith("open ")) candidates = ["github", "gitlab", "linkedin", "telegram", "instagram", "whatsapp", "mail", "business"].map(name => `open ${name}`);
     else if (lower.startsWith("search ")) candidates = [...projectTechOptions, ...projectNames].map(term => `search ${term}`);
-    else candidates = [...terminalBaseCommands, "cat ", "share ", "open ", "search "];
+    else candidates = [...terminalBaseCommands, "cat ", "cat note ", "notes", "notes ", "health", "share ", "open ", "search "];
     return Array.from(new Set(candidates)).filter(candidate => candidate.toLowerCase().startsWith(lower));
   };
 
@@ -1327,6 +1383,10 @@ export default function Home() {
         "recruiter     start the guided recruiter tour",
         "now           current focus",
         "changelog     portfolio release history",
+        "notes         engineering notes index",
+        "notes <text>  search engineering notes",
+        "cat note <id> open an engineering note",
+        "health        live origin and GitHub health center",
         "status        local diagnostics",
         "install       install the PWA when available",
         "shortcuts     keyboard navigation map",
@@ -1387,7 +1447,11 @@ export default function Home() {
     }
     if (command === "now") { setTerminalLines(lines => [...lines, "› " + raw, "opening /now…"]); setSearchResults([]); goTo(sections[4]); return; }
     if (command === "changelog") { setTerminalLines(lines => [...lines, "› " + raw, "opening /changelog…"]); setSearchResults([]); goTo(sections[5]); return; }
-    if (command === "status" || command === "diagnostics") { setTerminalLines(lines => [...lines, "› " + raw, "opening local system diagnostics…"]); setSearchResults([]); window.dispatchEvent(new Event("portfolio:diagnostics")); return; }
+    if (command === "notes") { setTerminalLines(lines => [...lines, "› " + raw, "opening /notes…"]); setSearchResults([]); goTo(sections[7]); return; }
+    if (command === "health" || command === "status-server") { setTerminalLines(lines => [...lines, "› " + raw, "opening live system health…"]); setSearchResults([]); window.dispatchEvent(new Event("portfolio:diagnostics")); return; }
+    if (command.startsWith("cat note ")) { const slug = raw.slice(9).trim().toLowerCase(); const note = engineeringNotes.find(item => item.slug === slug); if (note) { setTerminalLines(lines => [...lines, "› " + raw, `opening ${slug}.md…`]); setSearchResults([]); openNote(note.slug); } else { setTerminalLines(lines => [...lines, "› " + raw, `note not found: ${slug}`]); } return; }
+    if (command.startsWith("notes ")) { const noteQuery = raw.slice(6).trim().toLowerCase(); const matches = engineeringNotes.filter(note => `${note.title} ${note.summary} ${note.tags.join(" ")} ${note.slug}`.toLowerCase().includes(noteQuery)); setTerminalLines(lines => [...lines, "› " + raw, matches.length ? `Found ${matches.length} engineering note${matches.length === 1 ? "" : "s"}.` : `No notes match “${noteQuery}”.`]); setSearchResults(matches.map(note => ({ label: note.title, path: `/notes/${note.slug}`, kind: "section" as const }))); return; }
+    if (command === "status" || command === "diagnostics") { setTerminalLines(lines => [...lines, "› " + raw, "opening live system health…"]); setSearchResults([]); window.dispatchEvent(new Event("portfolio:diagnostics")); return; }
     if (command === "shortcuts" || command === "keys") { setTerminalLines(lines => [...lines, "› " + raw, "opening keyboard-shortcuts.md…"]); setSearchResults([]); window.dispatchEvent(new Event("portfolio:shortcuts")); return; }
     if (command === "install" || command === "pwa") { setTerminalLines(lines => [...lines, "› " + raw, "requesting install prompt…"]); setSearchResults([]); window.dispatchEvent(new Event("portfolio:install")); return; }
     if (command === "theme") { toggleThemeMode(); setTerminalLines(lines => [...lines, "› " + raw, "theme toggled."]); setSearchResults([]); return; }
@@ -1503,13 +1567,17 @@ export default function Home() {
       "/experience": "experience career jobs freelance backend full stack android wordpress",
       "/now": "now current working learning focus",
       "/changelog": "changelog release versions updates history",
+      "/notes": "notes engineering blog articles architecture devops security caching github",
       "/contact": "contact email telegram linkedin whatsapp business",
     };
     const sectionMatches = sections.filter(item => `${item.label} ${item.path} ${sectionTerms[item.path] || ""}`.toLowerCase().includes(query));
     const projectMatches = repos
       .filter(repo => projectSearchText(repo).includes(query))
       .map(repo => ({ label: repo.name, path: "/" + repo.name, kind: "project" as const }));
-    const matches: SearchResult[] = [...sectionMatches, ...projectMatches].filter((item, index, all) => all.findIndex(other => other.kind === item.kind && other.path === item.path) === index);
+    const noteMatches = engineeringNotes
+      .filter(note => `${note.title} ${note.summary} ${note.tags.join(" ")} ${note.slug}`.toLowerCase().includes(query))
+      .map(note => ({ label: note.title, path: `/notes/${note.slug}`, kind: "section" as const }));
+    const matches: SearchResult[] = [...sectionMatches, ...projectMatches, ...noteMatches].filter((item, index, all) => all.findIndex(other => other.kind === item.kind && other.path === item.path) === index);
     setTerminalLines(lines => [...lines, "› " + raw, matches.length ? "Found " + matches.length + " result" + (matches.length === 1 ? "." : "s.") : "No matches for “" + query + "”."]);
     setSearchResults(matches.slice(0, 10));
     if (!matches.length) showActionToast(`No matches for “${query}”.`, "info");
@@ -1523,9 +1591,10 @@ export default function Home() {
     { id: "contact", label: "Go to Contact", hint: "/contact", keywords: "contact email social", icon: "contact", action: () => goTo(sections[6]) },
     { id: "now", label: "Go to Now", hint: "/now", keywords: "now current working learning", icon: "about", action: () => goTo(sections[4]) },
     { id: "changelog", label: "Open Changelog", hint: "/changelog", keywords: "changelog releases versions updates", icon: "build", action: () => goTo(sections[5]) },
+    { id: "notes", label: "Open Engineering Notes", hint: "/notes", keywords: "notes blog articles engineering architecture devops", icon: "about", action: () => goTo(sections[7]) },
     { id: "resume", label: "Open Resume", hint: "resume.pdf", keywords: "resume cv download career", icon: "experience", action: () => window.dispatchEvent(new Event("portfolio:resume")) },
     { id: "recruiter", label: "Start Recruiter Mode", hint: "guided tour", keywords: "recruiter tour featured hiring shortlist", icon: "hire", action: () => setRecruiterModeOpen(true) },
-    { id: "diagnostics", label: "System Diagnostics", hint: "status", keywords: "status diagnostics system pwa api build", icon: "build", action: () => window.dispatchEvent(new Event("portfolio:diagnostics")) },
+    { id: "diagnostics", label: "System Health Center", hint: "/status", keywords: "status health diagnostics latency system pwa api build github", icon: "build", action: () => window.dispatchEvent(new Event("portfolio:diagnostics")) },
     { id: "shortcuts", label: "Keyboard Shortcuts", hint: "?", keywords: "keyboard shortcuts keys navigation", icon: "copy", action: () => window.dispatchEvent(new Event("portfolio:shortcuts")) },
     { id: "install", label: "Install Portfolio App", hint: "PWA", keywords: "install pwa offline app", icon: "build", action: () => window.dispatchEvent(new Event("portfolio:install")) },
     { id: "terminal", label: "Open Terminal", hint: "`", keywords: "terminal shell cli command", icon: "terminal", action: () => openTerminal() },
@@ -1536,6 +1605,7 @@ export default function Home() {
     { id: "build", label: "View Build Info", hint: BUILD_DISPLAY, keywords: "build version deploy cache", icon: "build", action: () => window.dispatchEvent(new Event("portfolio:build")) },
     { id: "hire", label: "sudo hire osameh", hint: "easter egg", keywords: "hire sudo easter egg terminal", icon: "hire", action: runHireEasterEgg },
     ...projectTechOptions.slice(0, 80).map((tech, index) => ({ id: `tech-${index}-${String(tech).toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, label: `Filter projects by ${tech}`, hint: "technology", keywords: `technology stack skill filter projects ${tech}`, icon: "code" as const, action: () => exploreTech(String(tech)) })),
+    ...engineeringNotes.map(note => ({ id: `note-${note.slug}`, label: `Read note: ${note.title}`, hint: `${note.readingMinutes} min · ${note.tags[0]}`, keywords: `note article blog ${note.slug} ${note.summary} ${note.tags.join(" ")}`, icon: "about" as const, action: () => openNote(note.slug) })),
     ...repos.map(repo => ({ id: `project-${repo.id}`, label: `Open project: ${repoMetadata[repo.name]?.project.name || repo.name}`, hint: repoMetadata[repo.name]?.project.type || repo.language || "GitHub", keywords: `project repo ${projectSearchText(repo)}`, icon: "code" as const, action: () => openProject(repo) })),
   ];
   const normalizedCommandQuery = commandQuery.trim().toLowerCase();
@@ -1615,7 +1685,7 @@ export default function Home() {
           </div>}
         </div>
         <nav className={menuOpen ? "nav-links open" : "nav-links"} aria-label="Primary navigation">
-          {[{ label: "about", section: sections[1] }, { label: "work", section: sections[2] }, { label: "experience", section: sections[3] }, { label: "now", section: sections[4] }, { label: "contact", section: sections[6] }].map(item => <a href={item.section.path} key={item.label} onClick={event => { event.preventDefault(); setMenuOpen(false); goTo(item.section); }}>{item.label}</a>)}
+          {[{ label: "about", section: sections[1] }, { label: "work", section: sections[2] }, { label: "experience", section: sections[3] }, { label: "now", section: sections[4] }, { label: "notes", section: sections[7] }, { label: "contact", section: sections[6] }].map(item => <a href={item.section.path} key={item.label} onClick={event => { event.preventDefault(); setMenuOpen(false); goTo(item.section); }}>{item.label}</a>)}
         </nav>
         <div className="header-actions">
           <PwaInstallControl />
@@ -1648,8 +1718,9 @@ export default function Home() {
           <button className={activeSectionPath === "/projects" && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/projects" && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => goTo(sections[2])}><FileCode2 size={15} /> {code.projects}</button>
           <button className={activeSectionPath === "/experience" && !activeRepo && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/experience" && !activeRepo && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => goTo(sections[3])}><ChevronRight size={14} /> experience</button>
           <button className={activeSectionPath === "/now" && !activeRepo && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/now" && !activeRepo && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => goTo(sections[4])}><Zap size={14} /> now.md</button>
-          <button className={activeSectionPath === "/changelog" && !activeRepo && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/changelog" && !activeRepo && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => goTo(sections[5])}><RefreshCw size={14} /> changelog.md</button>
-          <button className={activeSectionPath === "/contact" && !activeRepo && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/contact" && !activeRepo && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => goTo(sections[6])}><Mail size={14} /> contact.md</button>
+          <button className={activeSectionPath === "/changelog" && !activeRepo && !activeNoteSlug && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/changelog" && !activeRepo && !activeNoteSlug && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => goTo(sections[5])}><RefreshCw size={14} /> changelog.md</button>
+          <button className={activeSectionPath === "/notes" && !activeRepo && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/notes" && !activeRepo && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => activeNoteSlug ? closeNote() : goTo(sections[7])}><Braces size={14} /> engineering-notes</button>
+          <button className={activeSectionPath === "/contact" && !activeRepo && !activeNoteSlug && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/contact" && !activeRepo && !activeNoteSlug && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => goTo(sections[6])}><Mail size={14} /> contact.md</button>
 
           <div className="explorer-plugins" aria-label="Portfolio tools">
             <p className="explorer-plugins-title"><PanelBottom size={13} /> PORTFOLIO PLUGINS</p>
@@ -1667,8 +1738,9 @@ export default function Home() {
 
         <div className="editor">
           <div className="tabs-row">
-            <button className={activeRepo || notFoundPath ? "editor-tab" : "editor-tab active"} onClick={() => showHome()}><FileCode2 size={14} /> {code.file}</button>
+            <button className={activeRepo || activeNoteSlug || notFoundPath ? "editor-tab" : "editor-tab active"} onClick={() => showHome()}><FileCode2 size={14} /> {code.file}</button>
             {openedRepos.map(repo => <button key={repo.id} className={activeRepo?.id === repo.id ? "editor-tab project-tab active" : "editor-tab project-tab"} onClick={() => openProject(repo)}><Code2 size={14} /><span>{repo.name}.md</span><X size={12} onClick={event => { event.stopPropagation(); closeProject(repo); }} /></button>)}
+            {activeNoteSlug && <button className="editor-tab project-tab active" onClick={() => openNote(activeNoteSlug, false)}><Braces size={14} /><span>{activeNoteSlug}.md</span><X size={12} onClick={event => { event.stopPropagation(); closeNote(); }} /></button>}
             {notFoundPath && <button className="editor-tab project-tab error-tab active"><FileCode2 size={14} /><span>404.md</span><X size={12} onClick={event => { event.stopPropagation(); showHome(); }} /></button>}
           </div>
 
@@ -1682,7 +1754,7 @@ export default function Home() {
               <button className="primary-btn" onClick={() => showHome()}>Return to home <ArrowUpRight size={16} /></button>
               <button className="secondary-btn" onClick={() => { showHome(); window.setTimeout(() => document.getElementById("work")?.scrollIntoView({ behavior: "smooth" }), 50); }}>Browse projects</button>
             </div>
-          </section> : activeRepo ? <section className="ide-project-view" data-project-name={activeRepo.name}>
+          </section> : activeNoteSlug ? <EngineeringNoteView slug={activeNoteSlug} onClose={() => closeNote()} /> : activeRepo ? <section className="ide-project-view" data-project-name={activeRepo.name}>
             <ProjectQuickAccess repo={activeRepo} />
             <header id={`overview-${activeRepo.name}`} className="ide-project-hero">
               <div>
@@ -1814,6 +1886,7 @@ export default function Home() {
           <GithubActivity />
           <NowSection />
           <ChangelogSection />
+          <EngineeringNotesSection onOpenNote={openNote} />
 
           <section id="contact" className="contact section-pad">
             <div className="contact-icon"><ServerCog size={27} /></div><p className="eyebrow">READY FOR THE NEXT BUILD</p>
@@ -1864,6 +1937,7 @@ export default function Home() {
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => goTo(sections[3]))}><FileCode2 size={15} /><span>Experience</span><small>/experience</small></button>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => goTo(sections[4]))}><Zap size={15} /><span>Now</span><small>/now</small></button>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => goTo(sections[5]))}><RefreshCw size={15} /><span>Changelog</span><small>/changelog</small></button>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => goTo(sections[7]))}><Braces size={15} /><span>Engineering Notes</span><small>/notes</small></button>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => goTo(sections[6]))}><Mail size={15} /><span>Contact</span><small>/contact</small></button>
           </div>}
           <div className="context-menu-group"><p>WORKSPACE</p>
@@ -1871,7 +1945,7 @@ export default function Home() {
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => openTerminal())}><Terminal size={15} /><span>Open Terminal</span><kbd>`</kbd></button>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => window.dispatchEvent(new Event("portfolio:resume")))}><FileCode2 size={15} /><span>Open Resume</span><small>PDF</small></button>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => setRecruiterModeOpen(true))}><Command size={15} /><span>Recruiter mode</span><small>tour</small></button>
-            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => window.dispatchEvent(new Event("portfolio:diagnostics")))}><Monitor size={15} /><span>System diagnostics</span><small>status</small></button>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => window.dispatchEvent(new Event("portfolio:diagnostics")))}><Monitor size={15} /><span>System Health Center</span><small>live</small></button>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => window.dispatchEvent(new Event("portfolio:shortcuts")))}><Command size={15} /><span>Keyboard shortcuts</span><kbd>?</kbd></button>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => window.dispatchEvent(new Event("portfolio:install")))}><Download size={15} /><span>Install app</span><small>PWA</small></button>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(toggleThemeMode)}>{document.documentElement.dataset.theme === "light" ? <Moon size={15} /> : <Sun size={15} />}<span>Switch theme</span><small>{document.documentElement.dataset.theme === "light" ? "Dark" : "Light"}</small></button>
