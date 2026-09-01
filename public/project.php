@@ -151,6 +151,52 @@ $html = replaceMeta($html, 'twitter:title', $title, true);
 $html = replaceMeta($html, 'twitter:description', $description, true);
 $html = replaceMeta($html, 'twitter:image', $image, true);
 $html = preg_replace('~<link\s+rel=["\']canonical["\']\s+href=["\'][^"\']*["\']\s*/?>~i', '<link rel="canonical" href="' . htmlspecialchars($url, ENT_QUOTES|ENT_SUBSTITUTE, 'UTF-8') . '" />', $html, 1) ?: $html;
+
+$metaStack = is_array($meta['stack'] ?? null) ? $meta['stack'] : [];
+$metaLinks = is_array($meta['links'] ?? null) ? $meta['links'] : [];
+$languages = array_values(array_unique(array_filter(array_map('strval', is_array($metaStack['languages'] ?? null) ? $metaStack['languages'] : [($repo['language'] ?? '')]))));
+$keywords = [];
+foreach (['languages','frameworks','libraries','platforms','databases','tooling','concepts'] as $stackKey) {
+    foreach (is_array($metaStack[$stackKey] ?? null) ? $metaStack[$stackKey] : [] as $value) if (is_scalar($value)) $keywords[] = (string)$value;
+}
+foreach (is_array($metaSeo['keywords'] ?? null) ? $metaSeo['keywords'] : [] as $value) if (is_scalar($value)) $keywords[] = (string)$value;
+$repoUrl = trim((string)($metaLinks['repository'] ?? '')) ?: ('https://github.com/' . OWNER . '/' . rawurlencode($name));
+$liveUrl = trim((string)($metaLinks['live'] ?? $metaLinks['demo'] ?? ''));
+$structured = [
+    '@context' => 'https://schema.org',
+    '@graph' => [
+        [
+            '@type' => ['SoftwareSourceCode', 'SoftwareApplication'],
+            '@id' => $url . '#software',
+            'name' => $projectName,
+            'headline' => $projectName,
+            'description' => $description,
+            'url' => $url,
+            'codeRepository' => $repoUrl,
+            'programmingLanguage' => $languages,
+            'keywords' => array_values(array_unique($keywords)),
+            'applicationCategory' => trim((string)($metaProject['type'] ?? '')) ?: 'DeveloperApplication',
+            'author' => ['@type' => 'Person', '@id' => 'https://osameh.dev/#person', 'name' => 'Osameh Irandoust'],
+            'dateCreated' => substr((string)($repo['created_at'] ?? ''), 0, 10),
+            'dateModified' => substr((string)($repo['updated_at'] ?? ''), 0, 10),
+            'image' => $image,
+            'isAccessibleForFree' => true,
+        ],
+        [
+            '@type' => 'BreadcrumbList',
+            'itemListElement' => [
+                ['@type' => 'ListItem', 'position' => 1, 'name' => 'Home', 'item' => 'https://osameh.dev/'],
+                ['@type' => 'ListItem', 'position' => 2, 'name' => 'Projects', 'item' => 'https://osameh.dev/projects'],
+                ['@type' => 'ListItem', 'position' => 3, 'name' => $projectName, 'item' => $url],
+            ],
+        ],
+    ],
+];
+if ($liveUrl !== '') $structured['@graph'][0]['sameAs'] = [$liveUrl, $repoUrl];
+if (is_array($repo['license'] ?? null) && trim((string)($repo['license']['spdx_id'] ?? '')) !== '') $structured['@graph'][0]['license'] = (string)$repo['license']['spdx_id'];
+$json = json_encode($structured, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+if (is_string($json)) $html = str_replace('</head>', '<script type="application/ld+json" id="project-structured-data">' . $json . '</script></head>', $html);
+
 header('Content-Type: text/html; charset=utf-8');
 header('Cache-Control: public, max-age=300, stale-while-revalidate=3600');
 header('Vary: Accept-Encoding');

@@ -4,6 +4,27 @@ All notable changes to **osameh.dev** are documented here.
 
 The project follows [Semantic Versioning](https://semver.org/). The early production releases were shipped in rapid succession while the portfolio was moved from its hosted prototype to the current ParsPack/CDN deployment.
 
+## 4.0.0 - 2026-09-01
+
+### Added
+- Dynamic project structured data using `SoftwareSourceCode` / `SoftwareApplication` plus breadcrumb markup.
+- Dynamic `sitemap.xml` generation from live public repositories and engineering notes, with a static fallback sitemap.
+- `develop` → `staging.osameh.dev` deployment channel with staging-specific `noindex`, `nofollow`, and `noarchive` protection.
+- Repository quality gates for metadata, notes, PHP lint, TypeScript, built-file verification, browser E2E smoke, accessibility checks, and Lighthouse SEO/accessibility/best-practices thresholds.
+- Live `/api/health` endpoint and an expanded System Health Center with safe dependency checks and client-to-origin latency history.
+- Engineering Notes section with Markdown-backed articles, deep links, table of contents, code-copy controls, tags, reading time, sharing, Terminal integration, and Command Palette integration.
+- Note-specific `TechArticle` and breadcrumb structured data for `/notes/<slug>`.
+
+### Changed
+- Production deployment now runs repository quality checks, PHP linting, deployment-bundle verification, and browser smoke tests before FTPS upload.
+- `portfolio.json` now advertises staging, quality gates, dynamic SEO, health checks, and engineering notes as first-class project capabilities.
+- System Diagnostics is now a live privacy-safe operational health view rather than a mostly local client snapshot.
+
+### Security
+- Staging responses are explicitly excluded from indexing.
+- Health diagnostics expose only operational status, safe labels, build metadata, and latency — never secrets, raw filesystem paths, IPs, or credentials.
+- Project and note deep links preserve the existing noindex behavior for invalid soft-404 routes.
+
 ## 3.1.1 - 2026-09-01
 
 ### Fixed

@@ -332,6 +332,26 @@ The build pipeline:
 5. copies PHP/API/PWA/deployment files into `dist/`
 6. finalizes the production `.htaccess`
 
+## Dynamic SEO and discovery
+
+Project deep links are rendered through a small PHP metadata layer before React starts. Each `/projects/<repo>` response can include repository-owned title/description data, project-specific Open Graph metadata, `SoftwareSourceCode` / `SoftwareApplication` structured data, and breadcrumbs. Engineering-note deep links receive `TechArticle` structured data.
+
+`/sitemap.xml` is generated dynamically from the current public GitHub repositories plus the note manifest, with a checked-in static sitemap retained as a fallback.
+
+## Staging and quality gates
+
+Production remains tied to `main`. The `develop` branch has a dedicated `staging.yml` workflow for `staging.osameh.dev`; the staging bundle removes canonical/OG URL metadata from the base document and forces `noindex,nofollow,noarchive` through both HTML/robots and response headers.
+
+Quality gates now cover repository metadata, PHP syntax, TypeScript, deployment-bundle verification, local-link checks, browser E2E smoke, baseline accessibility assertions, and Lighthouse accessibility/best-practices/SEO thresholds.
+
+## System Health Center
+
+`/api/health` reports safe operational signals for the portfolio origin, GitHub upstream reachability, API deployment presence, notes manifest, private-cache writability, and build metadata. The Health Center combines those server checks with browser-to-origin latency, Service Worker state, client connectivity, and the deployed build fingerprint. No credentials, raw paths, visitor identifiers, or IP addresses are returned.
+
+## Engineering Notes
+
+Notes are stored as Markdown under `public/notes-content/` and indexed by `public/notes-index.json`. The UI provides reading time, tags, deep links, a generated table of contents, copyable code blocks, and sharing. Notes are also discoverable from Command Palette and Terminal (`notes`, `notes <text>`, `cat note <slug>`).
+
 ## Deployment
 
 Upload the **contents** of `dist/` to `public_html` rather than uploading the `dist` folder itself.
@@ -406,6 +426,14 @@ The site also includes an in-app resume viewer and download/open controls.
 
 The five most recent releases are summarized here. See **[CHANGELOG.md](CHANGELOG.md)** for the complete production history.
 
+### v4.0.0 — Production engineering layer
+
+- added dynamic project/note structured data and a runtime sitemap covering public repositories and engineering notes
+- added `develop` → `staging.osameh.dev` delivery with explicit noindex protection
+- added CI quality gates, Playwright browser smoke, accessibility checks, bundle/link validation, and Lighthouse thresholds
+- upgraded System Diagnostics into a live privacy-safe Health Center backed by `/api/health`
+- added Markdown Engineering Notes with deep links, TOC, code copy, share, Terminal search, and Command Palette access
+
 ### v3.1.1 — Alignment & source status polish
 
 - aligned the changelog intro label with its adjacent explanatory copy
@@ -417,7 +445,6 @@ The five most recent releases are summarized here. See **[CHANGELOG.md](CHANGELO
 - added subtle pointer parallax, animated counters, mini-terminal status, and language-aware Stack Surface content to the custom hero showcase
 - Source Explorer now gives the repository tree its own visible scroll area and shows a dedicated loading state while file content is fetched
 - project quick-access rail is masked behind opaque icon pads so the vertical line never crosses through toolbar icons
-- README and release documentation were synchronized with the latest hero and repository-intelligence releases
 
 ### v3.0.5 — Hero showcase redesign
 
@@ -427,16 +454,9 @@ The five most recent releases are summarized here. See **[CHANGELOG.md](CHANGELO
 
 ### v3.0.4 — Palette landing & ghost completion
 
-- technology filters launched from Command Palette now land directly on the project filter controls
+- technology filters launched from Command Palette land directly on the project filter controls
 - terminal autocomplete previews the remaining completion as muted ghost text before Tab is pressed
-- Tab and Shift+Tab still cycle through matching commands, projects, services, and search terms
-
-### v3.0.3 — Navigation & search reliability
-
-- Source Explorer code panes now scroll independently for long files and wide lines
-- project quick access stays synchronized with toolbar jumps and natural scrolling
-- Terminal and Command Palette search repository-owned technology metadata such as Docker and WPF
-- Terminal now supports Tab / Shift+Tab autocomplete for commands, projects, destinations, and search terms
+- Tab and Shift+Tab cycle through matching commands, projects, destinations, and search terms
 
 **Full history:** [CHANGELOG.md](CHANGELOG.md)
 

@@ -366,3 +366,53 @@ You can also run it manually through `workflow_dispatch` using **Run workflow**.
 ## 13. Release notes
 
 Repository release history is maintained in [`CHANGELOG.md`](CHANGELOG.md). Documentation-only changes are excluded from automatic production deploys.
+
+## Staging environment
+
+The repository now supports a separate `develop` deployment channel for `https://staging.osameh.dev` through `.github/workflows/staging.yml`.
+
+Create a dedicated staging FTP account scoped only to the staging document root and add these repository secrets:
+
+```text
+STAGING_FTP_HOST
+STAGING_FTP_PORT
+STAGING_FTP_USERNAME
+STAGING_FTP_PASSWORD
+STAGING_FTP_CERT_FINGERPRINT
+```
+
+The staging workflow uses the same certificate-pinning model as production. It builds with `DEPLOY_ENV=staging`, then applies staging-specific protections before upload:
+
+- `robots.txt` becomes `Disallow: /`
+- the base document receives `noindex,nofollow,noarchive`
+- canonical and base `og:url` metadata are removed from the staging shell
+- `.htaccess` adds `X-Robots-Tag: noindex, nofollow, noarchive`
+- `build-info.json` reports `environment: staging`
+
+Recommended branch flow:
+
+```text
+feature/* → pull request → develop → staging.osameh.dev
+                                  ↓ approved merge
+                                main → osameh.dev
+```
+
+## Quality gates
+
+`.github/workflows/quality.yml` runs on pull requests targeting `main` or `develop`, and on pushes to `develop`. Production deployment also runs release-critical checks before FTPS upload.
+
+The current gate set includes:
+
+- repository metadata / notes-manifest integrity checks
+- TypeScript type checking
+- PHP linting across `public/**/*.php`
+- production Vite build
+- deployment-bundle and local-link verification
+- Playwright Chromium E2E smoke and baseline accessibility assertions
+- Lighthouse accessibility, best-practices, and SEO thresholds (90+)
+
+Playwright and Lighthouse are installed ephemerally in CI so they do not become runtime dependencies or change the committed lockfile during the workflow.
+
+## Health endpoint
+
+Production and staging bundles expose `/api/health`. The endpoint intentionally returns only safe operational data and build metadata. Do not extend it with environment variables, credentials, absolute filesystem paths, raw IP addresses, or secret/config contents.
