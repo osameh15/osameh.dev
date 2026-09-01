@@ -112,7 +112,8 @@
       "GitHub Actions CI/CD with certificate-pinned FTPS deployment",
       "Dynamic project/note structured data and runtime sitemap generation",
       "Staging deployment channel with noindex protection and CI quality gates",
-      "Live privacy-safe health center plus Markdown engineering notes"
+      "Live privacy-safe health center plus Markdown engineering notes",
+      "Responsive mobile project navigation, viewport-capped modals, and scroll-synchronized Engineering Notes"
     ],
     "challenges": [
       {
@@ -344,7 +345,9 @@
       "UX engineering",
       "GitHub API integration",
       "Metadata-driven architecture",
-      "Source code tooling"
+      "Source code tooling",
+      "Responsive UI engineering",
+      "Accessibility-aware navigation"
     ],
     "talkingPoints": [
       "Repository-owned portfolio.json files drive case studies, featured work, architecture and source-explorer behavior",

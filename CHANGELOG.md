@@ -4,6 +4,27 @@ All notable changes to **osameh.dev** are documented here.
 
 The project follows [Semantic Versioning](https://semver.org/). The early production releases were shipped in rapid succession while the portfolio was moved from its hosted prototype to the current ParsPack/CDN deployment.
 
+## 4.1.0 - 2026-09-01
+
+### Added
+- Six-at-a-time lazy rendering for the Engineering Notes index, ready to scale as the article library grows.
+- Scroll-synchronized Engineering Note table of contents with persistent selected state and reliable heading jumps.
+- Mobile project bottom navigation derived from the existing project quick-access sections.
+
+### Fixed
+- Returning from an Engineering Note now restores the beginning of the Engineering Notes section instead of landing at an offset scroll position.
+- Removed the gray backing exposed by the incomplete final row in the System Health check grid.
+- Release graph hover no longer replaces the detail panel; the panel now follows the explicitly selected release node.
+- Improved mobile modal overflow so large dialogs remain capped and internally scrollable rather than taking over the whole viewport.
+- Centered compact download/install controls and improved narrow-screen source/editor status layouts.
+
+### Changed
+- Audited light-theme contrast across Recent GitHub Activity, Notes, Source Explorer, Health Center, Changelog, modals, and interactive controls.
+- Tablet/mobile Engineering Note navigation becomes a horizontally scrollable sticky TOC instead of disappearing.
+- Responsive layouts now reserve space for the mobile project bottom navigation and reduce oversized typography/padding on narrow screens.
+- Expanded Playwright regression coverage for note navigation, viewport-capped diagnostics, mobile project quick access, and light-theme controls.
+- Lighthouse preview readiness retries are now silent until a real timeout/failure, avoiding misleading transient curl errors in CI logs.
+
 ## 4.0.0 - 2026-09-01
 
 ### Added

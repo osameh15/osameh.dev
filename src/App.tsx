@@ -615,7 +615,7 @@ export default function Home() {
     else if (knownPaths.includes(path.toLowerCase()) && !["/", "/home", "/resume", "/status"].includes(path.toLowerCase())) {
       setActiveSectionPath(path.toLowerCase());
       const target = path.toLowerCase() === "/projects" ? "work" : path.slice(1);
-      window.setTimeout(() => document.getElementById(target)?.scrollIntoView({ block: "start" }), 80);
+      window.setTimeout(() => scrollToSection(target, "auto"), 80);
     } else if (!knownPaths.includes(path.toLowerCase()) && !/^\/projects\/[^/]+\/?$/i.test(path) && !/^\/notes\/[^/]+\/?$/i.test(path)) setNotFoundPath(path);
   }, []);
 
@@ -1178,14 +1178,24 @@ export default function Home() {
     void loadGallery(repo);
   };
 
-  const showHome = (updateHistory = true) => {
+  const showHome = (updateHistory = true, scrollToTop = true) => {
     setNotFoundPath(null);
     setActiveSectionPath("/home");
     setActiveRepo(null);
     setActiveNoteSlug(null);
     document.title = "Osameh Irandoust — Software Engineer";
     if (updateHistory && window.location.pathname !== "/") window.history.pushState({}, "", "/");
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    if (scrollToTop) window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const scrollToSection = (id: string, behavior: ScrollBehavior = "smooth") => {
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+      const target = document.getElementById(id);
+      if (!target) return;
+      const stickyOffset = window.innerWidth <= 720 ? 72 : 96;
+      const top = target.getBoundingClientRect().top + window.scrollY - stickyOffset;
+      window.scrollTo({ top: Math.max(0, top), behavior });
+    }));
   };
 
   const openNote = (slug: string, updateHistory = true) => {
@@ -1210,11 +1220,11 @@ export default function Home() {
     document.title = "Osameh Irandoust — Software Engineer";
     if (returnToNotes) {
       setActiveSectionPath("/notes");
-      window.history.pushState({}, "", "/notes");
-      window.setTimeout(() => document.getElementById("notes")?.scrollIntoView({ behavior: "smooth", block: "start" }), 40);
+      if (window.location.pathname !== "/notes") window.history.pushState({}, "", "/notes");
+      scrollToSection("notes");
     } else {
       setActiveSectionPath("/home");
-      window.history.pushState({}, "", "/");
+      if (window.location.pathname !== "/") window.history.pushState({}, "", "/");
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
   };
@@ -1246,11 +1256,11 @@ export default function Home() {
       return;
     }
     setActiveSectionPath(result.path);
-    showHome(false);
+    showHome(false, false);
     setActiveSectionPath(result.path);
     if (window.location.pathname !== result.path) window.history.pushState({}, "", result.path);
     const target = result.path === "/projects" ? "work" : result.path === "/home" ? "home" : result.path.slice(1);
-    window.setTimeout(() => document.getElementById(target)?.scrollIntoView({ behavior: "smooth" }), 50);
+    scrollToSection(target);
   };
 
   useEffect(() => {
@@ -1270,10 +1280,10 @@ export default function Home() {
       }
       const section = sections.find(item => item.path === path);
       if (section) {
-        showHome(false);
+        showHome(false, false);
         setActiveSectionPath(section.path);
         const target = section.path === "/projects" ? "work" : section.path === "/home" ? "home" : section.path.slice(1);
-        window.setTimeout(() => document.getElementById(target)?.scrollIntoView({ block: "start" }), 20);
+        scrollToSection(target, "auto");
         return;
       }
       if (path === "/") { showHome(false); return; }
@@ -1752,7 +1762,7 @@ export default function Home() {
             <div className="not-found-terminal"><span>osameh@portfolio:~$</span> resolve {notFoundPath}<br /><b>error:</b> no matching file or project route</div>
             <div className="detail-actions">
               <button className="primary-btn" onClick={() => showHome()}>Return to home <ArrowUpRight size={16} /></button>
-              <button className="secondary-btn" onClick={() => { showHome(); window.setTimeout(() => document.getElementById("work")?.scrollIntoView({ behavior: "smooth" }), 50); }}>Browse projects</button>
+              <button className="secondary-btn" onClick={() => { showHome(false, false); setActiveSectionPath("/projects"); if (window.location.pathname !== "/projects") window.history.pushState({}, "", "/projects"); scrollToSection("work"); }}>Browse projects</button>
             </div>
           </section> : activeNoteSlug ? <EngineeringNoteView slug={activeNoteSlug} onClose={() => closeNote()} /> : activeRepo ? <section className="ide-project-view" data-project-name={activeRepo.name}>
             <ProjectQuickAccess repo={activeRepo} />

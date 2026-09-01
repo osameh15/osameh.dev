@@ -63,6 +63,7 @@ export function ChangelogSection() {
   const initialVisible = 5;
   const [expanded, setExpanded] = useState(false);
   const [selectedVersion, setSelectedVersion] = useState(changelog[0]?.version || "");
+  const [hoveredVersion, setHoveredVersion] = useState("");
   const visibleItems = expanded ? changelog : changelog.slice(0, initialVisible);
   const hiddenCount = Math.max(0, changelog.length - initialVisible);
 
@@ -82,21 +83,24 @@ export function ChangelogSection() {
           <p className="eyebrow">RELEASE GRAPH / LIVE HISTORY</p>
           <h3>Scan the latest releases, then drill into the exact version you want.</h3>
         </div>
-        <p>The newest five releases stay visible by default so the first screen remains focused. Hover, focus, or click any node to inspect its version and shipped changes in the detail panel.</p>
+        <p>The newest five releases stay visible by default so the first screen remains focused. Hover previews a node; select it to load that version and its shipped changes into the detail panel.</p>
       </div>
       <div className="changelog-graph-layout">
         <div className="changelog-graph-map" role="listbox" aria-label="Portfolio release graph">
           <div className="changelog-graph-line" aria-hidden="true" />
           {visibleItems.map((item, index) => {
             const isActive = selected?.version === item.version;
+            const isPreview = hoveredVersion === item.version && !isActive;
             return <button
               key={item.version}
               type="button"
               role="option"
               aria-selected={isActive}
-              className={isActive ? "changelog-node active" : "changelog-node"}
-              onMouseEnter={() => setSelectedVersion(item.version)}
-              onFocus={() => setSelectedVersion(item.version)}
+              className={`${isActive ? "changelog-node active" : "changelog-node"}${isPreview ? " preview" : ""}`}
+              onMouseEnter={() => setHoveredVersion(item.version)}
+              onMouseLeave={() => setHoveredVersion("")}
+              onFocus={() => setHoveredVersion(item.version)}
+              onBlur={() => setHoveredVersion("")}
               onClick={() => setSelectedVersion(item.version)}
               style={{ animationDelay: `${index * 70}ms` }}
             >
@@ -120,7 +124,7 @@ export function ChangelogSection() {
             </div>
             <code>v{selected.version}</code>
           </div>
-          <p className="changelog-detail-meta">Release {String(selectedIndex + 1).padStart(2, "0")} of {String(changelog.length).padStart(2, "0")} · Hover a node in the graph to move through the portfolio’s shipping history.</p>
+          <p className="changelog-detail-meta">Release {String(selectedIndex + 1).padStart(2, "0")} of {String(changelog.length).padStart(2, "0")} · Select a node in the graph to inspect that release. Hover only previews the node without changing the details panel.</p>
           <div className="changelog-detail-list">
             {selected.items.map((change, index) => <article key={change}>
               <span>{String(index + 1).padStart(2, "0")}</span>
