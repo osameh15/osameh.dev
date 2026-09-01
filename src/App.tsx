@@ -1608,10 +1608,72 @@ export default function Home() {
               </div>
               <p className="code-close"><b>{code.close}</b> <span>{code.comment}</span></p>
             </div>
-            <div className="hero-orbit" aria-hidden="true">
-              <div className="orbit-ring ring-one"><i /></div><div className="orbit-ring ring-two"><i /></div>
-              <div className="core"><Code2 size={30} /></div>
-              <span className="orbit-label label-one">.NET</span><span className="orbit-label label-two">C++</span><span className="orbit-label label-three">NUXT</span>
+            <div className="hero-showcase" aria-label="Engineering snapshot">
+              <div className="showcase-grid">
+                <article className="showcase-card showcase-card-primary">
+                  <header>
+                    <p>ENGINEERING SNAPSHOT</p>
+                    <span>Live focus</span>
+                  </header>
+                  <h3>Systems thinking with product-level polish.</h3>
+                  <div className="showcase-pipeline">
+                    <span>Discover</span>
+                    <i />
+                    <span>Architect</span>
+                    <i />
+                    <span>Build</span>
+                    <i />
+                    <span>Deploy</span>
+                  </div>
+                  <div className="showcase-signal-list">
+                    <div><b>Primary lanes</b><span>.NET APIs · Nuxt products · C++ / Qt systems</span></div>
+                    <div><b>Delivery style</b><span>From repo design and debugging to production release and maintenance</span></div>
+                    <div><b>Current mode</b><span>Engineering clean, reliable software with a strong UX layer</span></div>
+                  </div>
+                </article>
+
+                <article className="showcase-card showcase-card-metrics">
+                  <header>
+                    <p>IMPACT MAP</p>
+                    <span>At a glance</span>
+                  </header>
+                  <div className="showcase-metrics">
+                    <div><strong>4+</strong><span>years shipping production software</span></div>
+                    <div><strong>10+</strong><span>public repositories curated in the portfolio</span></div>
+                    <div><strong>3</strong><span>core modes: backend, full-stack, systems</span></div>
+                  </div>
+                </article>
+
+                <article className="showcase-card showcase-card-terminal">
+                  <header>
+                    <p>BUILD RHYTHM</p>
+                    <span>Preferred workflow</span>
+                  </header>
+                  <div className="showcase-terminal-lines">
+                    <span><i>$</i> clarify requirements</span>
+                    <span><i>$</i> map architecture</span>
+                    <span><i>$</i> ship resilient code</span>
+                    <span><i>$</i> optimize, monitor, improve</span>
+                  </div>
+                </article>
+
+                <article className="showcase-card showcase-card-stack">
+                  <header>
+                    <p>STACK SURFACE</p>
+                    <span>Comfort zone</span>
+                  </header>
+                  <div className="showcase-chip-cloud">
+                    <span>.NET</span>
+                    <span>Nuxt</span>
+                    <span>C++</span>
+                    <span>Qt</span>
+                    <span>PostgreSQL</span>
+                    <span>Docker</span>
+                    <span>Laravel</span>
+                    <span>WPF</span>
+                  </div>
+                </article>
+              </div>
             </div>
           </section>
 

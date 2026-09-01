@@ -4,6 +4,13 @@ All notable changes to **osameh.dev** are documented here.
 
 The project follows [Semantic Versioning](https://semver.org/). The early production releases were shipped in rapid succession while the portfolio was moved from its hosted prototype to the current ParsPack/CDN deployment.
 
+## 3.0.5 - 2026-09-01
+
+### Changed
+- Replaced the generic hero orbit on the home screen with a custom engineering showcase panel.
+- Redesigned the right side of the opening section into a layered snapshot of workflow, impact metrics, stack surface, and shipping rhythm.
+- Tuned the hero layout for both dark and light themes and improved the first impression away from template-like visuals.
+
 ## 3.0.4 - 2026-09-01
 
 ### Fixed
