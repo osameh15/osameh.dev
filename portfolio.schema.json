@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/osameh15/osameh.dev/main/portfolio.schema.json",
+  "title": "osameh.dev portfolio project metadata",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "project",
+    "ownership",
+    "links",
+    "repository",
+    "stack",
+    "caseStudy",
+    "architecture",
+    "media",
+    "sourceExplorer",
+    "recruiter",
+    "seo"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string"
+    },
+    "project": {
+      "type": "object",
+      "required": [
+        "slug",
+        "name",
+        "tagline",
+        "summary",
+        "type",
+        "lifecycle",
+        "featured",
+        "featuredOrder",
+        "legacy"
+      ]
+    },
+    "ownership": {
+      "type": "object",
+      "required": [
+        "role",
+        "collaboration",
+        "responsibilities"
+      ]
+    },
+    "links": {
+      "type": "object"
+    },
+    "repository": {
+      "type": "object",
+      "required": [
+        "owner",
+        "defaultBranch",
+        "name"
+      ],
+      "properties": {
+        "owner": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "defaultBranch": {
+          "type": "string",
+          "minLength": 1
+        },
+        "license": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "stack": {
+      "type": "object"
+    },
+    "caseStudy": {
+      "type": "object",
+      "required": [
+        "problem",
+        "solution",
+        "highlights",
+        "challenges",
+        "results"
+      ]
+    },
+    "architecture": {
+      "type": "object",
+      "required": [
+        "summary",
+        "nodes",
+        "edges"
+      ]
+    },
+    "media": {
+      "type": "object",
+      "required": [
+        "cover",
+        "gallery",
+        "screenshots"
+      ]
+    },
+    "sourceExplorer": {
+      "type": "object",
+      "required": [
+        "enabled",
+        "maxFileSizeKb",
+        "exclude"
+      ]
+    },
+    "recruiter": {
+      "type": "object",
+      "required": [
+        "headline",
+        "skillsDemonstrated",
+        "talkingPoints"
+      ]
+    },
+    "seo": {
+      "type": "object",
+      "required": [
+        "title",
+        "description",
+        "keywords"
+      ]
+    },
+    "$schema": {
+      "type": "string",
+      "const": "https://raw.githubusercontent.com/osameh15/osameh.dev/main/portfolio.schema.json",
+      "description": "Canonical schema URL published by the osameh.dev repository."
+    }
+  },
+  "additionalProperties": true
+}

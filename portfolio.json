@@ -1,0 +1,322 @@
+{
+  "$schema": "https://raw.githubusercontent.com/osameh15/osameh.dev/main/portfolio.schema.json",
+  "schemaVersion": "1.0.0",
+  "project": {
+    "slug": "osameh.dev",
+    "name": "osameh.dev",
+    "tagline": "An IDE-inspired, repository-driven software engineering portfolio with secure GitHub integration and automated deployment.",
+    "summary": "A React/Vite portfolio that behaves like a developer workspace: dynamic GitHub projects, README rendering, repository galleries, project case studies, custom context menu and command palette, terminal, PWA support, secure PHP API proxying, CDN-aware routing and GitHub Actions deployment to shared hosting.",
+    "type": "Portfolio / developer platform",
+    "lifecycle": "active",
+    "featured": true,
+    "featuredOrder": 0,
+    "legacy": false
+  },
+  "ownership": {
+    "role": "Full-Stack Developer & DevOps Engineer",
+    "collaboration": "solo",
+    "organization": null,
+    "responsibilities": [
+      "Product/UI design",
+      "React/Vite frontend",
+      "PHP API proxy",
+      "GitHub integration",
+      "Caching and security hardening",
+      "PWA behavior",
+      "SEO/social previews",
+      "CI/CD deployment",
+      "CDN integration"
+    ]
+  },
+  "links": {
+    "repository": "https://github.com/osameh15/osameh.dev",
+    "live": "https://osameh.dev",
+    "demo": null,
+    "documentation": "./README.md",
+    "package": null
+  },
+  "repository": {
+    "owner": "osameh15",
+    "defaultBranch": "main",
+    "license": null,
+    "name": "osameh.dev"
+  },
+  "stack": {
+    "languages": [
+      "TypeScript",
+      "PHP",
+      "JavaScript",
+      "CSS",
+      "HTML"
+    ],
+    "frameworks": [
+      "React 19",
+      "Vite 8",
+      "Tailwind CSS 4"
+    ],
+    "libraries": [
+      "DOMPurify",
+      "marked",
+      "lucide-react"
+    ],
+    "platforms": [
+      "Web",
+      "PWA",
+      "Shared Linux hosting",
+      "ParsPack CDN"
+    ],
+    "databases": [],
+    "tooling": [
+      "GitHub Actions",
+      "lftp / FTPS",
+      "npm",
+      "TypeScript",
+      "Service Worker"
+    ],
+    "concepts": [
+      "Repository-driven portfolio",
+      "CDN caching",
+      "CSP",
+      "Secure secret isolation",
+      "FTPS certificate pinning",
+      "PWA",
+      "SEO",
+      "OpenGraph",
+      "Lazy loading",
+      "Soft-404 compatibility"
+    ]
+  },
+  "caseStudy": {
+    "problem": "A traditional static portfolio would not demonstrate the depth of engineering work or stay synchronized with an evolving GitHub profile, while the selected shared-hosting environment could not run a persistent Node server.",
+    "solution": "Use a static React/Vite frontend for fast CDN delivery, pair it with small PHP endpoints for authenticated GitHub access and server-side caching, then automate production delivery with GitHub Actions over a restricted FTPS account.",
+    "highlights": [
+      "IDE-style responsive UI with light/dark themes",
+      "Dynamic public GitHub repository discovery",
+      "README sanitization and relative-image normalization",
+      "Repository-wide image galleries and lightbox",
+      "Project case studies and comparison",
+      "Custom context menu and command palette",
+      "Interactive terminal with neofetch-style commands",
+      "PWA and offline shell",
+      "Resume viewer and secure contact form",
+      "Per-project social preview generation",
+      "GitHub Actions CI/CD with certificate-pinned FTPS deployment"
+    ],
+    "challenges": [
+      {
+        "title": "Shared hosting without a Node runtime",
+        "description": "The original application architecture used server/runtime assumptions unsuitable for the purchased shared host.",
+        "resolution": "Convert the UI to a Vite static build and move only the necessary server-side GitHub/contact logic into small PHP endpoints."
+      },
+      {
+        "title": "Safe GitHub API usage",
+        "description": "A GitHub token must improve rate limits without ever reaching the browser or repository.",
+        "resolution": "Keep the token outside the web root, proxy GitHub calls through PHP and cache repository/README/image responses server-side."
+      },
+      {
+        "title": "CDN behavior and custom routing",
+        "description": "CDN caching and upstream error replacement affected deployments and 404 rendering.",
+        "resolution": "Use hashed immutable assets, no-cache HTML/build metadata, CDN-safe routing and a noindex soft-404 compatibility layer for the IDE 404 experience."
+      },
+      {
+        "title": "Automated shared-host deployment",
+        "description": "Manual uploads were slow and error-prone, while the FTPS certificate chain was not publicly trusted.",
+        "resolution": "Deploy through GitHub Actions using a directory-scoped FTP account and explicit certificate fingerprint pinning before credentials are sent."
+      }
+    ],
+    "results": [
+      "Push-to-production CI/CD workflow",
+      "Static/CDN-friendly production architecture with server-side secret isolation",
+      "Portfolio pages stay synchronized with public GitHub repositories",
+      "Strong foundation for repository-driven metadata, code explorer and recruiter mode"
+    ]
+  },
+  "architecture": {
+    "summary": "The browser receives a static React/Vite application through ParsPack CDN. Same-origin PHP endpoints provide GitHub, contact and analytics capabilities, while server-side private storage keeps credentials and caches outside the public web root. GitHub Actions builds and deploys the dist directory over pinned FTPS.",
+    "nodes": [
+      {
+        "id": "browser",
+        "label": "Browser / PWA",
+        "type": "client"
+      },
+      {
+        "id": "cdn",
+        "label": "ParsPack CDN",
+        "type": "edge"
+      },
+      {
+        "id": "static",
+        "label": "React + Vite static app",
+        "type": "frontend"
+      },
+      {
+        "id": "php",
+        "label": "PHP API endpoints",
+        "type": "service"
+      },
+      {
+        "id": "private",
+        "label": "Private secrets + cache",
+        "type": "storage"
+      },
+      {
+        "id": "github",
+        "label": "GitHub REST API",
+        "type": "external"
+      },
+      {
+        "id": "actions",
+        "label": "GitHub Actions",
+        "type": "ci"
+      },
+      {
+        "id": "hosting",
+        "label": "Shared hosting public_html",
+        "type": "hosting"
+      }
+    ],
+    "edges": [
+      {
+        "from": "browser",
+        "to": "cdn",
+        "label": "HTTPS"
+      },
+      {
+        "from": "cdn",
+        "to": "static",
+        "label": "serves/caches"
+      },
+      {
+        "from": "static",
+        "to": "php",
+        "label": "same-origin API"
+      },
+      {
+        "from": "php",
+        "to": "private",
+        "label": "reads secrets/cache"
+      },
+      {
+        "from": "php",
+        "to": "github",
+        "label": "authenticated REST"
+      },
+      {
+        "from": "actions",
+        "to": "hosting",
+        "label": "FTPS deploy"
+      },
+      {
+        "from": "hosting",
+        "to": "cdn",
+        "label": "origin"
+      }
+    ]
+  },
+  "media": {
+    "cover": {
+      "strategy": "first-gallery-image",
+      "path": null,
+      "alt": "osameh.dev Portfolio"
+    },
+    "gallery": {
+      "autoDiscover": true,
+      "include": [
+        "images/**",
+        "Images/**",
+        "docs/**",
+        "screenshots/**",
+        "Screenshots/**",
+        "media/**",
+        "assets/**",
+        "Assets/**"
+      ],
+      "exclude": [
+        "**/node_modules/**",
+        "**/vendor/**",
+        "**/dist/**",
+        "**/build/**",
+        "**/bin/**",
+        "**/obj/**",
+        "**/coverage/**",
+        "**/.cache/**",
+        "**/.git/**"
+      ],
+      "extensions": [
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".webp",
+        ".gif",
+        ".svg"
+      ],
+      "preferred": [
+        "docs/img/**"
+      ]
+    },
+    "screenshots": []
+  },
+  "sourceExplorer": {
+    "enabled": true,
+    "maxFileSizeKb": 300,
+    "exclude": [
+      "node_modules/**",
+      "vendor/**",
+      "dist/**",
+      "build/**",
+      "bin/**",
+      "obj/**",
+      "coverage/**",
+      ".cache/**",
+      ".git/**",
+      "*.lock",
+      "*.min.js",
+      "*.map"
+    ],
+    "entryPoints": [
+      "package.json",
+      "src/App.tsx",
+      "src/AdvancedUI.tsx",
+      "src/portfolioData.ts",
+      "public/api/",
+      ".github/workflows/deploy.yml",
+      "README.md",
+      "CHANGELOG.md"
+    ]
+  },
+  "recruiter": {
+    "headline": "A portfolio that doubles as a production engineering case study across frontend, backend, security, CDN and CI/CD.",
+    "skillsDemonstrated": [
+      "React",
+      "TypeScript",
+      "PHP",
+      "REST APIs",
+      "Security hardening",
+      "CDN architecture",
+      "PWA",
+      "CI/CD",
+      "DevOps",
+      "UX engineering"
+    ],
+    "talkingPoints": [
+      "Deliberately adapted a modern frontend to constrained shared hosting without exposing secrets",
+      "Deployment uses a least-privilege account and pinned FTPS certificate",
+      "Repository-owned portfolio.json metadata is the foundation for architecture, recruiter and source-explorer features"
+    ]
+  },
+  "seo": {
+    "title": "osameh.dev Portfolio — Osameh Irandoust",
+    "description": "A React/Vite portfolio that behaves like a developer workspace: dynamic GitHub projects, README rendering, repository galleries, project case studies, custom context menu and command palette, terminal, PWA support, secure PHP API proxying, CDN-aware routing and GitHub Actions deployment to shared hosting.",
+    "keywords": [
+      "software engineer portfolio",
+      "React",
+      "TypeScript",
+      "PHP",
+      "GitHub API",
+      "CI/CD",
+      "DevOps",
+      "PWA",
+      "CDN"
+    ]
+  }
+}
