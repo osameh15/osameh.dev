@@ -4,6 +4,23 @@ All notable changes to **osameh.dev** are documented here.
 
 The project follows [Semantic Versioning](https://semver.org/). The early production releases were shipped in rapid succession while the portfolio was moved from its hosted prototype to the current ParsPack/CDN deployment.
 
+## 3.1.0 - 2026-09-01
+
+### Added
+- Pointer-responsive parallax for the custom engineering showcase on the home screen.
+- Animated hero counters for production experience, public repositories, and engineering focus modes.
+- Mini-terminal readiness pulse inside the hero Build Rhythm panel.
+- Programming-language-aware Stack Surface cards that react to the existing language preference.
+- Explicit source-file loading skeleton and status before code rendering.
+
+### Fixed
+- Source Explorer left repository tree now keeps its own visible scroll area for long file trees.
+- Project quick-access rail is visually masked behind the icon pads so the vertical line never cuts through toolbar icons.
+
+### Changed
+- Refined hero motion for reduced-motion preferences and responsive layouts.
+- Synchronized README release notes with the hero redesign and current repository-intelligence release history.
+
 ## 3.0.5 - 2026-09-01
 
 ### Changed

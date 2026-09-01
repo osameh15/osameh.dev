@@ -9,6 +9,7 @@ A production portfolio for **Osameh Irandoust**, designed as an IDE-inspired wor
 ## Highlights
 
 - Responsive IDE-style interface with dark and light themes
+- Custom interactive engineering showcase on the home screen with subtle pointer parallax, animated metrics, live build rhythm, and language-aware stack context
 - Dynamic public GitHub repositories, README rendering, repository metadata, and project galleries
 - Repository-owned `portfolio.json` metadata with a published JSON Schema
 - Featured-project shortlist and guided Recruiter Mode
@@ -405,6 +406,19 @@ The site also includes an in-app resume viewer and download/open controls.
 
 The five most recent releases are summarized here. See **[CHANGELOG.md](CHANGELOG.md)** for the complete production history.
 
+### v3.1.0 — Interactive hero & source polish
+
+- added subtle pointer parallax, animated counters, mini-terminal status, and language-aware Stack Surface content to the custom hero showcase
+- Source Explorer now gives the repository tree its own visible scroll area and shows a dedicated loading state while file content is fetched
+- project quick-access rail is masked behind opaque icon pads so the vertical line never crosses through toolbar icons
+- README and release documentation were synchronized with the latest hero and repository-intelligence releases
+
+### v3.0.5 — Hero showcase redesign
+
+- replaced the generic orbit-style hero graphic with a custom engineering showcase
+- added workflow, impact, stack, and build-rhythm panels tailored to the portfolio’s engineering identity
+- introduced dedicated dark/light styling for the new first-screen experience
+
 ### v3.0.4 — Palette landing & ghost completion
 
 - technology filters launched from Command Palette now land directly on the project filter controls
@@ -425,21 +439,6 @@ The five most recent releases are summarized here. See **[CHANGELOG.md](CHANGELO
 - featured projects now participate in the project-aware context menu
 - balanced the changelog graph into equal-height scrollable panels
 - improved Recruiter Mode and repository-intelligence readability in dark and light themes
-
-### v3.0.1 — Release graph experience
-
-- replaced the static changelog boxes with an interactive release graph and detail panel
-- only the five newest releases render above the fold by default
-- older releases lazy-load behind an animated expand/collapse control
-- hovering, focusing, or clicking a version node updates the release details inline
-
-### v3.0.0 — Repository intelligence
-
-- repository-owned `portfolio.json` metadata now drives project detail content
-- added featured-project shortlist and guided Recruiter Mode
-- added project architecture viewer backed by metadata nodes/edges
-- added same-origin GitHub Source Explorer with repository validation and file preview safeguards
-- project search/filtering now understands richer stack metadata
 
 **Full history:** [CHANGELOG.md](CHANGELOG.md)
 
