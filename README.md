@@ -220,6 +220,8 @@ hire
 clear
 ```
 
+Press `Tab` to autocomplete a command, repository name, service destination, or technology search. Keep pressing `Tab` to cycle forward through matching suggestions; `Shift+Tab` cycles backward. Terminal search and the Command Palette both index repository-owned `portfolio.json` stack metadata, so terms such as `Docker` and `WPF` can resolve directly to relevant projects and filters.
+
 `version` prints the deployed version in the terminal. `build` opens the build-information modal.
 
 The terminal panel can be vertically resized by dragging its top handle, maximized/restored from the panel controls, or maximized by double-clicking the resize handle.
@@ -403,6 +405,13 @@ The site also includes an in-app resume viewer and download/open controls.
 
 The five most recent releases are summarized here. See **[CHANGELOG.md](CHANGELOG.md)** for the complete production history.
 
+### v3.0.3 — Navigation & search reliability
+
+- Source Explorer code panes now scroll independently for long files and wide lines
+- project quick access stays synchronized with toolbar jumps and natural scrolling
+- Terminal and Command Palette search repository-owned technology metadata such as Docker and WPF
+- Terminal now supports Tab / Shift+Tab autocomplete for commands, projects, destinations, and search terms
+
 ### v3.0.2 — Project navigation & readability
 
 - added a floating quick-access rail for every major project section
@@ -432,12 +441,6 @@ The five most recent releases are summarized here. See **[CHANGELOG.md](CHANGELO
 - unknown project deep links use the same 404 workspace instead of the upstream error document
 - soft-404 responses are explicitly `noindex,nofollow` and expose `X-Portfolio-Route-Status: 404` for diagnostics
 
-### v2.2.3 — Explorer state & resume plugin
-
-- Explorer selection follows clicks, scrolling, and project detail state
-- active items expose semantic selected state for accessibility
-- resume moved out of the project file tree into a dedicated Portfolio Plugins card
-- Resume Viewer plugin reflects whether the modal is currently open
 
 **Full history:** [CHANGELOG.md](CHANGELOG.md)
 

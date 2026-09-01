@@ -4,6 +4,18 @@ All notable changes to **osameh.dev** are documented here.
 
 The project follows [Semantic Versioning](https://semver.org/). The early production releases were shipped in rapid succession while the portfolio was moved from its hosted prototype to the current ParsPack/CDN deployment.
 
+## 3.0.3 - 2026-09-01
+
+### Added
+- Terminal Tab autocomplete with forward/backward cycling for commands, repositories, service destinations, and technology search terms.
+- Technology-aware Command Palette entries for fast project filtering.
+
+### Fixed
+- Source Explorer code panes now keep their own vertical and horizontal scroll areas instead of clipping long files to the visible viewport.
+- Project quick-access selection now follows natural scrolling reliably and remains selected during smooth toolbar navigation.
+- Terminal search now indexes repository `portfolio.json` metadata, stack, recruiter skills, and project content, so searches such as `Docker` and `WPF` resolve correctly.
+- Command Palette project search now uses the same repository metadata index.
+
 ## 3.0.2 - 2026-09-01
 
 ### Added

@@ -373,6 +373,7 @@ export default function Home() {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const terminalOutputRef = useRef<HTMLDivElement>(null);
   const terminalInputRef = useRef<HTMLInputElement>(null);
+  const terminalCompletionRef = useRef<{ seed: string; matches: string[]; index: number; applied: string }>({ seed: "", matches: [], index: -1, applied: "" });
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const commandPaletteInputRef = useRef<HTMLInputElement>(null);
   const commandPaletteListRef = useRef<HTMLDivElement>(null);
@@ -1095,6 +1096,67 @@ export default function Home() {
     return () => window.removeEventListener("popstate", handlePopState);
   }, [repos]);
 
+  const projectSearchText = (repo: GithubRepo) => {
+    const meta = repoMetadata[repo.name];
+    const metadataTerms = meta ? [
+      meta.project.name, meta.project.tagline, meta.project.summary, meta.project.type, meta.project.lifecycle,
+      meta.ownership.role, meta.ownership.organization || "", ...meta.ownership.responsibilities,
+      ...meta.stack.languages, ...meta.stack.frameworks, ...meta.stack.libraries, ...meta.stack.platforms,
+      ...meta.stack.databases, ...meta.stack.tooling, ...meta.stack.concepts, ...meta.recruiter.skillsDemonstrated,
+      ...meta.recruiter.talkingPoints, meta.caseStudy.problem, meta.caseStudy.solution,
+    ].join(" ") : "";
+    return `${repo.name} ${repo.description || ""} ${repo.language || ""} ${repo.topics.join(" ")} ${metadataTerms}`.toLowerCase();
+  };
+
+  const projectTechOptions: string[] = Array.from(new Set<string>(repos.flatMap(repo => {
+    const meta = repoMetadata[repo.name];
+    return [repo.language || "", ...repo.topics, ...(meta ? [...meta.stack.languages, ...meta.stack.frameworks, ...meta.stack.libraries, ...meta.stack.databases, ...meta.stack.platforms, ...meta.stack.tooling, ...meta.stack.concepts] : [])];
+  }).filter((value): value is string => Boolean(value)))).sort((a, b) => a.localeCompare(b));
+
+  const terminalBaseCommands = [
+    "help", "whoami", "ls", "exp", "skills", "projects", "contact", "version", "build", "neofetch",
+    "resume", "recruiter", "now", "changelog", "status", "diagnostics", "install", "shortcuts", "theme",
+    "clear", "sudo hire osameh", "sudo su", "cat welcome.txt",
+    ...sections.map(item => item.path),
+  ];
+
+  const terminalCompletionCandidates = (value: string) => {
+    const raw = value.trimStart();
+    const lower = raw.toLowerCase();
+    const projectNames = repos.map(repo => repo.name);
+    let candidates: string[];
+    if (lower.startsWith("cat ")) candidates = projectNames.map(name => `cat ${name}`);
+    else if (lower.startsWith("share ")) candidates = projectNames.map(name => `share ${name}`);
+    else if (lower.startsWith("open ")) candidates = ["github", "gitlab", "linkedin", "telegram", "instagram", "whatsapp", "mail", "business"].map(name => `open ${name}`);
+    else if (lower.startsWith("search ")) candidates = [...projectTechOptions, ...projectNames].map(term => `search ${term}`);
+    else candidates = [...terminalBaseCommands, "cat ", "share ", "open ", "search "];
+    return Array.from(new Set(candidates)).filter(candidate => candidate.toLowerCase().startsWith(lower));
+  };
+
+  const autocompleteTerminal = (reverse = false) => {
+    const current = terminalInput;
+    const state = terminalCompletionRef.current;
+    const continuing = state.matches.length > 0 && current === state.applied;
+    const matches = continuing ? state.matches : terminalCompletionCandidates(current);
+    if (!matches.length) {
+      terminalCompletionRef.current = { seed: "", matches: [], index: -1, applied: "" };
+      showActionToast(`No autocomplete match for “${current || "command"}”.`, "info", 1800);
+      return;
+    }
+    const nextIndex = continuing
+      ? (state.index + (reverse ? -1 : 1) + matches.length) % matches.length
+      : (reverse ? matches.length - 1 : 0);
+    const next = matches[nextIndex];
+    terminalCompletionRef.current = { seed: continuing ? state.seed : current, matches, index: nextIndex, applied: next };
+    setTerminalInput(next);
+    window.requestAnimationFrame(() => {
+      const input = terminalInputRef.current;
+      if (!input) return;
+      input.focus({ preventScroll: true });
+      input.setSelectionRange(next.length, next.length);
+    });
+  };
+
   const runTerminal = (event: FormEvent) => {
     event.preventDefault();
     const raw = terminalInput.trim();
@@ -1130,6 +1192,8 @@ export default function Home() {
         "share <repo>  share a project deep link",
         "hire          run a tiny easter egg",
         "clear         clear the screen",
+        "tab           autocomplete commands, projects, services, and search terms",
+        "shift+tab     cycle autocomplete backwards",
         "`             toggle terminal  ·  esc closes the active tab"]);
       setSearchResults([]);
       return;
@@ -1291,10 +1355,22 @@ export default function Home() {
       return;
     }
     const query = raw.toLowerCase().replace(/^search\s+/, "").trim();
-    const candidates: SearchResult[] = [...sections, ...repos.map(repo => ({ label: repo.name, path: "/" + repo.name, kind: "project" as const }))];
-    const matches = candidates.filter(item => item.label.toLowerCase().includes(query) || item.path.toLowerCase().includes(query));
+    const sectionTerms: Record<string, string> = {
+      "/home": "home portfolio software engineer",
+      "/about": "about profile bio skills stack docker linux wpf dotnet nuxt backend full stack systems",
+      "/projects": "projects work repositories github source architecture code technologies",
+      "/experience": "experience career jobs freelance backend full stack android wordpress",
+      "/now": "now current working learning focus",
+      "/changelog": "changelog release versions updates history",
+      "/contact": "contact email telegram linkedin whatsapp business",
+    };
+    const sectionMatches = sections.filter(item => `${item.label} ${item.path} ${sectionTerms[item.path] || ""}`.toLowerCase().includes(query));
+    const projectMatches = repos
+      .filter(repo => projectSearchText(repo).includes(query))
+      .map(repo => ({ label: repo.name, path: "/" + repo.name, kind: "project" as const }));
+    const matches: SearchResult[] = [...sectionMatches, ...projectMatches].filter((item, index, all) => all.findIndex(other => other.kind === item.kind && other.path === item.path) === index);
     setTerminalLines(lines => [...lines, "› " + raw, matches.length ? "Found " + matches.length + " result" + (matches.length === 1 ? "." : "s.") : "No matches for “" + query + "”."]);
-    setSearchResults(matches.slice(0, 8));
+    setSearchResults(matches.slice(0, 10));
     if (!matches.length) showActionToast(`No matches for “${query}”.`, "info");
   };
 
@@ -1318,7 +1394,8 @@ export default function Home() {
     { id: "copy-url", label: "Copy Portfolio URL", hint: "osameh.dev", keywords: "copy link url share", icon: "copy", action: () => { void copyText(window.location.origin + "/", "Portfolio URL copied"); } },
     { id: "build", label: "View Build Info", hint: BUILD_DISPLAY, keywords: "build version deploy cache", icon: "build", action: () => window.dispatchEvent(new Event("portfolio:build")) },
     { id: "hire", label: "sudo hire osameh", hint: "easter egg", keywords: "hire sudo easter egg terminal", icon: "hire", action: runHireEasterEgg },
-    ...repos.map(repo => ({ id: `project-${repo.id}`, label: `Open project: ${repo.name}`, hint: repo.language || "GitHub", keywords: `project repo ${repo.name} ${repo.language || ""} ${repo.topics.join(" ")}`, icon: "code" as const, action: () => openProject(repo) })),
+    ...projectTechOptions.slice(0, 80).map((tech, index) => ({ id: `tech-${index}-${String(tech).toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, label: `Filter projects by ${tech}`, hint: "technology", keywords: `technology stack skill filter projects ${tech}`, icon: "code" as const, action: () => exploreTech(String(tech)) })),
+    ...repos.map(repo => ({ id: `project-${repo.id}`, label: `Open project: ${repoMetadata[repo.name]?.project.name || repo.name}`, hint: repoMetadata[repo.name]?.project.type || repo.language || "GitHub", keywords: `project repo ${projectSearchText(repo)}`, icon: "code" as const, action: () => openProject(repo) })),
   ];
   const normalizedCommandQuery = commandQuery.trim().toLowerCase();
   const filteredPaletteCommands = paletteCommands.filter(item => !normalizedCommandQuery || `${item.label} ${item.hint} ${item.keywords}`.toLowerCase().includes(normalizedCommandQuery));
@@ -1345,16 +1422,10 @@ export default function Home() {
   const contextRepo = contextMenu?.repoName ? repos.find(repo => repo.name.toLowerCase() === contextMenu.repoName?.toLowerCase()) || fallbackRepos.find(repo => repo.name.toLowerCase() === contextMenu.repoName?.toLowerCase()) || null : null;
   const projectShareUrl = (repo: GithubRepo) => `${window.location.origin}/projects/${encodeURIComponent(repo.name)}`;
   const runContextAction = (action: () => void) => { setContextMenu(null); action(); };
-  const projectTechOptions = Array.from(new Set(repos.flatMap(repo => {
-    const meta = repoMetadata[repo.name];
-    return [repo.language || "", ...repo.topics, ...(meta ? [...meta.stack.languages, ...meta.stack.frameworks, ...meta.stack.libraries, ...meta.stack.databases, ...meta.stack.platforms, ...meta.stack.tooling] : [])];
-  }).filter(Boolean))).sort((a, b) => String(a).localeCompare(String(b)));
   const normalizedProjectQuery = projectQuery.trim().toLowerCase();
   const filteredRepos = [...repos].filter(repo => {
     const meta = repoMetadata[repo.name];
-    const metadataTerms = meta ? [meta.project.name, meta.project.tagline, meta.project.summary, meta.project.type, meta.ownership.role, ...meta.stack.languages, ...meta.stack.frameworks, ...meta.stack.libraries, ...meta.stack.platforms, ...meta.stack.databases, ...meta.stack.tooling, ...meta.stack.concepts, ...meta.recruiter.skillsDemonstrated].join(" ") : "";
-    const haystack = `${repo.name} ${repo.description || ""} ${repo.language || ""} ${repo.topics.join(" ")} ${metadataTerms}`.toLowerCase();
-    const queryMatch = !normalizedProjectQuery || haystack.includes(normalizedProjectQuery);
+    const queryMatch = !normalizedProjectQuery || projectSearchText(repo).includes(normalizedProjectQuery);
     const techValues = [repo.language, ...repo.topics, ...(meta ? [...meta.stack.languages, ...meta.stack.frameworks, ...meta.stack.libraries, ...meta.stack.platforms, ...meta.stack.databases, ...meta.stack.tooling] : [])].filter(Boolean);
     const techMatch = projectTech === "all" || techValues.some(value => String(value).toLowerCase() === projectTech.toLowerCase());
     return queryMatch && techMatch;
@@ -1366,8 +1437,9 @@ export default function Home() {
       "qt / qml": "C++", "wpf": "C#", "android": "android", "github actions": "github-actions",
       "elk stack": "elk", "rest apis": "api", "postgresql": "postgresql", "mysql": "mysql",
     };
-    const resolved = aliases[tech.toLowerCase()] || tech;
-    const available = projectTechOptions.find(option => option.toLowerCase() === resolved.toLowerCase());
+    const exact = projectTechOptions.find(option => option.toLowerCase() === tech.toLowerCase());
+    const resolved = exact || aliases[tech.toLowerCase()] || tech;
+    const available = exact || projectTechOptions.find(option => option.toLowerCase() === resolved.toLowerCase());
     if (available) { setProjectTech(available); setProjectQuery(""); }
     else { setProjectTech("all"); setProjectQuery(resolved); }
     showHome();
@@ -1671,7 +1743,7 @@ export default function Home() {
               if (event.key === "ArrowDown") { event.preventDefault(); if (filteredPaletteCommands.length) setCommandIndex(index => (Math.min(index, filteredPaletteCommands.length - 1) + 1) % filteredPaletteCommands.length); return; }
               if (event.key === "ArrowUp") { event.preventDefault(); if (filteredPaletteCommands.length) setCommandIndex(index => (Math.min(index, filteredPaletteCommands.length - 1) - 1 + filteredPaletteCommands.length) % filteredPaletteCommands.length); return; }
               if (event.key === "Enter" && filteredPaletteCommands[safeCommandIndex]) { event.preventDefault(); runPaletteCommand(filteredPaletteCommands[safeCommandIndex]); }
-            }} placeholder="Type a command or search…" aria-label="Search commands" autoComplete="off" /><kbd>ESC</kbd></div>
+            }} placeholder="Search commands, projects, technologies…" aria-label="Search commands" autoComplete="off" /><kbd>ESC</kbd></div>
             <div ref={commandPaletteListRef} className="command-palette-list" role="listbox" aria-label="Available commands">
               {filteredPaletteCommands.length ? filteredPaletteCommands.map((item, index) => <button key={item.id} className={index === safeCommandIndex ? "active" : ""} role="option" aria-selected={index === safeCommandIndex} onMouseEnter={() => setCommandIndex(index)} onClick={() => runPaletteCommand(item)}><span className="command-palette-icon">{paletteIcon(item.icon)}</span><span><b>{item.label}</b><small>{item.hint}</small></span><CornerDownLeft size={13} /></button>) : <div className="command-palette-empty"><Search size={18} /><span>No command matches “{commandQuery}”.</span></div>}
             </div>
@@ -1732,7 +1804,8 @@ export default function Home() {
             </div>
             <form className="terminal-input-row" onSubmit={runTerminal}>
               <span>osameh@portfolio:~$</span>
-              <input ref={terminalInputRef} value={terminalInput} onChange={event => setTerminalInput(event.target.value)} placeholder="Type help, whoami, projects…" aria-label="Terminal command" autoComplete="off" />
+              <input ref={terminalInputRef} value={terminalInput} onChange={event => { setTerminalInput(event.target.value); terminalCompletionRef.current = { seed: "", matches: [], index: -1, applied: "" }; }} onKeyDown={event => { if (event.key === "Tab") { event.preventDefault(); autocompleteTerminal(event.shiftKey); } }} placeholder="Type help… · Tab autocomplete" aria-label="Terminal command" autoComplete="off" />
+              <small className="terminal-tab-hint"><kbd>Tab</kbd> autocomplete</small>
               <button type="submit" aria-label="Run command"><CornerDownLeft size={15} /></button>
             </form>
           </div>}

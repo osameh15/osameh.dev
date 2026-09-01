@@ -309,7 +309,7 @@ export function ProjectSourceExplorer({ repo, metadata }: { repo: RepoLike; meta
       </aside>
       <div className="source-editor">
         <header><div><FileCode2 size={14} /><span>{source?.path || "Select a source file"}</span></div>{source && <div><button onClick={() => { void copySource(); }}><Copy size={13} /> Copy</button><a href={source.html_url} target="_blank" rel="noreferrer"><ExternalLink size={13} /> GitHub</a></div>}</header>
-        <div className="source-editor-body">{sourceState === "loading" ? <div className="source-empty"><LoaderCircle className="spin" size={20} /><span>Loading source file…</span></div> : sourceState === "error" ? <div className="source-empty"><FileCode2 size={22} /><span>Unable to render this source file.</span></div> : source ? <div className={`source-code language-${source.language}`}>{source.content.split(/\r?\n/).map((line, index) => <SourceLine key={index} line={line} language={source.language} number={index + 1} />)}</div> : <div className="source-empty"><FileCode2 size={24} /><b>Repository source explorer</b><span>Select a file from the tree to inspect it without leaving osameh.dev.</span></div>}</div>
+        <div className="source-editor-body" tabIndex={0} aria-label={source ? `${source.name} source code viewport` : "Source code viewport"}>{sourceState === "loading" ? <div className="source-empty"><LoaderCircle className="spin" size={20} /><span>Loading source file…</span></div> : sourceState === "error" ? <div className="source-empty"><FileCode2 size={22} /><span>Unable to render this source file.</span></div> : source ? <div className={`source-code language-${source.language}`}>{source.content.split(/\r?\n/).map((line, index) => <SourceLine key={index} line={line} language={source.language} number={index + 1} />)}</div> : <div className="source-empty"><FileCode2 size={24} /><b>Repository source explorer</b><span>Select a file from the tree to inspect it without leaving osameh.dev.</span></div>}</div>
         {source && <footer><span>{source.language}</span><span>{Math.max(1, Math.round(source.size / 1024))} KB</span><span>{source.content.split(/\r?\n/).length} lines</span></footer>}
       </div>
     </div>
@@ -329,22 +329,76 @@ export function ProjectQuickAccess({ repo }: { repo: RepoLike }) {
     { id: `gallery-${repo.name}`, label: "Gallery", short: "GL", icon: <Sparkles size={15} /> },
   ], [repo.name]);
   const [active, setActive] = useState(items[0]?.id || "");
+  const manualTargetRef = useRef<string | null>(null);
+  const manualTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
-    const elements = items.map(item => document.getElementById(item.id)).filter((element): element is HTMLElement => Boolean(element));
-    if (!elements.length || !("IntersectionObserver" in window)) return;
-    const observer = new IntersectionObserver(entries => {
-      const visible = entries.filter(entry => entry.isIntersecting).sort((a, b) => Math.abs(a.boundingClientRect.top - 150) - Math.abs(b.boundingClientRect.top - 150));
-      if (visible[0]?.target.id) setActive(visible[0].target.id);
-    }, { rootMargin: "-18% 0px -62% 0px", threshold: [0, .05, .2] });
-    elements.forEach(element => observer.observe(element));
-    return () => observer.disconnect();
+    setActive(items[0]?.id || "");
+    manualTargetRef.current = null;
+    if (manualTimerRef.current !== null) window.clearTimeout(manualTimerRef.current);
+  }, [items]);
+
+  useEffect(() => {
+    let frame = 0;
+    const syncActiveSection = () => {
+      frame = 0;
+      if (manualTargetRef.current) {
+        setActive(manualTargetRef.current);
+        return;
+      }
+      const elements = items
+        .map(item => document.getElementById(item.id))
+        .filter((element): element is HTMLElement => Boolean(element));
+      if (!elements.length) return;
+      const anchor = Math.max(110, Math.min(window.innerHeight * .32, 300));
+      let selected = elements[0];
+      let nearestDistance = Number.POSITIVE_INFINITY;
+      for (const element of elements) {
+        const rect = element.getBoundingClientRect();
+        if (rect.top <= anchor && rect.bottom > anchor) {
+          selected = element;
+          nearestDistance = 0;
+          break;
+        }
+        const distance = rect.top > anchor ? rect.top - anchor : anchor - rect.bottom;
+        if (distance < nearestDistance) {
+          selected = element;
+          nearestDistance = distance;
+        }
+      }
+      if (selected.id) setActive(selected.id);
+    };
+    const schedule = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(syncActiveSection);
+    };
+    syncActiveSection();
+    window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", schedule);
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", schedule);
+      window.removeEventListener("resize", schedule);
+    };
   }, [items]);
 
   const jump = (id: string) => {
+    const target = document.getElementById(id);
+    if (!target) return;
+    manualTargetRef.current = id;
     setActive(id);
-    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (manualTimerRef.current !== null) window.clearTimeout(manualTimerRef.current);
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
+    manualTimerRef.current = window.setTimeout(() => {
+      manualTargetRef.current = null;
+      const rect = target.getBoundingClientRect();
+      if (Math.abs(rect.top) > 4) window.scrollBy({ top: rect.top - 86, behavior: "smooth" });
+    }, 1100);
   };
+
+  useEffect(() => () => {
+    if (manualTimerRef.current !== null) window.clearTimeout(manualTimerRef.current);
+  }, []);
 
   return <nav className="project-quick-access" aria-label={`${repo.name} project quick access`}>
     <div className="project-quick-access-rail" />
