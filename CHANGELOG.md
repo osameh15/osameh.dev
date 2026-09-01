@@ -4,6 +4,13 @@ All notable changes to **osameh.dev** are documented here.
 
 The project follows [Semantic Versioning](https://semver.org/). The early production releases were shipped in rapid succession while the portfolio was moved from its hosted prototype to the current ParsPack/CDN deployment.
 
+## 3.1.1 - 2026-09-01
+
+### Fixed
+- Aligned the `RELEASE GRAPH / LIVE HISTORY` label with the explanatory text in the changelog intro by overriding the inherited global eyebrow top margin only inside that panel.
+- Fixed Source Explorer status-bar clipping so language, file size, and line count remain vertically centered and fully visible.
+- Added subtle status separators that remain consistent in dark and light themes.
+
 ## 3.1.0 - 2026-09-01
 
 ### Added

@@ -406,6 +406,12 @@ The site also includes an in-app resume viewer and download/open controls.
 
 The five most recent releases are summarized here. See **[CHANGELOG.md](CHANGELOG.md)** for the complete production history.
 
+### v3.1.1 — Alignment & source status polish
+
+- aligned the changelog intro label with its adjacent explanatory copy
+- fixed Source Explorer footer clipping and vertically centered language, file size, and line count
+- added subtle status separators with dark/light theme support
+
 ### v3.1.0 — Interactive hero & source polish
 
 - added subtle pointer parallax, animated counters, mini-terminal status, and language-aware Stack Surface content to the custom hero showcase
@@ -431,14 +437,6 @@ The five most recent releases are summarized here. See **[CHANGELOG.md](CHANGELO
 - project quick access stays synchronized with toolbar jumps and natural scrolling
 - Terminal and Command Palette search repository-owned technology metadata such as Docker and WPF
 - Terminal now supports Tab / Shift+Tab autocomplete for commands, projects, destinations, and search terms
-
-### v3.0.2 — Project navigation & readability
-
-- added a floating quick-access rail for every major project section
-- fixed Source Explorer tree responses getting stuck in the loading state
-- featured projects now participate in the project-aware context menu
-- balanced the changelog graph into equal-height scrollable panels
-- improved Recruiter Mode and repository-intelligence readability in dark and light themes
 
 **Full history:** [CHANGELOG.md](CHANGELOG.md)
 
