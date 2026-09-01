@@ -4,6 +4,16 @@ All notable changes to **osameh.dev** are documented here.
 
 The project follows [Semantic Versioning](https://semver.org/). The early production releases were shipped in rapid succession while the portfolio was moved from its hosted prototype to the current ParsPack/CDN deployment.
 
+## 2.2.4 - 2026-08-31
+
+### Fixed
+- Restored the IDE-style 404 workspace for unknown routes behind ParsPack CDN.
+- Unknown project deep links now render the same in-app 404 instead of ParsPack's upstream error page.
+
+### Changed
+- Unknown browser routes use a CDN-compatible soft-404 response: HTTP 200 with `X-Robots-Tag: noindex, nofollow` and `X-Portfolio-Route-Status: 404`.
+- The 404 document removes canonical/Open Graph URL metadata and uses a dedicated not-found title to avoid advertising an invalid route.
+
 ## 2.2.3 - 2026-08-31
 
 ### Fixed

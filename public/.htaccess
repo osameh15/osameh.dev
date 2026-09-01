@@ -26,8 +26,9 @@ Options -Indexes
   # real public/resume directory also exists for the PDF asset.
   RewriteRule ^(?:home|about|projects|experience|now|changelog|contact|resume)/?$ index.html [L]
 
-  # Existing files/directories are served normally. Everything else is a real
-  # HTTP 404 while React renders the matching developer-style 404 workspace.
+  # Existing files/directories are served normally. Unknown browser routes are
+  # sent through not-found.php. It intentionally returns HTTP 200 + noindex because
+  # ParsPack CDN replaces upstream 404 bodies; React renders the IDE-style 404 UI.
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
   RewriteRule ^ not-found.php [L]

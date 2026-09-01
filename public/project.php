@@ -87,12 +87,26 @@ function replaceMeta(string $html, string $property, string $value, bool $name =
 }
 
 $requested = trim((string)($_GET['repo'] ?? ''));
-if (!preg_match('/^[A-Za-z0-9._-]{1,100}$/', $requested)) { http_response_code(404); $requested = ''; }
+if (!preg_match('/^[A-Za-z0-9._-]{1,100}$/', $requested)) { $requested = ''; }
 $repo = $requested !== '' ? findRepo($requested) : null;
 $index = __DIR__ . '/index.html';
 if (!is_file($index)) { http_response_code(500); echo 'Missing index.html'; exit; }
 $html = (string)file_get_contents($index);
-if ($repo === null) { http_response_code(404); header('X-Robots-Tag: noindex'); echo $html; exit; }
+if ($repo === null) {
+    // ParsPack CDN replaces an upstream 404 response body with its own error page.
+    // Serve the React shell as HTTP 200 so the client-side IDE 404 can render,
+    // but mark the route as noindex and expose the semantic state diagnostically.
+    http_response_code(200);
+    header('X-Robots-Tag: noindex, nofollow');
+    header('X-Portfolio-Route-Status: 404');
+    header('Cache-Control: no-cache, must-revalidate');
+    $html = preg_replace('~<title>.*?</title>~is', '<title>404 — Project not found | Osameh Irandoust</title>', $html, 1) ?: $html;
+    $html = preg_replace('/<link\s+rel=["\']canonical["\'][^>]*>/i', '', $html) ?: $html;
+    $html = preg_replace('/<meta\s+property=["\']og:url["\'][^>]*>/i', '', $html) ?: $html;
+    $html = preg_replace('/<meta\s+name=["\']robots["\'][^>]*>/i', '<meta name="robots" content="noindex,nofollow">', $html) ?: $html;
+    echo $html;
+    exit;
+}
 
 $name = (string)$repo['name'];
 $description = trim((string)($repo['description'] ?? '')) ?: 'Explore source, architecture, README, and project visuals on Osameh Irandoust’s software engineering portfolio.';

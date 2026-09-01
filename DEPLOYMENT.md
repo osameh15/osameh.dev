@@ -1,4 +1,4 @@
-# Production deployment — osameh.dev v2.2.0
+# Production deployment — osameh.dev v2.2.4
 
 Target: ParsPack shared Linux hosting + ParsPack CDN + PHP 8+.
 
@@ -97,6 +97,34 @@ After upload:
 4. compare the build version in the site status bar
 
 Purge submission returning HTTP 200 only means the purge was queued. The CDN history status is the better confirmation that all nodes processed it.
+
+
+## CDN-compatible 404 behavior
+
+ParsPack CDN currently replaces an upstream HTTP `404` response body with its own
+`Upstream Error - Not Found` document. To preserve the portfolio's IDE-style 404
+workspace, unknown browser routes intentionally return the React shell with HTTP
+`200`, plus:
+
+```text
+X-Robots-Tag: noindex, nofollow
+X-Portfolio-Route-Status: 404
+Cache-Control: no-cache, must-revalidate
+```
+
+React reads `window.location.pathname` and renders `404.md` inside the IDE workspace.
+The invalid route is therefore visible to the visitor but excluded from indexing.
+If the CDN later supports pass-through/custom origin error bodies, this compatibility
+layer can be switched back to a true HTTP 404.
+
+Smoke-test both a generic missing path and a missing project:
+
+```text
+https://osameh.dev/this-route-does-not-exist
+https://osameh.dev/projects/ThisRepoDoesNotExist
+```
+
+Both should display the in-app 404 workspace rather than a CDN upstream error page.
 
 ## 6. Smoke tests
 

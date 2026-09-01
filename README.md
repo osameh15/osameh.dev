@@ -367,6 +367,12 @@ The site also includes an in-app resume viewer and download/open controls.
 
 The five most recent releases are summarized here. See **[CHANGELOG.md](CHANGELOG.md)** for the complete production history.
 
+### v2.2.4 — CDN-safe IDE 404
+
+- restored the in-app IDE-style 404 workspace behind ParsPack CDN
+- unknown project deep links use the same 404 workspace instead of the upstream error document
+- soft-404 responses are explicitly `noindex,nofollow` and expose `X-Portfolio-Route-Status: 404` for diagnostics
+
 ### v2.2.3 — Explorer state & resume plugin
 
 - Explorer selection follows clicks, scrolling, and project detail state
@@ -397,13 +403,6 @@ The five most recent releases are summarized here. See **[CHANGELOG.md](CHANGELO
 - contact filename synchronized with the selected programming language
 - gallery discovery expanded across authored repository image files
 - improved status-bar build hover contrast
-
-### v2.1.0 — Readability & contact polish
-
-- improved typography and dark/light contrast
-- resilient contact-form initialization and CSRF retry flow
-- refined header wrapping and resume PDF actions
-- ongoing freelance experience added from 2017 to present
 
 **Full history:** [CHANGELOG.md](CHANGELOG.md)
 

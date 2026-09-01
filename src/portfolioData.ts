@@ -73,6 +73,7 @@ export const nowItems = [
 ];
 
 export const changelog = [
+  { version: "2.2.4", title: "CDN-safe IDE 404", items: ["Restored the in-app IDE 404 behind ParsPack CDN", "Unknown project deep links now use the same workspace 404", "Added noindex and diagnostic route-status headers for soft-404 responses"] },
   { version: "2.2.3", title: "Explorer state & resume plugin", items: ["Explorer files now track the visible section and selected route", "Project views keep Projects selected in the sidebar", "Moved the resume out of the file tree into a dedicated Portfolio Plugins card", "Resume plugin reflects the modal open state"] },
   { version: "2.2.2", title: "Release documentation", items: ["Added a complete repository CHANGELOG.md", "README now shows the five latest releases and links to full history", "Added the production screenshots to docs/img", "Finalized CI/CD documentation for scoped ParsPack deployment"] },
   { version: "2.2.1", title: "Automated delivery", items: ["GitHub Actions production build and FTPS deployment", "Scoped deployment credentials and CDN-aware live build verification", "Manual workflow dispatch for controlled redeploys", "Clarified the 30-day GitHub public activity window"] },
