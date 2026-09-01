@@ -350,7 +350,9 @@ Quality gates now cover repository metadata, PHP syntax, TypeScript, deployment-
 
 ## Engineering Notes
 
-Notes are stored as Markdown under `public/notes-content/` and indexed by `public/notes-index.json`. The UI provides reading time, tags, deep links, a generated table of contents, copyable code blocks, and sharing. Notes are also discoverable from Command Palette and Terminal (`notes`, `notes <text>`, `cat note <slug>`).
+Notes are stored as Markdown under `public/notes-content/` and indexed by `public/notes-index.json`. The index renders notes in batches of six as the library grows. Each article provides reading time, tags, deep links, a scroll-synchronized table of contents with active-section state, copyable code blocks, and sharing. Notes are also discoverable from Command Palette and Terminal (`notes`, `notes <text>`, `cat note <slug>`).
+
+On tablet and mobile, the table of contents becomes a sticky horizontal navigation strip instead of disappearing. Returning from an article restores the Engineering Notes index at its section anchor.
 
 ## Deployment
 
@@ -364,6 +366,12 @@ public_html/
 ├── index.html
 ├── assets/
 ├── api/
+│   ├── github.php
+│   ├── contact.php
+│   ├── analytics.php
+│   └── health.php
+├── notes-content/
+├── notes-index.json
 ├── icons/
 ├── resume/
 ├── favicon.svg
@@ -371,9 +379,11 @@ public_html/
 ├── sw.js
 ├── robots.txt
 ├── sitemap.xml
+├── sitemap.php
 ├── build-info.json
 ├── project.php
 ├── project-og.php
+├── note.php
 └── not-found.php
 ```
 
@@ -426,6 +436,13 @@ The site also includes an in-app resume viewer and download/open controls.
 
 The five most recent releases are summarized here. See **[CHANGELOG.md](CHANGELOG.md)** for the complete production history.
 
+### v4.1.0 — Responsive polish & notes navigation
+
+- strengthened light-theme contrast across activity, Notes, Source Explorer, Health Center, Changelog, and modal surfaces
+- Engineering Notes render six at a time and article TOC selection now follows scrolling/clicks reliably
+- fixed note-return scroll position, Health Center incomplete-row background, and release-node selection behavior
+- modals are capped to a scrollable 75vh and project quick access becomes a mobile bottom navigation rail
+
 ### v4.0.0 — Production engineering layer
 
 - added dynamic project/note structured data and a runtime sitemap covering public repositories and engineering notes
@@ -443,7 +460,7 @@ The five most recent releases are summarized here. See **[CHANGELOG.md](CHANGELO
 ### v3.1.0 — Interactive hero & source polish
 
 - added subtle pointer parallax, animated counters, mini-terminal status, and language-aware Stack Surface content to the custom hero showcase
-- Source Explorer now gives the repository tree its own visible scroll area and shows a dedicated loading state while file content is fetched
+- Source Explorer gives the repository tree its own visible scroll area and shows a dedicated loading state while file content is fetched
 - project quick-access rail is masked behind opaque icon pads so the vertical line never crosses through toolbar icons
 
 ### v3.0.5 — Hero showcase redesign
@@ -451,12 +468,6 @@ The five most recent releases are summarized here. See **[CHANGELOG.md](CHANGELO
 - replaced the generic orbit-style hero graphic with a custom engineering showcase
 - added workflow, impact, stack, and build-rhythm panels tailored to the portfolio’s engineering identity
 - introduced dedicated dark/light styling for the new first-screen experience
-
-### v3.0.4 — Palette landing & ghost completion
-
-- technology filters launched from Command Palette land directly on the project filter controls
-- terminal autocomplete previews the remaining completion as muted ghost text before Tab is pressed
-- Tab and Shift+Tab cycle through matching commands, projects, destinations, and search terms
 
 **Full history:** [CHANGELOG.md](CHANGELOG.md)
 

@@ -48,8 +48,22 @@ jobs:
           set -euo pipefail
           npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/portfolio-preview.log 2>&1 &
           server_pid=$!
-          trap 'kill $server_pid || true' EXIT
-          for i in {1..30}; do curl -fsS http://127.0.0.1:4173/ >/dev/null && break; sleep 1; done
+          trap 'kill $server_pid 2>/dev/null || true' EXIT
+          ready=0
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:4173/ >/dev/null 2>&1; then ready=1; break; fi
+            if ! kill -0 "$server_pid" 2>/dev/null; then
+              echo "::error::Vite preview exited before Lighthouse could start."
+              cat /tmp/portfolio-preview.log
+              exit 1
+            fi
+            sleep 1
+          done
+          if [[ "$ready" -ne 1 ]]; then
+            echo "::error::Vite preview did not become ready on 127.0.0.1:4173."
+            cat /tmp/portfolio-preview.log
+            exit 1
+          fi
           npx --yes lighthouse@12.8.2 http://127.0.0.1:4173/ \
             --quiet --chrome-flags='--headless --no-sandbox' \
             --only-categories=accessibility,best-practices,seo \
