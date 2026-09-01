@@ -4,6 +4,38 @@ All notable changes to **osameh.dev** are documented here.
 
 The project follows [Semantic Versioning](https://semver.org/). The early production releases were shipped in rapid succession while the portfolio was moved from its hosted prototype to the current ParsPack/CDN deployment.
 
+## 3.0.1 - 2026-09-01
+
+### Added
+- Interactive changelog release graph with focusable version nodes and a dedicated detail panel.
+- Lazy-loaded archive behavior: the latest five releases render first, with an animated control to reveal or collapse older versions.
+
+### Changed
+- Redesigned the changelog from static release boxes into a graph/timeline experience better matched to the IDE-style portfolio UI.
+- Hovering, focusing, or clicking a release node now updates the release details panel without moving the user away from the changelog section.
+
+## 3.0.0 - 2026-09-01
+
+### Added
+- Repository-owned `portfolio.json` loader backed by the canonical `portfolio.schema.json`.
+- Featured-project shortlist driven by `project.featured` and `featuredOrder`.
+- Guided Recruiter Mode with project-specific skills, talking points, role, and direct project navigation.
+- Per-project architecture viewer rendered from `architecture.nodes` and `architecture.edges`.
+- Same-origin GitHub Source Explorer with repository tree browsing, entry points, file search, code preview, basic syntax highlighting, copy, and GitHub deep links.
+- Live project metrics with language percentages, repository size, license, update signals, and latest release data.
+- New GitHub proxy endpoints for project metadata, metrics, source trees, and source files.
+
+### Changed
+- Project names, taglines, type, lifecycle, ownership, responsibilities, stack, case studies, recruiter content, and SEO can now come directly from repository metadata.
+- Project search and technology filtering include richer `portfolio.json` stack metadata.
+- The public `osameh.dev` repository is included in the embedded fallback project set.
+- Project deep-link metadata uses repository `portfolio.json` SEO fields when available.
+
+### Security
+- Source Explorer requests are restricted to repositories already exposed by the portfolio.
+- Source paths reject traversal, generated/dependency trees, configured exclusions, binary content, and files above each repository's preview limit.
+- GitHub credentials remain server-side; the browser only talks to same-origin PHP endpoints.
+
 ## 2.2.4 - 2026-08-31
 
 ### Fixed

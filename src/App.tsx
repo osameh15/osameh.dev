@@ -9,8 +9,10 @@ import {
   Image as ImageIcon, LayoutGrid, Monitor, Moon, Package, Search, Send, ServerCog, Star, Sun, Terminal, Type, X, Zap,
 } from "lucide-react";
 import { BUILD_DISPLAY, BUILD_ID, BUILD_TIME, BUILD_VERSION } from "./generated/build";
-import { BuildInfoModal, ChangelogSection, ContactForm, GithubActivity, NowSection, ProjectCaseStudy, ProjectCompare, PwaInstallControl, ResumeViewer, ShortcutGuide, SystemDiagnostics, shareProject, trackEvent } from "./AdvancedUI";
+import { BuildInfoModal, ChangelogSection, ContactForm, GithubActivity, NowSection, ProjectCompare, PwaInstallControl, ResumeViewer, ShortcutGuide, SystemDiagnostics, shareProject, trackEvent } from "./AdvancedUI";
 import type { ToastKind, ToastPayload } from "./toast";
+import { FeaturedProjects, ProjectArchitecture, ProjectCaseStudyV3, ProjectMetadataPanel, ProjectMetrics, ProjectSourceExplorer, RecruiterMode } from "./ProjectIntelligence";
+import { fetchPortfolioMetadata, type PortfolioMetadata } from "./projectMetadata";
 
 type ThemePreference = "dark" | "light" | "system";
 type FontPreference = "inter" | "mono" | "humanist" | "serif";
@@ -50,6 +52,7 @@ type GithubRepo = {
 };
 
 const fallbackRepos: GithubRepo[] = [
+  { id: 111, name: "osameh.dev", description: "An IDE-inspired, repository-driven software engineering portfolio with secure GitHub integration and automated deployment.", language: "TypeScript", topics: ["react", "typescript", "php", "devops", "portfolio"], stargazers_count: 0, forks_count: 0, archived: false, updated_at: "2026-09-01T00:00:00Z", fork: false, default_branch: "main" },
   { id: 101, name: "toast-notifications", description: "A beautiful, zero-dependency toast notification module for Nuxt 3 and 4.", language: "Vue", topics: ["nuxt", "vue", "typescript"], stargazers_count: 1, forks_count: 0, archived: false, updated_at: "2026-04-30T00:00:00Z", fork: false, default_branch: "main" },
   { id: 102, name: "confirm-dialogs", description: "Promise-based confirmation dialogs for Nuxt 3 and 4 with accessible RTL support.", language: "Vue", topics: ["nuxt", "vue", "typescript"], stargazers_count: 2, forks_count: 0, archived: false, updated_at: "2026-04-30T00:00:00Z", fork: false, default_branch: "main" },
   { id: 103, name: "input-dialog", description: "A clean input prompt module for fast user interactions in Nuxt applications.", language: "Vue", topics: ["nuxt", "vue", "typescript"], stargazers_count: 2, forks_count: 0, archived: false, updated_at: "2026-04-30T00:00:00Z", fork: false, default_branch: "main" },
@@ -326,6 +329,9 @@ export default function Home() {
   const [skillsView, setSkillsView] = useState<"code" | "ui">("code");
   const [copied, setCopied] = useState(false);
   const [repos, setRepos] = useState<GithubRepo[]>(fallbackRepos);
+  const [repoMetadata, setRepoMetadata] = useState<Record<string, PortfolioMetadata | undefined>>({});
+  const [metadataState, setMetadataState] = useState<"idle" | "loading" | "ready">("idle");
+  const [recruiterModeOpen, setRecruiterModeOpen] = useState(false);
   const [visibleRepos, setVisibleRepos] = useState(6);
   const [repoState, setRepoState] = useState<"loading" | "ready">("loading");
   const [activeRepo, setActiveRepo] = useState<GithubRepo | null>(null);
@@ -922,6 +928,32 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    if (!activeRepo) return;
+    const meta = repoMetadata[activeRepo.name];
+    if (meta?.seo.title) document.title = meta.seo.title;
+  }, [activeRepo, repoMetadata]);
+
+  useEffect(() => {
+    if (repoState !== "ready" || !repos.length) return;
+    let cancelled = false;
+    setMetadataState("loading");
+    let cursor = 0;
+    const workers = Array.from({ length: Math.min(3, repos.length) }, async () => {
+      while (!cancelled) {
+        const index = cursor;
+        cursor += 1;
+        const repo = repos[index];
+        if (!repo) break;
+        const metadata = await fetchPortfolioMetadata(repo);
+        if (cancelled) break;
+        setRepoMetadata(current => ({ ...current, [repo.name]: metadata }));
+      }
+    });
+    Promise.all(workers).then(() => { if (!cancelled) setMetadataState("ready"); });
+    return () => { cancelled = true; };
+  }, [repoState, repos]);
+
+  useEffect(() => {
     if (repoState !== "ready") return;
     const match = window.location.pathname.match(/^\/projects\/([^/]+)\/?$/i);
     if (!match) return;
@@ -1089,6 +1121,7 @@ export default function Home() {
         "build         open build information",
         "neofetch      portfolio system summary",
         "resume        open the embedded CV",
+        "recruiter     start the guided recruiter tour",
         "now           current focus",
         "changelog     portfolio release history",
         "status        local diagnostics",
@@ -1143,6 +1176,9 @@ export default function Home() {
     }
     if (command === "resume" || command === "cv") {
       setTerminalLines(lines => [...lines, "› " + raw, "opening resume.pdf…"]); setSearchResults([]); window.dispatchEvent(new Event("portfolio:resume")); return;
+    }
+    if (command === "recruiter" || command === "recruiter-mode") {
+      setTerminalLines(lines => [...lines, "› " + raw, "starting recruiter-mode.tour…"]); setSearchResults([]); setRecruiterModeOpen(true); return;
     }
     if (command === "now") { setTerminalLines(lines => [...lines, "› " + raw, "opening /now…"]); setSearchResults([]); goTo(sections[4]); return; }
     if (command === "changelog") { setTerminalLines(lines => [...lines, "› " + raw, "opening /changelog…"]); setSearchResults([]); goTo(sections[5]); return; }
@@ -1271,6 +1307,7 @@ export default function Home() {
     { id: "now", label: "Go to Now", hint: "/now", keywords: "now current working learning", icon: "about", action: () => goTo(sections[4]) },
     { id: "changelog", label: "Open Changelog", hint: "/changelog", keywords: "changelog releases versions updates", icon: "build", action: () => goTo(sections[5]) },
     { id: "resume", label: "Open Resume", hint: "resume.pdf", keywords: "resume cv download career", icon: "experience", action: () => window.dispatchEvent(new Event("portfolio:resume")) },
+    { id: "recruiter", label: "Start Recruiter Mode", hint: "guided tour", keywords: "recruiter tour featured hiring shortlist", icon: "hire", action: () => setRecruiterModeOpen(true) },
     { id: "diagnostics", label: "System Diagnostics", hint: "status", keywords: "status diagnostics system pwa api build", icon: "build", action: () => window.dispatchEvent(new Event("portfolio:diagnostics")) },
     { id: "shortcuts", label: "Keyboard Shortcuts", hint: "?", keywords: "keyboard shortcuts keys navigation", icon: "copy", action: () => window.dispatchEvent(new Event("portfolio:shortcuts")) },
     { id: "install", label: "Install Portfolio App", hint: "PWA", keywords: "install pwa offline app", icon: "build", action: () => window.dispatchEvent(new Event("portfolio:install")) },
@@ -1308,12 +1345,18 @@ export default function Home() {
   const contextRepo = contextMenu?.repoName ? repos.find(repo => repo.name.toLowerCase() === contextMenu.repoName?.toLowerCase()) || fallbackRepos.find(repo => repo.name.toLowerCase() === contextMenu.repoName?.toLowerCase()) || null : null;
   const projectShareUrl = (repo: GithubRepo) => `${window.location.origin}/projects/${encodeURIComponent(repo.name)}`;
   const runContextAction = (action: () => void) => { setContextMenu(null); action(); };
-  const projectTechOptions = Array.from(new Set(repos.flatMap(repo => [repo.language || "", ...repo.topics]).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+  const projectTechOptions = Array.from(new Set(repos.flatMap(repo => {
+    const meta = repoMetadata[repo.name];
+    return [repo.language || "", ...repo.topics, ...(meta ? [...meta.stack.languages, ...meta.stack.frameworks, ...meta.stack.libraries, ...meta.stack.databases, ...meta.stack.platforms, ...meta.stack.tooling] : [])];
+  }).filter(Boolean))).sort((a, b) => String(a).localeCompare(String(b)));
   const normalizedProjectQuery = projectQuery.trim().toLowerCase();
   const filteredRepos = [...repos].filter(repo => {
-    const haystack = `${repo.name} ${repo.description || ""} ${repo.language || ""} ${repo.topics.join(" ")}`.toLowerCase();
+    const meta = repoMetadata[repo.name];
+    const metadataTerms = meta ? [meta.project.name, meta.project.tagline, meta.project.summary, meta.project.type, meta.ownership.role, ...meta.stack.languages, ...meta.stack.frameworks, ...meta.stack.libraries, ...meta.stack.platforms, ...meta.stack.databases, ...meta.stack.tooling, ...meta.stack.concepts, ...meta.recruiter.skillsDemonstrated].join(" ") : "";
+    const haystack = `${repo.name} ${repo.description || ""} ${repo.language || ""} ${repo.topics.join(" ")} ${metadataTerms}`.toLowerCase();
     const queryMatch = !normalizedProjectQuery || haystack.includes(normalizedProjectQuery);
-    const techMatch = projectTech === "all" || [repo.language, ...repo.topics].filter(Boolean).some(value => String(value).toLowerCase() === projectTech.toLowerCase());
+    const techValues = [repo.language, ...repo.topics, ...(meta ? [...meta.stack.languages, ...meta.stack.frameworks, ...meta.stack.libraries, ...meta.stack.platforms, ...meta.stack.databases, ...meta.stack.tooling] : [])].filter(Boolean);
+    const techMatch = projectTech === "all" || techValues.some(value => String(value).toLowerCase() === projectTech.toLowerCase());
     return queryMatch && techMatch;
   }).sort((a, b) => projectSort === "stars" ? b.stargazers_count - a.stargazers_count : projectSort === "name" ? a.name.localeCompare(b.name) : Date.parse(b.updated_at) - Date.parse(a.updated_at));
   const toggleCompareRepo = (repo: GithubRepo) => setCompareRepos(current => current.some(item => item.id === repo.id) ? current.filter(item => item.id !== repo.id) : current.length >= 2 ? [current[1], repo] : [...current, repo]);
@@ -1422,8 +1465,8 @@ export default function Home() {
             <header className="ide-project-hero">
               <div>
                 <p className="eyebrow">PROJECT / {activeRepo.language || "CODE"}</p>
-                <h1>{activeRepo.name}</h1>
-                <p>{activeRepo.description || "Explore the source, architecture, and implementation of this project."}</p>
+                <h1>{repoMetadata[activeRepo.name]?.project.name || activeRepo.name}</h1>
+                <p>{repoMetadata[activeRepo.name]?.project.tagline || activeRepo.description || "Explore the source, architecture, and implementation of this project."}</p>
                 <div className="detail-actions">
                   <a href={'https://github.com/osameh15/' + activeRepo.name} target="_blank" rel="noreferrer" className="primary-btn">View source <ArrowUpRight size={16} /></a>
                   {npmUrl(activeRepo.name) && <a href={npmUrl(activeRepo.name)} target="_blank" rel="noreferrer" className="npm-btn"><Package size={16} /> View on npm <ArrowUpRight size={14} /></a>}
@@ -1445,7 +1488,11 @@ export default function Home() {
                 {loadingReadmes.includes(activeRepo.name) ? <div className="readme-loading"><LoaderCircle className="spin" size={19} /> Rendering README preview…</div> : readmeHtml[activeRepo.name] ? <div className="markdown-preview" dangerouslySetInnerHTML={{ __html: readmeHtml[activeRepo.name] }} /> : <div className="empty-readme">This repository does not include a public README yet. Open the source to explore its files and implementation.</div>}
               </article>
             </div>
-            <ProjectCaseStudy repo={activeRepo} />
+            <ProjectMetadataPanel repo={activeRepo} metadata={repoMetadata[activeRepo.name]} />
+            <ProjectMetrics repo={activeRepo} />
+            <ProjectCaseStudyV3 repo={activeRepo} metadata={repoMetadata[activeRepo.name]} />
+            <ProjectArchitecture repo={activeRepo} metadata={repoMetadata[activeRepo.name]} />
+            <ProjectSourceExplorer repo={activeRepo} metadata={repoMetadata[activeRepo.name]} />
             <section className="project-gallery" aria-labelledby={`gallery-${activeRepo.id}`}>
               <div className="project-gallery-heading">
                 <div><p className="eyebrow">PROJECT / GALLERY</p><h2 id={`gallery-${activeRepo.id}`}>Project visuals.</h2></div>
@@ -1501,8 +1548,10 @@ export default function Home() {
           </section>
 
           <section id="work" ref={projectsSectionRef} className="work section-pad">
-            <div className="section-heading"><span>02</span><div><p>{code.projects.toUpperCase()}</p><h2>Everything I’m building.</h2></div><a href="https://github.com/osameh15?tab=repositories" target="_blank" rel="noreferrer" className="section-link">GitHub profile <ArrowUpRight size={15} /></a></div>
-            <p className="projects-intro">A live view of my public work, ordered by recent activity. Archived repositories stay out of the way.</p>
+            <div className="section-heading"><span>02</span><div><p>{code.projects.toUpperCase()}</p><h2>Everything I’m building.</h2></div><div className="section-heading-actions"><button type="button" className="section-link section-link-button" onClick={() => setRecruiterModeOpen(true)}><Command size={15} /> Recruiter mode</button><a href="https://github.com/osameh15?tab=repositories" target="_blank" rel="noreferrer" className="section-link">GitHub profile <ArrowUpRight size={15} /></a></div></div>
+            <p className="projects-intro">A live view of public work enriched by repository-owned <code>portfolio.json</code> metadata. Archived repositories stay out of the way.</p>
+            {metadataState === "loading" && <div className="metadata-loading"><LoaderCircle className="spin" size={14} /> Reading project metadata…</div>}
+            <FeaturedProjects repos={repos} metadata={repoMetadata} onOpen={repo => { const full = repos.find(item => item.id === repo.id); if (full) openProject(full); }} onRecruiterMode={() => setRecruiterModeOpen(true)} />
             <div className="project-controls" aria-label="Project search and filters">
               <label className="project-search"><Search size={15} /><input ref={projectSearchRef} value={projectQuery} onChange={event => { setProjectQuery(event.target.value); setVisibleRepos(6); }} placeholder="Search repositories, stack, topics…" aria-label="Search projects" /><kbd>/</kbd></label>
               <select value={projectTech} onChange={event => { setProjectTech(event.target.value); setVisibleRepos(6); }} aria-label="Filter by technology"><option value="all">All technologies</option>{projectTechOptions.map(tech => <option key={tech} value={tech}>{tech}</option>)}</select>
@@ -1519,8 +1568,8 @@ export default function Home() {
                     {repoImages[project.name] && <img src={repoImages[project.name]} alt={'Preview from ' + project.name + ' README'} loading="lazy" onError={event => { event.currentTarget.hidden = true; }} />}
                     <div className="image-fallback"><Code2 size={31} /><span>{project.language || "Code"}</span></div>
                   </div>
-                  <p className="project-type">{project.language || "Repository"} · Updated {new Date(project.updated_at).toLocaleDateString("en", { month: "short", year: "numeric" })}</p>
-                  <h3>{project.name}</h3><p className="project-desc">{project.description || "Explore the source, architecture, and latest work in this repository."}</p>
+                  <p className="project-type">{repoMetadata[project.name]?.project.type || project.language || "Repository"} · Updated {new Date(project.updated_at).toLocaleDateString("en", { month: "short", year: "numeric" })}{repoMetadata[project.name]?.project.featured ? " · Featured" : ""}</p>
+                  <h3>{repoMetadata[project.name]?.project.name || project.name}</h3><p className="project-desc">{repoMetadata[project.name]?.project.tagline || project.description || "Explore the source, architecture, and latest work in this repository."}</p>
                   <div className="tags">{[project.language, ...project.topics].filter(Boolean).slice(0, 4).map(tag => <span key={tag}>{tag}</span>)}</div>
                   <div className="project-links"><span className="open-detail">Open project details <ArrowUpRight size={14} /></span><button className={compareRepos.some(item => item.id === project.id) ? "compare-chip active" : "compare-chip"} onClick={event => { event.stopPropagation(); toggleCompareRepo(project); }} aria-pressed={compareRepos.some(item => item.id === project.id)}><Code2 size={13} /> {compareRepos.some(item => item.id === project.id) ? "Selected" : "Compare"}</button>{npmUrl(project.name) && <a className="npm-chip" href={npmUrl(project.name)} target="_blank" rel="noreferrer" onClick={event => event.stopPropagation()} aria-label={'View ' + npmPackages[project.name] + ' on npm'}><Package size={13} /> npm <ArrowUpRight size={12} /></a>}</div>
                 </article>
@@ -1603,6 +1652,7 @@ export default function Home() {
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => { setCommandQuery(""); setCommandIndex(0); setCommandPaletteOpen(true); })}><Command size={15} /><span>Command Palette</span><kbd>⌘K</kbd></button>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => openTerminal())}><Terminal size={15} /><span>Open Terminal</span><kbd>`</kbd></button>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => window.dispatchEvent(new Event("portfolio:resume")))}><FileCode2 size={15} /><span>Open Resume</span><small>PDF</small></button>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => setRecruiterModeOpen(true))}><Command size={15} /><span>Recruiter mode</span><small>tour</small></button>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => window.dispatchEvent(new Event("portfolio:diagnostics")))}><Monitor size={15} /><span>System diagnostics</span><small>status</small></button>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => window.dispatchEvent(new Event("portfolio:shortcuts")))}><Command size={15} /><span>Keyboard shortcuts</span><kbd>?</kbd></button>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => window.dispatchEvent(new Event("portfolio:install")))}><Download size={15} /><span>Install app</span><small>PWA</small></button>
@@ -1632,6 +1682,7 @@ export default function Home() {
           <span>{actionToast.message}</span>
         </div>}
         {compareRepos.length > 0 && <div className="compare-bar"><span><Code2 size={14} /> Compare queue</span><div>{compareRepos.map(repo => <button key={repo.id} onClick={() => toggleCompareRepo(repo)}>{repo.name} <X size={12} /></button>)}</div><button className="compare-run" disabled={compareRepos.length !== 2} onClick={() => { if (compareRepos.length === 2) { setCompareModalOpen(true); trackEvent("project_compare", compareRepos.map(repo => repo.name).join(" vs ")); } }}>{compareRepos.length === 2 ? "Compare 2 projects" : "Select one more"}</button></div>}
+        <RecruiterMode open={recruiterModeOpen} repos={repos} metadata={repoMetadata} onClose={() => setRecruiterModeOpen(false)} onOpenProject={repo => { const full = repos.find(item => item.id === repo.id); if (full) openProject(full); }} />
         <ResumeViewer onOpenChange={setResumeOpen} />
         <BuildInfoModal />
         <SystemDiagnostics />

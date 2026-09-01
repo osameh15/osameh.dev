@@ -1,4 +1,4 @@
-# Production deployment — osameh.dev v2.2.4
+# Production deployment — osameh.dev v3.0.0
 
 Target: ParsPack shared Linux hosting + ParsPack CDN + PHP 8+.
 
@@ -143,11 +143,15 @@ https://osameh.dev/resume
 ```text
 https://osameh.dev/api/github/repos
 https://osameh.dev/api/github/activity
+https://osameh.dev/api/github/meta/Mizekar
+https://osameh.dev/api/github/metrics/Mizekar
+https://osameh.dev/api/github/tree/Mizekar
+https://osameh.dev/api/github/file/Mizekar?path=MizeKar.csproj
 https://osameh.dev/api/github/readme/Mizekar
 https://osameh.dev/api/github/images/Dialysis
 ```
 
-Expected: HTTP 200 and valid JSON/Markdown.
+Expected: HTTP 200 and valid JSON/Markdown. Source-file previews must stay within each repository's `portfolio.json` Source Explorer policy.
 
 ### Secret isolation
 

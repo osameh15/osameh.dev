@@ -13,6 +13,10 @@ Options -Indexes
   # Stable same-origin API URLs.
   RewriteRule ^api/github/repos/?$ api/github.php [QSA,L]
   RewriteRule ^api/github/activity/?$ api/github.php?activity=1 [QSA,L]
+  RewriteRule ^api/github/metrics/([A-Za-z0-9._-]+)/?$ api/github.php?metrics=$1 [QSA,L]
+RewriteRule ^api/github/meta/([A-Za-z0-9._-]+)/?$ api/github.php?meta=$1 [QSA,L]
+  RewriteRule ^api/github/tree/([A-Za-z0-9._-]+)/?$ api/github.php?tree=$1 [QSA,L]
+  RewriteRule ^api/github/file/([A-Za-z0-9._-]+)/?$ api/github.php?fileRepo=$1 [QSA,L]
   RewriteRule ^api/github/readme/([A-Za-z0-9._-]+)/?$ api/github.php?repo=$1 [QSA,L]
   RewriteRule ^api/github/images/([A-Za-z0-9._-]+)/?$ api/github.php?images=$1 [QSA,L]
   RewriteRule ^api/contact/?$ api/contact.php [QSA,L]

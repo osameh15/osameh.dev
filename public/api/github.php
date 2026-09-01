@@ -10,6 +10,18 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') {
     respondJson(['error' => 'Method not allowed'], 405);
 }
 
+$metricsRepo = isset($_GET['metrics']) ? trim((string) $_GET['metrics']) : '';
+if ($metricsRepo !== '') serveMetrics($metricsRepo);
+
+$metaRepo = isset($_GET['meta']) ? trim((string) $_GET['meta']) : '';
+if ($metaRepo !== '') serveMetadata($metaRepo);
+
+$treeRepo = isset($_GET['tree']) ? trim((string) $_GET['tree']) : '';
+if ($treeRepo !== '') serveSourceTree($treeRepo);
+
+$fileRepo = isset($_GET['fileRepo']) ? trim((string) $_GET['fileRepo']) : '';
+if ($fileRepo !== '') serveSourceFile($fileRepo, isset($_GET['path']) ? (string) $_GET['path'] : '');
+
 $imagesRepo = isset($_GET['images']) ? trim((string) $_GET['images']) : '';
 if ($imagesRepo !== '') serveImages($imagesRepo);
 
@@ -19,6 +31,377 @@ if ($activity !== '') serveActivity();
 $repo = isset($_GET['repo']) ? trim((string) $_GET['repo']) : '';
 if ($repo !== '') serveReadme($repo);
 serveRepositories();
+
+
+function serveMetrics(string $repo): never
+{
+    if (!preg_match('/^[A-Za-z0-9._-]{1,100}$/', $repo)) {
+        respondJson(['error' => 'Invalid repository name'], 400);
+    }
+
+    $repository = repositoryRecord($repo);
+    if ($repository === null) respondJson(['error' => 'Repository not found'], 404);
+
+    $canonicalName = (string) ($repository['name'] ?? '');
+    $cacheKey = 'repo-metrics-v1-' . strtolower($canonicalName);
+    $fresh = cacheRead($cacheKey, 3600);
+    if ($fresh !== null) {
+        $decoded = json_decode($fresh, true);
+        if (is_array($decoded)) respondJson($decoded, 200);
+    }
+
+    $repoUrl = 'https://api.github.com/repos/' . rawurlencode(GITHUB_USER) . '/' . rawurlencode($canonicalName);
+    $repoResult = githubRequest($repoUrl, 'application/vnd.github+json');
+    if (!$repoResult['ok']) {
+        $stale = cacheRead($cacheKey, 86400 * 7);
+        if ($stale !== null) {
+            $decoded = json_decode($stale, true);
+            if (is_array($decoded)) respondJson($decoded, 200);
+        }
+        respondJson(['error' => 'Repository metrics are temporarily unavailable'], 502);
+    }
+
+    $repoPayload = json_decode($repoResult['body'], true);
+    if (!is_array($repoPayload)) respondJson(['error' => 'Invalid repository response'], 502);
+
+    $languages = [];
+    $languagesResult = githubRequest($repoUrl . '/languages', 'application/vnd.github+json');
+    if ($languagesResult['ok']) {
+        $decoded = json_decode($languagesResult['body'], true);
+        if (is_array($decoded)) $languages = $decoded;
+    }
+    $totalLanguageBytes = array_sum(array_map(static fn($value): int => max(0, (int) $value), $languages));
+    $languageBreakdown = [];
+    foreach ($languages as $language => $bytes) {
+        $bytes = max(0, (int) $bytes);
+        $languageBreakdown[] = [
+            'name' => (string) $language,
+            'bytes' => $bytes,
+            'percent' => $totalLanguageBytes > 0 ? round(($bytes / $totalLanguageBytes) * 100, 1) : 0.0,
+        ];
+    }
+    usort($languageBreakdown, static fn(array $a, array $b): int => ((int) $b['bytes']) <=> ((int) $a['bytes']));
+
+    $latestRelease = null;
+    $releaseResult = githubRequest($repoUrl . '/releases/latest', 'application/vnd.github+json');
+    if ($releaseResult['ok']) {
+        $release = json_decode($releaseResult['body'], true);
+        if (is_array($release)) {
+            $latestRelease = [
+                'tag' => (string) ($release['tag_name'] ?? ''),
+                'name' => (string) ($release['name'] ?? ''),
+                'published_at' => (string) ($release['published_at'] ?? ''),
+                'url' => (string) ($release['html_url'] ?? ''),
+                'prerelease' => (bool) ($release['prerelease'] ?? false),
+            ];
+        }
+    }
+
+    $license = null;
+    if (is_array($repoPayload['license'] ?? null)) {
+        $license = [
+            'spdx' => (string) ($repoPayload['license']['spdx_id'] ?? ''),
+            'name' => (string) ($repoPayload['license']['name'] ?? ''),
+        ];
+    }
+
+    $response = [
+        'repo' => $canonicalName,
+        'default_branch' => (string) ($repoPayload['default_branch'] ?? $repository['default_branch'] ?? 'main'),
+        'size_kb' => (int) ($repoPayload['size'] ?? 0),
+        'stars' => (int) ($repoPayload['stargazers_count'] ?? 0),
+        'forks' => (int) ($repoPayload['forks_count'] ?? 0),
+        'watchers' => (int) ($repoPayload['subscribers_count'] ?? 0),
+        'open_issues' => (int) ($repoPayload['open_issues_count'] ?? 0),
+        'created_at' => (string) ($repoPayload['created_at'] ?? ''),
+        'updated_at' => (string) ($repoPayload['updated_at'] ?? ''),
+        'pushed_at' => (string) ($repoPayload['pushed_at'] ?? ''),
+        'homepage' => is_string($repoPayload['homepage'] ?? null) ? (string) $repoPayload['homepage'] : null,
+        'license' => $license,
+        'languages' => array_slice($languageBreakdown, 0, 12),
+        'latest_release' => $latestRelease,
+    ];
+
+    $body = json_encode($response, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    if (is_string($body)) cacheWrite($cacheKey, $body);
+    respondJson($response, 200);
+}
+
+function serveMetadata(string $repo): never
+{
+    if (!preg_match('/^[A-Za-z0-9._-]{1,100}$/', $repo)) {
+        respondJson(['found' => false, 'error' => 'Invalid repository name'], 400);
+    }
+
+    $repository = repositoryRecord($repo);
+    if ($repository === null) {
+        respondJson(['found' => false, 'error' => 'Repository not found'], 404);
+    }
+
+    $canonicalName = (string) ($repository['name'] ?? '');
+    $defaultBranch = (string) ($repository['default_branch'] ?? 'main');
+    $metadata = portfolioMetadataRecord($canonicalName, $defaultBranch);
+    if ($metadata === null) {
+        respondJson(['found' => false, 'repo' => $canonicalName], 404);
+    }
+
+    respondJson([
+        'found' => true,
+        'repo' => $canonicalName,
+        'metadata' => $metadata,
+    ], 200);
+}
+
+function serveSourceTree(string $repo): never
+{
+    if (!preg_match('/^[A-Za-z0-9._-]{1,100}$/', $repo)) {
+        respondJson(['error' => 'Invalid repository name', 'files' => []], 400);
+    }
+
+    $repository = repositoryRecord($repo);
+    if ($repository === null) respondJson(['error' => 'Repository not found', 'files' => []], 404);
+
+    $canonicalName = (string) ($repository['name'] ?? '');
+    $defaultBranch = (string) ($repository['default_branch'] ?? 'main');
+    $metadata = portfolioMetadataRecord($canonicalName, $defaultBranch);
+    $settings = sourceExplorerSettings($metadata);
+    if (!$settings['enabled']) respondJson(['error' => 'Source explorer disabled', 'files' => []], 403);
+
+    $cacheKey = 'source-tree-v1-' . strtolower($canonicalName) . '-' . strtolower($defaultBranch);
+    $fresh = cacheRead($cacheKey, 21600);
+    if ($fresh !== null) {
+        $decoded = json_decode($fresh, true);
+        if (is_array($decoded)) respondJson($decoded, 200);
+    }
+
+    $url = 'https://api.github.com/repos/' . rawurlencode(GITHUB_USER) . '/' . rawurlencode($canonicalName)
+        . '/git/trees/' . rawurlencode($defaultBranch) . '?recursive=1';
+    $result = githubRequest($url, 'application/vnd.github+json');
+    if ($result['ok']) {
+        $payload = json_decode($result['body'], true);
+        $tree = is_array($payload) && is_array($payload['tree'] ?? null) ? $payload['tree'] : [];
+        $files = [];
+        foreach ($tree as $item) {
+            if (!is_array($item) || ($item['type'] ?? '') !== 'blob') continue;
+            $path = (string) ($item['path'] ?? '');
+            $size = (int) ($item['size'] ?? 0);
+            if ($path === '' || $size < 0) continue;
+            if (sourcePathExcluded($path, $settings['exclude'])) continue;
+            if (!isSourceFilePath($path)) continue;
+            if ($size > $settings['maxBytes']) continue;
+            $files[] = [
+                'path' => $path,
+                'name' => basename($path),
+                'size' => $size,
+                'language' => sourceLanguage($path),
+            ];
+            if (count($files) >= 1800) break;
+        }
+        usort($files, static fn(array $a, array $b): int => strnatcasecmp((string) $a['path'], (string) $b['path']));
+        $response = [
+            'repo' => $canonicalName,
+            'branch' => $defaultBranch,
+            'entryPoints' => $settings['entryPoints'],
+            'maxFileSizeKb' => (int) floor($settings['maxBytes'] / 1024),
+            'truncated' => !empty($payload['truncated']) || count($files) >= 1800,
+            'files' => $files,
+        ];
+        $body = json_encode($response, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        if (is_string($body)) cacheWrite($cacheKey, $body);
+        respondJson($response, 200);
+    }
+
+    $stale = cacheRead($cacheKey, 86400 * 14);
+    if ($stale !== null) {
+        $decoded = json_decode($stale, true);
+        if (is_array($decoded)) respondJson($decoded, 200);
+    }
+    respondJson(['repo' => $canonicalName, 'branch' => $defaultBranch, 'entryPoints' => $settings['entryPoints'], 'files' => []], 200);
+}
+
+function serveSourceFile(string $repo, string $requestedPath): never
+{
+    if (!preg_match('/^[A-Za-z0-9._-]{1,100}$/', $repo)) {
+        respondJson(['error' => 'Invalid repository name'], 400);
+    }
+
+    $repository = repositoryRecord($repo);
+    if ($repository === null) respondJson(['error' => 'Repository not found'], 404);
+
+    $path = trim(rawurldecode($requestedPath));
+    $path = str_replace('\\', '/', $path);
+    $path = ltrim($path, '/');
+    if ($path === '' || str_contains($path, "\0") || preg_match('#(^|/)\.\.(/|$)#', $path)) {
+        respondJson(['error' => 'Invalid source path'], 400);
+    }
+
+    $canonicalName = (string) ($repository['name'] ?? '');
+    $defaultBranch = (string) ($repository['default_branch'] ?? 'main');
+    $metadata = portfolioMetadataRecord($canonicalName, $defaultBranch);
+    $settings = sourceExplorerSettings($metadata);
+    if (!$settings['enabled'] || sourcePathExcluded($path, $settings['exclude']) || !isSourceFilePath($path)) {
+        respondJson(['error' => 'Source file is not available in the explorer'], 403);
+    }
+
+    $cacheKey = 'source-file-v1-' . strtolower($canonicalName) . '-' . hash('sha256', $defaultBranch . ':' . $path);
+    $fresh = cacheRead($cacheKey, 1800);
+    if ($fresh !== null) {
+        $decoded = json_decode($fresh, true);
+        if (is_array($decoded)) respondJson($decoded, 200);
+    }
+
+    $url = 'https://api.github.com/repos/' . rawurlencode(GITHUB_USER) . '/' . rawurlencode($canonicalName)
+        . '/contents/' . encodeRepositoryPath($path) . '?ref=' . rawurlencode($defaultBranch);
+    $result = githubRequest($url, 'application/vnd.github+json');
+    if (!$result['ok']) respondJson(['error' => 'Source file could not be loaded'], $result['status'] === 404 ? 404 : 502);
+
+    $payload = json_decode($result['body'], true);
+    if (!is_array($payload) || ($payload['type'] ?? '') !== 'file') respondJson(['error' => 'Source path is not a file'], 400);
+    $size = (int) ($payload['size'] ?? 0);
+    if ($size > $settings['maxBytes']) respondJson(['error' => 'Source file exceeds the configured preview limit'], 413);
+
+    $content = '';
+    if (($payload['encoding'] ?? '') === 'base64' && is_string($payload['content'] ?? null)) {
+        $decoded = base64_decode(str_replace(["\r", "\n"], '', $payload['content']), true);
+        if (is_string($decoded)) $content = $decoded;
+    }
+    if ($content === '' && is_string($payload['download_url'] ?? null) && str_starts_with($payload['download_url'], 'https://raw.githubusercontent.com/')) {
+        $raw = githubRequest($payload['download_url'], 'text/plain');
+        if ($raw['ok']) $content = $raw['body'];
+    }
+    if (strlen($content) > $settings['maxBytes']) respondJson(['error' => 'Source file exceeds the configured preview limit'], 413);
+    if (str_contains($content, "\0")) respondJson(['error' => 'Binary files are not rendered in the source explorer'], 415);
+
+    $response = [
+        'repo' => $canonicalName,
+        'branch' => $defaultBranch,
+        'path' => $path,
+        'name' => basename($path),
+        'size' => strlen($content),
+        'language' => sourceLanguage($path),
+        'content' => $content,
+        'html_url' => 'https://github.com/' . rawurlencode(GITHUB_USER) . '/' . rawurlencode($canonicalName) . '/blob/' . rawurlencode($defaultBranch) . '/' . encodeRepositoryPath($path),
+    ];
+    $body = json_encode($response, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    if (is_string($body)) cacheWrite($cacheKey, $body);
+    respondJson($response, 200);
+}
+
+/** @return array<string, mixed>|null */
+function portfolioMetadataRecord(string $repo, string $branch): ?array
+{
+    $cacheKey = 'portfolio-meta-v1-' . strtolower($repo) . '-' . strtolower($branch);
+    $fresh = cacheRead($cacheKey, 21600);
+    if ($fresh !== null) {
+        $decoded = json_decode($fresh, true);
+        if (is_array($decoded)) return $decoded;
+    }
+
+    $url = 'https://api.github.com/repos/' . rawurlencode(GITHUB_USER) . '/' . rawurlencode($repo)
+        . '/contents/portfolio.json?ref=' . rawurlencode($branch);
+    $result = githubRequest($url, 'application/vnd.github+json');
+    if ($result['ok']) {
+        $payload = json_decode($result['body'], true);
+        if (is_array($payload) && ($payload['encoding'] ?? '') === 'base64' && is_string($payload['content'] ?? null)) {
+            $decodedContent = base64_decode(str_replace(["\r", "\n"], '', $payload['content']), true);
+            if (is_string($decodedContent)) {
+                $metadata = json_decode($decodedContent, true);
+                if (is_array($metadata) && isset($metadata['schemaVersion'], $metadata['project'], $metadata['repository'])) {
+                    $metadata['repository']['name'] = (string) ($metadata['repository']['name'] ?? $repo);
+                    $metadata['repository']['owner'] = (string) ($metadata['repository']['owner'] ?? GITHUB_USER);
+                    $metadata['repository']['defaultBranch'] = (string) ($metadata['repository']['defaultBranch'] ?? $branch);
+                    $body = json_encode($metadata, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+                    if (is_string($body)) cacheWrite($cacheKey, $body);
+                    return $metadata;
+                }
+            }
+        }
+    }
+
+    $stale = cacheRead($cacheKey, 86400 * 30);
+    if ($stale !== null) {
+        $decoded = json_decode($stale, true);
+        if (is_array($decoded)) return $decoded;
+    }
+    return null;
+}
+
+/** @return array{enabled: bool, maxBytes: int, exclude: array<int, string>, entryPoints: array<int, string>} */
+function sourceExplorerSettings(?array $metadata): array
+{
+    $source = is_array($metadata['sourceExplorer'] ?? null) ? $metadata['sourceExplorer'] : [];
+    $maxKb = max(32, min(1024, (int) ($source['maxFileSizeKb'] ?? 300)));
+    $exclude = array_values(array_filter(array_map('strval', is_array($source['exclude'] ?? null) ? $source['exclude'] : [])));
+    $entryPoints = array_values(array_filter(array_map('strval', is_array($source['entryPoints'] ?? null) ? $source['entryPoints'] : [])));
+    return [
+        'enabled' => !array_key_exists('enabled', $source) || (bool) $source['enabled'],
+        'maxBytes' => $maxKb * 1024,
+        'exclude' => $exclude,
+        'entryPoints' => $entryPoints,
+    ];
+}
+
+function sourcePathExcluded(string $path, array $patterns): bool
+{
+    $normalized = ltrim(str_replace('\\', '/', $path), '/');
+    if (preg_match('#(^|/)(?:node_modules|vendor|dist|build|bin|obj|coverage|\.git|\.cache|\.next|\.nuxt|target)(/|$)#i', $normalized)) return true;
+    $base = strtolower(basename($normalized));
+    if (str_starts_with($base, '.env') && $base !== '.env.example') return true;
+    if (preg_match('/^(?:secrets?|credentials?)(?:\.[a-z0-9_-]+)?\.(?:json|ya?ml|php|txt)$/i', $base)) return true;
+    $normalizedLower = strtolower($normalized);
+    foreach ($patterns as $pattern) {
+        $candidate = strtolower(str_replace('**', '*', str_replace('\\', '/', trim((string) $pattern))));
+        if ($candidate !== '' && fnmatch($candidate, $normalizedLower)) return true;
+        if ($candidate !== '' && fnmatch('*/' . ltrim($candidate, '/'), $normalizedLower)) return true;
+    }
+    return false;
+}
+
+function isSourceFilePath(string $path): bool
+{
+    $name = strtolower(basename($path));
+    if (in_array($name, ['dockerfile', 'makefile', 'procfile', '.gitignore', '.editorconfig', '.htaccess', 'license', 'license.md'], true)) return true;
+    if ($name === '.env.example') return true;
+    return (bool) preg_match('/\.(?:ts|tsx|js|jsx|mjs|cjs|vue|css|scss|sass|less|html?|json|md|mdx|ya?ml|xml|cs|xaml|csproj|sln|java|kt|kts|php|py|rb|go|rs|c|h|cpp|hpp|sql|sh|ps1|bat|cmd|ini|toml|gradle|properties|txt)$/i', $path);
+}
+
+function sourceLanguage(string $path): string
+{
+    $name = strtolower(basename($path));
+    $extension = strtolower((string) pathinfo($name, PATHINFO_EXTENSION));
+    if ($name === 'dockerfile') return 'dockerfile';
+    if ($name === 'makefile') return 'makefile';
+    if ($name === '.htaccess') return 'apache';
+    return match ($extension) {
+        'ts', 'tsx' => 'typescript',
+        'js', 'jsx', 'mjs', 'cjs' => 'javascript',
+        'vue' => 'vue',
+        'cs', 'csproj' => 'csharp',
+        'xaml' => 'xaml',
+        'java' => 'java',
+        'kt', 'kts' => 'kotlin',
+        'php' => 'php',
+        'py' => 'python',
+        'rb' => 'ruby',
+        'go' => 'go',
+        'rs' => 'rust',
+        'c', 'h', 'cpp', 'hpp' => 'cpp',
+        'css', 'scss', 'sass', 'less' => 'css',
+        'html', 'htm' => 'html',
+        'json' => 'json',
+        'md', 'mdx' => 'markdown',
+        'yml', 'yaml' => 'yaml',
+        'sql' => 'sql',
+        'sh', 'ps1', 'bat', 'cmd' => 'shell',
+        default => $extension !== '' ? $extension : 'text',
+    };
+}
+
+function encodeRepositoryPath(string $path): string
+{
+    $segments = array_values(array_filter(explode('/', str_replace('\\', '/', $path)), static fn(string $part): bool => $part !== ''));
+    return implode('/', array_map('rawurlencode', $segments));
+}
 
 function serveActivity(): never
 {
@@ -439,6 +822,7 @@ function respondRaw(string $body, string $contentType, int $status): never
 function fallbackRepositories(): array
 {
     return [
+        ['id'=>111,'name'=>'osameh.dev','description'=>'An IDE-inspired, repository-driven software engineering portfolio with secure GitHub integration and automated deployment.','language'=>'TypeScript','topics'=>['react','typescript','php','devops','portfolio'],'stargazers_count'=>0,'forks_count'=>0,'archived'=>false,'updated_at'=>'2026-09-01T00:00:00Z','fork'=>false,'default_branch'=>'main'],
         ['id'=>101,'name'=>'toast-notifications','description'=>'A beautiful, zero-dependency toast notification module for Nuxt 3 and 4.','language'=>'Vue','topics'=>['nuxt','vue','typescript'],'stargazers_count'=>1,'forks_count'=>0,'archived'=>false,'updated_at'=>'2026-04-30T00:00:00Z','fork'=>false,'default_branch'=>'main'],
         ['id'=>102,'name'=>'confirm-dialogs','description'=>'Promise-based confirmation dialogs for Nuxt 3 and 4 with accessible RTL support.','language'=>'Vue','topics'=>['nuxt','vue','typescript'],'stargazers_count'=>2,'forks_count'=>0,'archived'=>false,'updated_at'=>'2026-04-30T00:00:00Z','fork'=>false,'default_branch'=>'main'],
         ['id'=>103,'name'=>'input-dialog','description'=>'A clean input prompt module for fast user interactions in Nuxt applications.','language'=>'Vue','topics'=>['nuxt','vue','typescript'],'stargazers_count'=>2,'forks_count'=>0,'archived'=>false,'updated_at'=>'2026-04-30T00:00:00Z','fork'=>false,'default_branch'=>'main'],

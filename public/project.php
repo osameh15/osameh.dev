@@ -54,6 +54,22 @@ function findRepo(string $name): ?array {
     return null;
 }
 
+function portfolioMeta(array $repo): ?array {
+    $name = (string)($repo['name'] ?? ''); $branch = (string)($repo['default_branch'] ?? 'main');
+    if ($name === '') return null;
+    $dir = cacheDir(); $path = $dir ? $dir . '/meta-' . hash('sha256', strtolower($name . ':' . $branch)) . '.json' : null;
+    if ($path && is_file($path) && time() - (int)filemtime($path) < 21600) {
+        $cached = json_decode((string)file_get_contents($path), true); if (is_array($cached)) return $cached;
+    }
+    $payload = gh('https://api.github.com/repos/' . rawurlencode(OWNER) . '/' . rawurlencode($name) . '/contents/portfolio.json?ref=' . rawurlencode($branch));
+    if (!is_array($payload) || ($payload['encoding'] ?? '') !== 'base64' || !is_string($payload['content'] ?? null)) return null;
+    $decoded = base64_decode(str_replace(["\r", "\n"], '', $payload['content']), true);
+    $meta = is_string($decoded) ? json_decode($decoded, true) : null;
+    if (!is_array($meta)) return null;
+    if ($path) { @file_put_contents($path, json_encode($meta, JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE), LOCK_EX); @chmod($path, 0600); }
+    return $meta;
+}
+
 function projectImage(array $repo): string {
     $name = (string)($repo['name'] ?? ''); $branch = (string)($repo['default_branch'] ?? 'main');
     if ($name === '') return 'https://osameh.dev/og-cover-social.jpg';
@@ -109,8 +125,12 @@ if ($repo === null) {
 }
 
 $name = (string)$repo['name'];
-$description = trim((string)($repo['description'] ?? '')) ?: 'Explore source, architecture, README, and project visuals on Osameh Irandoust’s software engineering portfolio.';
-$title = $name . ' — Osameh Irandoust';
+$meta = portfolioMeta($repo);
+$metaProject = is_array($meta['project'] ?? null) ? $meta['project'] : [];
+$metaSeo = is_array($meta['seo'] ?? null) ? $meta['seo'] : [];
+$projectName = trim((string)($metaProject['name'] ?? '')) ?: $name;
+$description = trim((string)($metaSeo['description'] ?? $metaProject['summary'] ?? $repo['description'] ?? '')) ?: 'Explore source, architecture, README, and project visuals on Osameh Irandoust’s software engineering portfolio.';
+$title = trim((string)($metaSeo['title'] ?? '')) ?: ($projectName . ' — Osameh Irandoust');
 $url = 'https://osameh.dev/projects/' . rawurlencode($name);
 $image = 'https://osameh.dev/og/projects/' . rawurlencode($name) . '.jpg';
 $html = preg_replace('~<title>.*?</title>~is', '<title>' . htmlspecialchars($title, ENT_QUOTES|ENT_SUBSTITUTE, 'UTF-8') . '</title>', $html, 1) ?: $html;
@@ -124,8 +144,8 @@ $html = replaceMeta($html, 'og:image:url', $image);
 $html = replaceMeta($html, 'og:image:secure_url', $image);
 $mime = 'image/jpeg';
 $html = replaceMeta($html, 'og:image:type', $mime);
-$html = replaceMeta($html, 'og:image:alt', $name . ' project preview');
-$html = replaceMeta($html, 'twitter:image:alt', $name . ' project preview', true);
+$html = replaceMeta($html, 'og:image:alt', $projectName . ' project preview');
+$html = replaceMeta($html, 'twitter:image:alt', $projectName . ' project preview', true);
 
 $html = replaceMeta($html, 'twitter:title', $title, true);
 $html = replaceMeta($html, 'twitter:description', $description, true);

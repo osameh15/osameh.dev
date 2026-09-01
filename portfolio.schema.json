@@ -2,6 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/osameh15/osameh.dev/main/portfolio.schema.json",
   "title": "osameh.dev portfolio project metadata",
+  "description": "Repository-owned metadata consumed by osameh.dev project pages.",
   "type": "object",
   "required": [
     "schemaVersion",
@@ -18,119 +19,203 @@
     "seo"
   ],
   "properties": {
-    "schemaVersion": {
-      "type": "string"
+    "$schema": {
+      "type": "string",
+      "const": "https://raw.githubusercontent.com/osameh15/osameh.dev/main/portfolio.schema.json"
     },
+    "schemaVersion": { "type": "string", "minLength": 1 },
     "project": {
       "type": "object",
-      "required": [
-        "slug",
-        "name",
-        "tagline",
-        "summary",
-        "type",
-        "lifecycle",
-        "featured",
-        "featuredOrder",
-        "legacy"
-      ]
+      "required": ["slug", "name", "tagline", "summary", "type", "lifecycle", "featured", "featuredOrder", "legacy"],
+      "properties": {
+        "slug": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "tagline": { "type": "string", "minLength": 1 },
+        "summary": { "type": "string", "minLength": 1 },
+        "type": { "type": "string", "minLength": 1 },
+        "lifecycle": { "type": "string", "minLength": 1 },
+        "featured": { "type": "boolean" },
+        "featuredOrder": { "type": "integer", "minimum": 0 },
+        "legacy": { "type": "boolean" }
+      },
+      "additionalProperties": true
     },
     "ownership": {
       "type": "object",
-      "required": [
-        "role",
-        "collaboration",
-        "responsibilities"
-      ]
+      "required": ["role", "collaboration", "responsibilities"],
+      "properties": {
+        "role": { "type": "string", "minLength": 1 },
+        "collaboration": { "type": "string", "minLength": 1 },
+        "organization": { "type": ["string", "null"] },
+        "responsibilities": { "$ref": "#/$defs/stringArray" }
+      },
+      "additionalProperties": true
     },
     "links": {
-      "type": "object"
+      "type": "object",
+      "properties": {
+        "repository": { "$ref": "#/$defs/nullableUri" },
+        "live": { "$ref": "#/$defs/nullableUri" },
+        "demo": { "$ref": "#/$defs/nullableUri" },
+        "documentation": { "type": ["string", "null"] },
+        "package": { "$ref": "#/$defs/nullableUri" }
+      },
+      "additionalProperties": true
     },
     "repository": {
       "type": "object",
-      "required": [
-        "owner",
-        "defaultBranch",
-        "name"
-      ],
+      "required": ["owner", "name", "defaultBranch"],
       "properties": {
-        "owner": {
-          "type": "string",
-          "minLength": 1
-        },
-        "name": {
-          "type": "string",
-          "minLength": 1
-        },
-        "defaultBranch": {
-          "type": "string",
-          "minLength": 1
-        },
-        "license": {
-          "type": [
-            "string",
-            "null"
-          ]
-        }
-      }
+        "owner": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "defaultBranch": { "type": "string", "minLength": 1 },
+        "license": { "type": ["string", "null"] }
+      },
+      "additionalProperties": true
     },
     "stack": {
-      "type": "object"
+      "type": "object",
+      "required": ["languages", "frameworks", "libraries", "platforms", "databases", "tooling", "concepts"],
+      "properties": {
+        "languages": { "$ref": "#/$defs/stringArray" },
+        "frameworks": { "$ref": "#/$defs/stringArray" },
+        "libraries": { "$ref": "#/$defs/stringArray" },
+        "platforms": { "$ref": "#/$defs/stringArray" },
+        "databases": { "$ref": "#/$defs/stringArray" },
+        "tooling": { "$ref": "#/$defs/stringArray" },
+        "concepts": { "$ref": "#/$defs/stringArray" }
+      },
+      "additionalProperties": true
     },
     "caseStudy": {
       "type": "object",
-      "required": [
-        "problem",
-        "solution",
-        "highlights",
-        "challenges",
-        "results"
-      ]
+      "required": ["problem", "solution", "highlights", "challenges", "results"],
+      "properties": {
+        "problem": { "type": "string" },
+        "solution": { "type": "string" },
+        "highlights": { "$ref": "#/$defs/stringArray" },
+        "challenges": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["title", "description", "resolution"],
+            "properties": {
+              "title": { "type": "string", "minLength": 1 },
+              "description": { "type": "string" },
+              "resolution": { "type": "string" }
+            },
+            "additionalProperties": true
+          }
+        },
+        "results": { "$ref": "#/$defs/stringArray" }
+      },
+      "additionalProperties": true
     },
     "architecture": {
       "type": "object",
-      "required": [
-        "summary",
-        "nodes",
-        "edges"
-      ]
+      "required": ["summary", "nodes", "edges"],
+      "properties": {
+        "summary": { "type": "string" },
+        "nodes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "label", "type"],
+            "properties": {
+              "id": { "type": "string", "minLength": 1 },
+              "label": { "type": "string", "minLength": 1 },
+              "type": { "type": "string", "minLength": 1 }
+            },
+            "additionalProperties": true
+          }
+        },
+        "edges": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["from", "to"],
+            "properties": {
+              "from": { "type": "string", "minLength": 1 },
+              "to": { "type": "string", "minLength": 1 },
+              "label": { "type": "string" }
+            },
+            "additionalProperties": true
+          }
+        }
+      },
+      "additionalProperties": true
     },
     "media": {
       "type": "object",
-      "required": [
-        "cover",
-        "gallery",
-        "screenshots"
-      ]
+      "required": ["cover", "gallery", "screenshots"],
+      "properties": {
+        "cover": {
+          "type": "object",
+          "properties": {
+            "strategy": { "type": "string" },
+            "path": { "type": ["string", "null"] },
+            "alt": { "type": "string" }
+          },
+          "additionalProperties": true
+        },
+        "gallery": {
+          "type": "object",
+          "properties": {
+            "autoDiscover": { "type": "boolean" },
+            "include": { "$ref": "#/$defs/stringArray" },
+            "exclude": { "$ref": "#/$defs/stringArray" },
+            "extensions": { "$ref": "#/$defs/stringArray" },
+            "preferred": { "$ref": "#/$defs/stringArray" }
+          },
+          "additionalProperties": true
+        },
+        "screenshots": { "type": "array" }
+      },
+      "additionalProperties": true
     },
     "sourceExplorer": {
       "type": "object",
-      "required": [
-        "enabled",
-        "maxFileSizeKb",
-        "exclude"
-      ]
+      "required": ["enabled", "maxFileSizeKb", "exclude"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "maxFileSizeKb": { "type": "integer", "minimum": 32, "maximum": 1024 },
+        "exclude": { "$ref": "#/$defs/stringArray" },
+        "entryPoints": { "$ref": "#/$defs/stringArray" }
+      },
+      "additionalProperties": true
     },
     "recruiter": {
       "type": "object",
-      "required": [
-        "headline",
-        "skillsDemonstrated",
-        "talkingPoints"
-      ]
+      "required": ["headline", "skillsDemonstrated", "talkingPoints"],
+      "properties": {
+        "headline": { "type": "string", "minLength": 1 },
+        "skillsDemonstrated": { "$ref": "#/$defs/stringArray" },
+        "talkingPoints": { "$ref": "#/$defs/stringArray" }
+      },
+      "additionalProperties": true
     },
     "seo": {
       "type": "object",
-      "required": [
-        "title",
-        "description",
-        "keywords"
-      ]
+      "required": ["title", "description", "keywords"],
+      "properties": {
+        "title": { "type": "string", "minLength": 1 },
+        "description": { "type": "string", "minLength": 1 },
+        "keywords": { "$ref": "#/$defs/stringArray" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "stringArray": {
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true
     },
-    "$schema": {
-      "type": "string",
-      "const": "https://raw.githubusercontent.com/osameh15/osameh.dev/main/portfolio.schema.json",
-      "description": "Canonical schema URL published by the osameh.dev repository."
+    "nullableUri": {
+      "anyOf": [
+        { "type": "string", "format": "uri" },
+        { "type": "null" }
+      ]
     }
   },
   "additionalProperties": true

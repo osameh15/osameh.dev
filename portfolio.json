@@ -5,7 +5,7 @@
     "slug": "osameh.dev",
     "name": "osameh.dev",
     "tagline": "An IDE-inspired, repository-driven software engineering portfolio with secure GitHub integration and automated deployment.",
-    "summary": "A React/Vite portfolio that behaves like a developer workspace: dynamic GitHub projects, README rendering, repository galleries, project case studies, custom context menu and command palette, terminal, PWA support, secure PHP API proxying, CDN-aware routing and GitHub Actions deployment to shared hosting.",
+    "summary": "A React/Vite portfolio that behaves like a developer workspace and a repository-driven engineering platform: public GitHub projects self-describe through portfolio.json, project pages expose architecture and source exploration, recruiter mode surfaces featured engineering evidence, and secure PHP APIs, PWA behavior, CDN-aware routing, and GitHub Actions deliver the production experience.",
     "type": "Portfolio / developer platform",
     "lifecycle": "active",
     "featured": true,
@@ -92,14 +92,15 @@
     "highlights": [
       "IDE-style responsive UI with light/dark themes",
       "Dynamic public GitHub repository discovery",
-      "README sanitization and relative-image normalization",
-      "Repository-wide image galleries and lightbox",
-      "Project case studies and comparison",
-      "Custom context menu and command palette",
-      "Interactive terminal with neofetch-style commands",
-      "PWA and offline shell",
-      "Resume viewer and secure contact form",
-      "Per-project social preview generation",
+      "Repository-owned portfolio.json metadata with schema validation",
+      "Featured project shortlist and guided Recruiter Mode",
+      "Per-project architecture viewer driven by repository metadata",
+      "Same-origin GitHub source explorer with file-size and path safeguards",
+      "Live GitHub project metrics with language percentages, releases, license and repository signals",
+      "README sanitization and repository-wide image galleries",
+      "Project case studies, comparison, context menu, command palette and terminal",
+      "PWA/offline support, resume viewer and secure contact form",
+      "Per-project social previews and CDN-safe 404 routing",
       "GitHub Actions CI/CD with certificate-pinned FTPS deployment"
     ],
     "challenges": [
@@ -128,7 +129,9 @@
       "Push-to-production CI/CD workflow",
       "Static/CDN-friendly production architecture with server-side secret isolation",
       "Portfolio pages stay synchronized with public GitHub repositories",
-      "Strong foundation for repository-driven metadata, code explorer and recruiter mode"
+      "Each repository can own its case study, architecture, recruiter data and source-explorer policy",
+      "Recruiters can inspect featured evidence, architecture and public source without leaving the portfolio",
+      "Project detail pages combine authored metadata with cached live GitHub metrics and source evidence"
     ]
   },
   "architecture": {
@@ -173,6 +176,16 @@
         "id": "hosting",
         "label": "Shared hosting public_html",
         "type": "hosting"
+      },
+      {
+        "id": "metadata",
+        "label": "portfolio.json metadata",
+        "type": "data"
+      },
+      {
+        "id": "explorer",
+        "label": "Source Explorer + Architecture Viewer",
+        "type": "frontend"
       }
     ],
     "edges": [
@@ -210,6 +223,21 @@
         "from": "hosting",
         "to": "cdn",
         "label": "origin"
+      },
+      {
+        "from": "github",
+        "to": "metadata",
+        "label": "serves metadata/source"
+      },
+      {
+        "from": "metadata",
+        "to": "explorer",
+        "label": "drives project views"
+      },
+      {
+        "from": "explorer",
+        "to": "static",
+        "label": "renders in workspace"
       }
     ]
   },
@@ -285,7 +313,7 @@
     ]
   },
   "recruiter": {
-    "headline": "A portfolio that doubles as a production engineering case study across frontend, backend, security, CDN and CI/CD.",
+    "headline": "A repository-driven portfolio and production engineering case study spanning frontend, backend, secure GitHub integration, source exploration, architecture visualization, CDN, and CI/CD.",
     "skillsDemonstrated": [
       "React",
       "TypeScript",
@@ -296,17 +324,22 @@
       "PWA",
       "CI/CD",
       "DevOps",
-      "UX engineering"
+      "UX engineering",
+      "GitHub API integration",
+      "Metadata-driven architecture",
+      "Source code tooling"
     ],
     "talkingPoints": [
+      "Repository-owned portfolio.json files drive case studies, featured work, architecture and source-explorer behavior",
+      "Public source is proxied through same-origin PHP endpoints with repository validation, caching and preview limits",
       "Deliberately adapted a modern frontend to constrained shared hosting without exposing secrets",
       "Deployment uses a least-privilege account and pinned FTPS certificate",
-      "Repository-owned portfolio.json metadata is the foundation for architecture, recruiter and source-explorer features"
+      "Project views combine repository-owned metadata with live GitHub language, release, license and activity signals"
     ]
   },
   "seo": {
     "title": "osameh.dev Portfolio — Osameh Irandoust",
-    "description": "A React/Vite portfolio that behaves like a developer workspace: dynamic GitHub projects, README rendering, repository galleries, project case studies, custom context menu and command palette, terminal, PWA support, secure PHP API proxying, CDN-aware routing and GitHub Actions deployment to shared hosting.",
+    "description": "A React/Vite portfolio that behaves like a developer workspace and a repository-driven engineering platform: public GitHub projects self-describe through portfolio.json, project pages expose architecture and source exploration, recruiter mode surfaces featured engineering evidence, and secure PHP APIs, PWA behavior, CDN-aware routing, and GitHub Actions deliver the production experience.",
     "keywords": [
       "software engineer portfolio",
       "React",

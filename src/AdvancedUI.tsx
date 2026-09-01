@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { Activity, ArrowUpRight, Check, Code2, Download, ExternalLink, FileText, GitBranch, HardDrive, Keyboard, Laptop, LoaderCircle, Mail, MonitorCheck, PackageCheck, RefreshCw, Send, Share2, ShieldCheck, Sparkles, Terminal, Wifi, WifiOff, X } from "lucide-react";
+import { Activity, ArrowUpRight, Check, ChevronDown, ChevronUp, Code2, Download, ExternalLink, FileText, GitBranch, HardDrive, Keyboard, Laptop, LoaderCircle, Mail, MonitorCheck, PackageCheck, RefreshCw, Send, Share2, ShieldCheck, Sparkles, Terminal, Wifi, WifiOff, X } from "lucide-react";
 import { BUILD_ID, BUILD_TIME, BUILD_VERSION } from "./generated/build";
 import { notify } from "./toast";
 import { caseStudyFor, changelog, nowItems, resumeSummary, type RepoLike } from "./portfolioData";
@@ -60,9 +60,85 @@ export function NowSection() {
 }
 
 export function ChangelogSection() {
+  const initialVisible = 5;
+  const [expanded, setExpanded] = useState(false);
+  const [selectedVersion, setSelectedVersion] = useState(changelog[0]?.version || "");
+  const visibleItems = expanded ? changelog : changelog.slice(0, initialVisible);
+  const hiddenCount = Math.max(0, changelog.length - initialVisible);
+
+  useEffect(() => {
+    if (!visibleItems.length) return;
+    if (!visibleItems.some(item => item.version === selectedVersion)) setSelectedVersion(visibleItems[0].version);
+  }, [visibleItems, selectedVersion]);
+
+  const selected = visibleItems.find(item => item.version === selectedVersion) || visibleItems[0];
+  const selectedIndex = selected ? changelog.findIndex(item => item.version === selected.version) : 0;
+
   return <section id="changelog" className="changelog-section section-pad">
     <div className="section-heading"><span>06</span><div><p>CHANGELOG.MD</p><h2>This portfolio ships like software.</h2></div></div>
-    <div className="changelog-list">{changelog.map(item => <article key={item.version}><header><code>v{item.version}</code><h3>{item.title}</h3></header><ul>{item.items.map(change => <li key={change}>{change}</li>)}</ul></article>)}</div>
+    <div className="changelog-graph-shell">
+      <div className="changelog-graph-intro">
+        <div>
+          <p className="eyebrow">RELEASE GRAPH / LIVE HISTORY</p>
+          <h3>Scan the latest releases, then drill into the exact version you want.</h3>
+        </div>
+        <p>The newest five releases stay visible by default so the first screen remains focused. Hover, focus, or click any node to inspect its version and shipped changes in the detail panel.</p>
+      </div>
+      <div className="changelog-graph-layout">
+        <div className="changelog-graph-map" role="listbox" aria-label="Portfolio release graph">
+          <div className="changelog-graph-line" aria-hidden="true" />
+          {visibleItems.map((item, index) => {
+            const isActive = selected?.version === item.version;
+            return <button
+              key={item.version}
+              type="button"
+              role="option"
+              aria-selected={isActive}
+              title={`v${item.version}`}
+              className={isActive ? "changelog-node active" : "changelog-node"}
+              onMouseEnter={() => setSelectedVersion(item.version)}
+              onFocus={() => setSelectedVersion(item.version)}
+              onClick={() => setSelectedVersion(item.version)}
+              style={{ animationDelay: `${index * 70}ms` }}
+            >
+              <span className="changelog-node-point" aria-hidden="true"><span /></span>
+              <span className="changelog-node-content">
+                <small>{index === 0 ? "LATEST" : !expanded ? "RECENT" : index < initialVisible ? "RECENT" : "ARCHIVE"}</small>
+                <strong>{item.title}</strong>
+                <span className="changelog-node-version">v{item.version}</span>
+              </span>
+              <span className="changelog-node-badge">v{item.version}</span>
+            </button>;
+          })}
+          {!expanded && hiddenCount > 0 && <div className="changelog-node-pending"><span />+{hiddenCount} older releases</div>}
+        </div>
+        {selected && <aside className="changelog-graph-detail" aria-live="polite">
+          <div className="changelog-graph-detail-head">
+            <div>
+              <p className="eyebrow">SELECTED RELEASE</p>
+              <h3>{selected.title}</h3>
+            </div>
+            <code>v{selected.version}</code>
+          </div>
+          <p className="changelog-detail-meta">Release {String(selectedIndex + 1).padStart(2, "0")} of {String(changelog.length).padStart(2, "0")} · Hover a node in the graph to move through the portfolio’s shipping history.</p>
+          <div className="changelog-detail-list">
+            {selected.items.map((change, index) => <article key={change}>
+              <span>{String(index + 1).padStart(2, "0")}</span>
+              <p>{change}</p>
+            </article>)}
+          </div>
+        </aside>}
+      </div>
+      {hiddenCount > 0 && <div className="changelog-load-more">
+        <div>
+          <b>{expanded ? `Showing all ${changelog.length} releases.` : `Showing the latest ${initialVisible} of ${changelog.length} releases.`}</b>
+          <span>{expanded ? "Collapse the older history if you want to return to the short release snapshot." : "Load the rest of the release history only when you want the deeper archive."}</span>
+        </div>
+        <button type="button" className={expanded ? "secondary-btn is-open" : "secondary-btn"} onClick={() => setExpanded(current => !current)}>
+          {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />} {expanded ? "Collapse older releases" : `Load ${hiddenCount} older releases`}
+        </button>
+      </div>}
+    </div>
   </section>;
 }
 

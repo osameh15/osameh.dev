@@ -10,7 +10,11 @@ A production portfolio for **Osameh Irandoust**, designed as an IDE-inspired wor
 
 - Responsive IDE-style interface with dark and light themes
 - Dynamic public GitHub repositories, README rendering, repository metadata, and project galleries
-- Project case studies, search, technology filters, sorting, and two-project comparison
+- Repository-owned `portfolio.json` metadata with a published JSON Schema
+- Featured-project shortlist and guided Recruiter Mode
+- Per-project architecture viewer and same-origin public source explorer
+- Live project metrics with language percentages, license, repository size, update signals, and latest release data
+- Metadata-driven project case studies, search, technology filters, sorting, and two-project comparison
 - Context-aware custom context menu and `Ctrl/Cmd + K` Command Palette
 - Interactive terminal with the backtick (`) shortcut, autofocus, resize/maximize support, and developer commands
 - Built-in resume viewer and packaged PDF CV
@@ -66,7 +70,10 @@ Shared Linux Hosting
       ├── React + Vite static frontend
       │     ├── portfolio UI
       │     ├── project explorer
-      │     ├── case studies
+      │     ├── portfolio.json metadata views
+      │     ├── recruiter mode / featured projects
+      │     ├── case studies + architecture viewer
+      │     ├── source explorer
       │     ├── gallery / lightbox
       │     ├── Command Palette
       │     ├── terminal
@@ -74,6 +81,7 @@ Shared Linux Hosting
       │
       └── PHP endpoints
             ├── GitHub proxy + origin cache
+            ├── portfolio metadata / source tree / source file APIs
             ├── contact form
             ├── aggregate analytics
             ├── dynamic project metadata
@@ -111,17 +119,44 @@ Images/splash_screen.jpg
 
 README HTML is rendered with `marked` and sanitized with DOMPurify before being inserted into the page.
 
+### Repository-owned portfolio metadata
+
+Each public project can include a `portfolio.json` file at the repository root. The canonical schema lives in this repository as [`portfolio.schema.json`](portfolio.schema.json). The portfolio reads this metadata through the same-origin GitHub proxy and uses it to drive:
+
+- featured-project ordering
+- Recruiter Mode headlines and talking points
+- project type, lifecycle, ownership, responsibilities, and stack
+- structured case studies
+- architecture nodes and relationships
+- Source Explorer entry points, exclusions, and file-size limits
+- SEO metadata
+
+If a repository does not publish valid metadata, the site falls back to GitHub repository data and the project remains usable.
+
+### Architecture and source exploration
+
+Project pages can render an architecture map directly from `architecture.nodes` and `architecture.edges` in `portfolio.json`. The public Source Explorer uses three same-origin endpoints:
+
+```text
+GET /api/github/meta/{repo}
+GET /api/github/tree/{repo}
+GET /api/github/file/{repo}?path=...
+```
+
+The backend validates the repository against the public portfolio repository set, applies repository-owned Source Explorer exclusions, ignores dependency/build trees, limits previewable file size, rejects binary files, and keeps the GitHub token server-side. Source files remain public GitHub content; the proxy exists for a consistent same-origin workspace and controlled rendering policy.
+
 ## Public repository behavior
 
 This source tree is safe to publish **only after confirming that no secrets have ever been committed to Git history**.
 
-If this portfolio repository becomes public:
+This portfolio repository is public and participates in the same repository-driven project pipeline as the other projects.
 
-- GitHub will naturally expose the complete source tree through the repository itself.
-- `osameh.dev` will automatically discover the public repository through the existing GitHub integration unless it is explicitly excluded.
-- Its README can be rendered as a project README inside the portfolio.
-- Images committed to the repository can be discovered by the gallery API.
-- The portfolio site does **not** attempt to render every source-code file as an in-browser code explorer; the project view intentionally focuses on metadata, case study, README, visuals, and links back to the full GitHub source.
+- GitHub exposes the complete source tree through the repository itself.
+- `osameh.dev` discovers the repository through the existing GitHub integration.
+- Its root `portfolio.json` drives structured metadata, architecture, recruiter content, and source-explorer policy.
+- Its README and committed screenshots can be rendered inside the portfolio.
+- The Source Explorer renders previewable public text/source files inside the IDE workspace while GitHub remains the authoritative complete source browser.
+- Generated/dependency trees and oversized/binary files are intentionally excluded from the in-site explorer.
 
 ## Tech stack
 
@@ -174,6 +209,7 @@ search <text>
 version
 build
 resume
+recruiter
 now
 changelog
 status
@@ -367,6 +403,21 @@ The site also includes an in-app resume viewer and download/open controls.
 
 The five most recent releases are summarized here. See **[CHANGELOG.md](CHANGELOG.md)** for the complete production history.
 
+### v3.0.1 — Release graph experience
+
+- replaced the static changelog boxes with an interactive release graph and detail panel
+- only the five newest releases render above the fold by default
+- older releases lazy-load behind an animated expand/collapse control
+- hovering, focusing, or clicking a version node updates the release details inline
+
+### v3.0.0 — Repository intelligence
+
+- repository-owned `portfolio.json` metadata now drives project detail content
+- added featured-project shortlist and guided Recruiter Mode
+- added project architecture viewer backed by metadata nodes/edges
+- added same-origin GitHub Source Explorer with repository validation and file preview safeguards
+- project search/filtering now understands richer stack metadata
+
 ### v2.2.4 — CDN-safe IDE 404
 
 - restored the in-app IDE-style 404 workspace behind ParsPack CDN
@@ -386,23 +437,6 @@ The five most recent releases are summarized here. See **[CHANGELOG.md](CHANGELO
 - production screenshots committed under `docs/img/`
 - README reduced to a concise five-release summary
 - CI/CD documentation finalized for the scoped ParsPack deployment account
-
-### v2.2.1 — Automated delivery
-
-- GitHub Actions build and production deployment over FTPS
-- dedicated/scoped deployment credentials
-- deployment bundle validation and public build verification
-- manual workflow dispatch for controlled redeploys
-- recent public activity messaging aligned with GitHub's 30-day events window
-
-### v2.2.0 — Interaction & polish
-
-- Command Palette selection follows keyboard navigation and scrolls into view
-- resizable and maximizable terminal panel
-- unified success/info/warning/error toast notifications
-- contact filename synchronized with the selected programming language
-- gallery discovery expanded across authored repository image files
-- improved status-bar build hover contrast
 
 **Full history:** [CHANGELOG.md](CHANGELOG.md)
 
