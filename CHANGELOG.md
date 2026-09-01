@@ -4,6 +4,15 @@ All notable changes to **osameh.dev** are documented here.
 
 The project follows [Semantic Versioning](https://semver.org/). The early production releases were shipped in rapid succession while the portfolio was moved from its hosted prototype to the current ParsPack/CDN deployment.
 
+## 3.0.4 - 2026-09-01
+
+### Fixed
+- Command Palette technology-filter actions now scroll directly to the project search/filter controls instead of stopping at the Featured/Recruiter shortlist.
+
+### Added
+- Terminal ghost autocomplete preview. Typing a partial command such as `he` shows the remaining `lp` in muted text before the user presses Tab.
+- Existing Tab/Shift+Tab completion cycling remains available for commands, projects, services, and search terms.
+
 ## 3.0.3 - 2026-09-01
 
 ### Added

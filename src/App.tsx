@@ -1133,6 +1133,14 @@ export default function Home() {
     return Array.from(new Set(candidates)).filter(candidate => candidate.toLowerCase().startsWith(lower));
   };
 
+  const terminalGhostSuffix = (() => {
+    if (!terminalInput) return "";
+    const match = terminalCompletionCandidates(terminalInput)[0];
+    if (!match || match.length <= terminalInput.length) return "";
+    if (!match.toLowerCase().startsWith(terminalInput.toLowerCase())) return "";
+    return match.slice(terminalInput.length);
+  })();
+
   const autocompleteTerminal = (reverse = false) => {
     const current = terminalInput;
     const state = terminalCompletionRef.current;
@@ -1442,8 +1450,16 @@ export default function Home() {
     const available = exact || projectTechOptions.find(option => option.toLowerCase() === resolved.toLowerCase());
     if (available) { setProjectTech(available); setProjectQuery(""); }
     else { setProjectTech("all"); setProjectQuery(resolved); }
-    showHome();
-    window.setTimeout(() => document.getElementById("work")?.scrollIntoView({ behavior: "smooth", block: "start" }), 70);
+
+    // Filtering from the Command Palette should land on the actual filter controls,
+    // not at the Featured/Recruiter block above them.
+    setNotFoundPath(null);
+    setActiveRepo(null);
+    setActiveSectionPath("/projects");
+    setPanelOpen(false);
+    document.title = "Osameh Irandoust — Software Engineer";
+    if (window.location.pathname !== "/") window.history.pushState({}, "", "/");
+    window.setTimeout(() => document.getElementById("project-filter-panel")?.scrollIntoView({ behavior: "smooth", block: "start" }), 70);
   };
 
   return (
@@ -1625,7 +1641,7 @@ export default function Home() {
             <p className="projects-intro">A live view of public work enriched by repository-owned <code>portfolio.json</code> metadata. Archived repositories stay out of the way.</p>
             {metadataState === "loading" && <div className="metadata-loading"><LoaderCircle className="spin" size={14} /> Reading project metadata…</div>}
             <FeaturedProjects repos={repos} metadata={repoMetadata} onOpen={repo => { const full = repos.find(item => item.id === repo.id); if (full) openProject(full); }} onRecruiterMode={() => setRecruiterModeOpen(true)} />
-            <div className="project-controls" aria-label="Project search and filters">
+            <div id="project-filter-panel" className="project-controls" aria-label="Project search and filters">
               <label className="project-search"><Search size={15} /><input ref={projectSearchRef} value={projectQuery} onChange={event => { setProjectQuery(event.target.value); setVisibleRepos(6); }} placeholder="Search repositories, stack, topics…" aria-label="Search projects" /><kbd>/</kbd></label>
               <select value={projectTech} onChange={event => { setProjectTech(event.target.value); setVisibleRepos(6); }} aria-label="Filter by technology"><option value="all">All technologies</option>{projectTechOptions.map(tech => <option key={tech} value={tech}>{tech}</option>)}</select>
               <select value={projectSort} onChange={event => setProjectSort(event.target.value as "recent" | "stars" | "name")} aria-label="Sort projects"><option value="recent">Recently updated</option><option value="stars">Most starred</option><option value="name">Name A-Z</option></select>
@@ -1804,7 +1820,10 @@ export default function Home() {
             </div>
             <form className="terminal-input-row" onSubmit={runTerminal}>
               <span>osameh@portfolio:~$</span>
-              <input ref={terminalInputRef} value={terminalInput} onChange={event => { setTerminalInput(event.target.value); terminalCompletionRef.current = { seed: "", matches: [], index: -1, applied: "" }; }} onKeyDown={event => { if (event.key === "Tab") { event.preventDefault(); autocompleteTerminal(event.shiftKey); } }} placeholder="Type help… · Tab autocomplete" aria-label="Terminal command" autoComplete="off" />
+              <div className="terminal-input-shell">
+                {terminalGhostSuffix && <div className="terminal-input-ghost" aria-hidden="true"><span>{terminalInput}</span><em>{terminalGhostSuffix}</em></div>}
+                <input ref={terminalInputRef} value={terminalInput} onChange={event => { setTerminalInput(event.target.value); terminalCompletionRef.current = { seed: "", matches: [], index: -1, applied: "" }; }} onKeyDown={event => { if (event.key === "Tab") { event.preventDefault(); autocompleteTerminal(event.shiftKey); } }} placeholder="Type help… · Tab autocomplete" aria-label="Terminal command" autoComplete="off" spellCheck={false} />
+              </div>
               <small className="terminal-tab-hint"><kbd>Tab</kbd> autocomplete</small>
               <button type="submit" aria-label="Run command"><CornerDownLeft size={15} /></button>
             </form>

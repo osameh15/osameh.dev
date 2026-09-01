@@ -405,6 +405,12 @@ The site also includes an in-app resume viewer and download/open controls.
 
 The five most recent releases are summarized here. See **[CHANGELOG.md](CHANGELOG.md)** for the complete production history.
 
+### v3.0.4 — Palette landing & ghost completion
+
+- technology filters launched from Command Palette now land directly on the project filter controls
+- terminal autocomplete previews the remaining completion as muted ghost text before Tab is pressed
+- Tab and Shift+Tab still cycle through matching commands, projects, services, and search terms
+
 ### v3.0.3 — Navigation & search reliability
 
 - Source Explorer code panes now scroll independently for long files and wide lines
@@ -434,13 +440,6 @@ The five most recent releases are summarized here. See **[CHANGELOG.md](CHANGELO
 - added project architecture viewer backed by metadata nodes/edges
 - added same-origin GitHub Source Explorer with repository validation and file preview safeguards
 - project search/filtering now understands richer stack metadata
-
-### v2.2.4 — CDN-safe IDE 404
-
-- restored the in-app IDE-style 404 workspace behind ParsPack CDN
-- unknown project deep links use the same 404 workspace instead of the upstream error document
-- soft-404 responses are explicitly `noindex,nofollow` and expose `X-Portfolio-Route-Status: 404` for diagnostics
-
 
 **Full history:** [CHANGELOG.md](CHANGELOG.md)
 
