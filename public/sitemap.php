@@ -38,6 +38,7 @@ $urls = [
     ['https://osameh.dev/now', 'monthly', '0.7', ''],
     ['https://osameh.dev/changelog', 'monthly', '0.6', ''],
     ['https://osameh.dev/notes', 'weekly', '0.8', ''],
+    ['https://osameh.dev/case-studies', 'monthly', '0.8', ''],
     ['https://osameh.dev/contact', 'monthly', '0.6', ''],
     ['https://osameh.dev/resume', 'monthly', '0.8', ''],
 ];
@@ -56,6 +57,12 @@ $notes = is_file($notesPath) ? json_decode((string)file_get_contents($notesPath)
 foreach (is_array($notes) ? $notes : [] as $note) {
     if (!is_array($note) || !preg_match('/^[a-z0-9-]+$/', (string)($note['slug'] ?? ''))) continue;
     $urls[] = ['https://osameh.dev/notes/' . rawurlencode((string)$note['slug']), 'monthly', '0.7', (string)($note['updatedAt'] ?? '')];
+}
+$caseStudiesPath = __DIR__ . '/case-studies-index.json';
+$caseStudies = is_file($caseStudiesPath) ? json_decode((string)file_get_contents($caseStudiesPath), true) : [];
+foreach (is_array($caseStudies) ? $caseStudies : [] as $study) {
+    if (!is_array($study) || !preg_match('/^[a-z0-9-]+$/', (string)($study['id'] ?? ''))) continue;
+    $urls[] = ['https://osameh.dev/case-studies/' . rawurlencode((string)$study['id']), 'monthly', '0.7', ''];
 }
 
 header('Content-Type: application/xml; charset=utf-8');

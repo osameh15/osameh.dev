@@ -15,6 +15,8 @@ import { FeaturedProjects, ProjectArchitecture, ProjectCaseStudyV3, ProjectMetad
 import { fetchPortfolioMetadata, type PortfolioMetadata } from "./projectMetadata";
 import { EngineeringNotesSection, EngineeringNoteView } from "./EngineeringNotes";
 import { engineeringNotes } from "./notesData";
+import { AccessibilityControlButton, AvailabilityBadge, CaseStudiesSection, CaseStudyModal, LanguageControl, PortfolioFeatureModals, caseStudies, usePortfolioFeatures } from "./PortfolioFeatures";
+import type { CaseStudy } from "./caseStudiesData";
 
 type ThemePreference = "dark" | "light" | "system";
 type FontPreference = "inter" | "mono" | "humanist" | "serif";
@@ -100,6 +102,26 @@ type PaletteCommand = {
   action: () => void;
 };
 
+function universalSearchScore(query: string, item: Pick<PaletteCommand, "label" | "hint" | "keywords">) {
+  const q = query.trim().toLowerCase();
+  if (!q) return 1;
+  const label = item.label.toLowerCase();
+  const haystack = `${item.label} ${item.hint} ${item.keywords}`.toLowerCase();
+  if (label === q) return 1000;
+  if (label.startsWith(q)) return 800;
+  if (label.includes(q)) return 650;
+  if (haystack.includes(q)) return 500;
+  const tokens = q.split(/\s+/).filter(Boolean);
+  if (tokens.every(token => haystack.includes(token))) return 350 + tokens.length * 10;
+  let cursor = 0;
+  for (const char of q.replace(/\s+/g, "")) {
+    cursor = haystack.indexOf(char, cursor);
+    if (cursor < 0) return -1;
+    cursor += 1;
+  }
+  return 100;
+}
+
 const sections: SearchResult[] = [
   { label: "Home", path: "/home", kind: "section" },
   { label: "About me", path: "/about", kind: "section" },
@@ -109,6 +131,7 @@ const sections: SearchResult[] = [
   { label: "Changelog", path: "/changelog", kind: "section" },
   { label: "Contact", path: "/contact", kind: "section" },
   { label: "Engineering Notes", path: "/notes", kind: "section" },
+  { label: "Case Studies", path: "/case-studies", kind: "section" },
 ];
 
 const GITHUB_OWNER = "osameh15";
@@ -455,6 +478,7 @@ function HeroShowcase({ codeLanguage, repoCount }: { codeLanguage: CodeLanguage;
 }
 
 export default function Home() {
+  const { locale, setLocale, t, setAccessibilityOpen, setAvailabilityOpen } = usePortfolioFeatures();
   const [menuOpen, setMenuOpen] = useState(false);
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
   const [activeSectionPath, setActiveSectionPath] = useState<string>("/home");
@@ -472,6 +496,7 @@ export default function Home() {
   const [repoState, setRepoState] = useState<"loading" | "ready">("loading");
   const [activeRepo, setActiveRepo] = useState<GithubRepo | null>(null);
   const [activeNoteSlug, setActiveNoteSlug] = useState<string | null>(null);
+  const [activeCaseStudy, setActiveCaseStudy] = useState<CaseStudy | null>(null);
   const [openedRepos, setOpenedRepos] = useState<GithubRepo[]>([]);
   const [readmeHtml, setReadmeHtml] = useState<Record<string, string>>({});
   const [loadingReadmes, setLoadingReadmes] = useState<string[]>([]);
@@ -483,9 +508,6 @@ export default function Home() {
   const readmeRequests = useRef<Map<string, Promise<string>>>(new Map());
   const galleryRequests = useRef<Map<string, Promise<RepoGalleryImage[]>>>(new Map());
   const readmeRenderRequests = useRef<Set<string>>(new Set());
-  const pendingSectionScrollRef = useRef<{ id: string; behavior: ScrollBehavior; exact: boolean; token: number } | null>(null);
-  const sectionScrollTokenRef = useRef(0);
-  const sectionScrollTimersRef = useRef<number[]>([]);
   const projectsSectionRef = useRef<HTMLElement>(null);
   const [projectsNearViewport, setProjectsNearViewport] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
@@ -521,6 +543,12 @@ export default function Home() {
   const panelResizeRef = useRef<{ startY: number; startHeight: number } | null>(null);
   const keyboardChordRef = useRef<{ key: string; at: number } | null>(null);
   const actionToastTimerRef = useRef<number | null>(null);
+  const pendingSectionRestoreRef = useRef<{ id: string; behavior: ScrollBehavior } | null>(null);
+  useEffect(() => {
+    const previous = window.history.scrollRestoration;
+    window.history.scrollRestoration = "manual";
+    return () => { window.history.scrollRestoration = previous; };
+  }, []);
   const code = codeProfiles[codeLanguage];
   const skillLines = skillSource(codeLanguage);
 
@@ -604,17 +632,15 @@ export default function Home() {
   };
 
   useEffect(() => {
-    const previousScrollRestoration = window.history.scrollRestoration;
-    window.history.scrollRestoration = "manual";
-    return () => { window.history.scrollRestoration = previousScrollRestoration; };
-  }, []);
-
-  useEffect(() => {
     const path = window.location.pathname;
-    const knownPaths = ["/", "/home", "/about", "/projects", "/experience", "/now", "/changelog", "/notes", "/contact", "/resume", "/status"];
+    const knownPaths = ["/", "/home", "/about", "/projects", "/experience", "/now", "/changelog", "/notes", "/case-studies", "/contact", "/resume", "/status"];
     const noteMatch = path.match(/^\/notes\/([a-z0-9-]+)\/?$/i);
+    const caseStudyMatch = path.match(/^\/case-studies\/([a-z0-9-]+)\/?$/i);
     const project = fallbackRepos.find(repo => `/${repo.name.toLowerCase()}` === path.toLowerCase() || `/projects/${repo.name.toLowerCase()}` === path.toLowerCase());
-    if (noteMatch && engineeringNotes.some(note => note.slug === noteMatch[1].toLowerCase())) {
+    if (caseStudyMatch) {
+      const study = caseStudies.find(item => item.id === caseStudyMatch[1].toLowerCase());
+      if (study) { setActiveCaseStudy(study); setActiveSectionPath("/case-studies"); } else setNotFoundPath(path);
+    } else if (noteMatch && engineeringNotes.some(note => note.slug === noteMatch[1].toLowerCase())) {
       setActiveNoteSlug(noteMatch[1].toLowerCase());
       setActiveSectionPath("/notes");
     } else if (noteMatch) setNotFoundPath(path);
@@ -625,7 +651,7 @@ export default function Home() {
       setActiveSectionPath(path.toLowerCase());
       const target = path.toLowerCase() === "/projects" ? "work" : path.slice(1);
       window.setTimeout(() => scrollToSection(target, "auto"), 80);
-    } else if (!knownPaths.includes(path.toLowerCase()) && !/^\/projects\/[^/]+\/?$/i.test(path) && !/^\/notes\/[^/]+\/?$/i.test(path)) setNotFoundPath(path);
+    } else if (!knownPaths.includes(path.toLowerCase()) && !/^\/projects\/[^/]+\/?$/i.test(path) && !/^\/notes\/[^/]+\/?$/i.test(path) && !/^\/case-studies\/[^/]+\/?$/i.test(path)) setNotFoundPath(path);
   }, []);
 
   useEffect(() => { trackEvent("page_view"); }, []);
@@ -1009,6 +1035,7 @@ export default function Home() {
       { path: "/home", id: "home" },
       { path: "/about", id: "about" },
       { path: "/projects", id: "work" },
+      { path: "/case-studies", id: "case-studies" },
       { path: "/experience", id: "experience" },
       { path: "/now", id: "now" },
       { path: "/changelog", id: "changelog" },
@@ -1172,6 +1199,7 @@ export default function Home() {
   const openProject = (repo: GithubRepo, updateHistory = true) => {
     setNotFoundPath(null);
     setActiveNoteSlug(null);
+    setActiveCaseStudy(null);
     setActiveSectionPath("/projects");
     setActiveRepo(repo);
     setOpenedRepos(current => current.some(item => item.id === repo.id) ? current : [...current, repo]);
@@ -1192,62 +1220,40 @@ export default function Home() {
     setActiveSectionPath("/home");
     setActiveRepo(null);
     setActiveNoteSlug(null);
+    setActiveCaseStudy(null);
     document.title = "Osameh Irandoust — Software Engineer";
     if (updateHistory && window.location.pathname !== "/") window.history.pushState({}, "", "/");
     if (scrollToTop) window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const applySectionScroll = (request: { id: string; behavior: ScrollBehavior; exact: boolean; token: number }) => {
-    if (request.token !== sectionScrollTokenRef.current) return false;
-    const target = document.getElementById(request.id);
-    if (!target) return false;
-
-    const move = (behavior: ScrollBehavior) => {
-      if (request.token !== sectionScrollTokenRef.current) return;
+  const scrollToSection = (id: string, behavior: ScrollBehavior = "smooth") => {
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+      const target = document.getElementById(id);
+      if (!target) return;
       const stickyOffset = window.innerWidth <= 720 ? 72 : 96;
       const top = target.getBoundingClientRect().top + window.scrollY - stickyOffset;
-      const destination = Math.max(0, top);
-      if (request.exact) {
-        const root = document.documentElement;
-        const previousScrollBehavior = root.style.scrollBehavior;
-        root.style.scrollBehavior = "auto";
-        window.scrollTo(0, destination);
-        root.style.scrollBehavior = previousScrollBehavior;
-        return;
-      }
-      window.scrollTo({ top: destination, behavior });
-    };
-
-    move(request.exact ? "auto" : request.behavior);
-    if (request.exact) {
-      sectionScrollTimersRef.current.forEach(timer => window.clearTimeout(timer));
-      sectionScrollTimersRef.current = [60, 220].map(delay => window.setTimeout(() => move("auto"), delay));
-    }
-    if (pendingSectionScrollRef.current?.token === request.token) pendingSectionScrollRef.current = null;
-    return true;
-  };
-
-  const scrollToSection = (id: string, behavior: ScrollBehavior = "smooth", exact = false) => {
-    const request = { id, behavior, exact, token: ++sectionScrollTokenRef.current };
-    pendingSectionScrollRef.current = request;
-    window.requestAnimationFrame(() => window.requestAnimationFrame(() => { applySectionScroll(request); }));
+      window.scrollTo({ top: Math.max(0, top), behavior });
+    }));
   };
 
   useLayoutEffect(() => {
-    const request = pendingSectionScrollRef.current;
-    if (!request || activeRepo || activeNoteSlug || notFoundPath) return;
-    applySectionScroll(request);
-  }, [activeRepo, activeNoteSlug, notFoundPath]);
+    const pending = pendingSectionRestoreRef.current;
+    if (!pending || activeNoteSlug !== null || activeRepo !== null || activeCaseStudy !== null || notFoundPath !== null || resumeOpen) return;
+    const target = document.getElementById(pending.id);
+    if (!target) return;
 
-  useEffect(() => () => {
-    sectionScrollTimersRef.current.forEach(timer => window.clearTimeout(timer));
-  }, []);
+    pendingSectionRestoreRef.current = null;
+    const stickyOffset = window.innerWidth <= 720 ? 72 : 96;
+    const top = target.getBoundingClientRect().top + window.scrollY - stickyOffset;
+    window.scrollTo({ top: Math.max(0, top), behavior: pending.behavior });
+  }, [activeNoteSlug, activeRepo, activeCaseStudy, notFoundPath, resumeOpen]);
 
   const openNote = (slug: string, updateHistory = true) => {
     const note = engineeringNotes.find(item => item.slug === slug);
     if (!note) { setNotFoundPath(`/notes/${slug}`); return; }
     setNotFoundPath(null);
     setActiveRepo(null);
+    setActiveCaseStudy(null);
     setActiveNoteSlug(slug);
     setActiveSectionPath("/notes");
     if (updateHistory) {
@@ -1261,16 +1267,43 @@ export default function Home() {
   };
 
   const closeNote = (returnToNotes = true) => {
+    if (returnToNotes) pendingSectionRestoreRef.current = { id: "notes", behavior: "auto" };
     setActiveNoteSlug(null);
     document.title = "Osameh Irandoust — Software Engineer";
     if (returnToNotes) {
       setActiveSectionPath("/notes");
       if (window.location.pathname !== "/notes") window.history.pushState({}, "", "/notes");
-      scrollToSection("notes", "auto", true);
     } else {
+      pendingSectionRestoreRef.current = null;
       setActiveSectionPath("/home");
       if (window.location.pathname !== "/") window.history.pushState({}, "", "/");
       window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  };
+
+  const openCaseStudy = (study: CaseStudy, updateHistory = true) => {
+    setNotFoundPath(null);
+    setActiveRepo(null);
+    setActiveNoteSlug(null);
+    setActiveCaseStudy(study);
+    setActiveSectionPath("/case-studies");
+    document.title = `${study.title} — Case Study | Osameh Irandoust`;
+    if (updateHistory) {
+      const path = `/case-studies/${encodeURIComponent(study.id)}`;
+      if (window.location.pathname !== path) window.history.pushState({ caseStudy: study.id }, "", path);
+    }
+    trackEvent("case_study_open", study.id);
+  };
+
+  const closeCaseStudy = (returnToSection = true) => {
+    if (returnToSection) pendingSectionRestoreRef.current = { id: "case-studies", behavior: "auto" };
+    setActiveCaseStudy(null);
+    document.title = "Osameh Irandoust — Software Engineer";
+    if (returnToSection) {
+      setActiveSectionPath("/case-studies");
+      if (window.location.pathname !== "/case-studies") window.history.pushState({}, "", "/case-studies");
+    } else {
+      pendingSectionRestoreRef.current = null;
     }
   };
 
@@ -1311,6 +1344,11 @@ export default function Home() {
   useEffect(() => {
     const handlePopState = () => {
       const path = window.location.pathname;
+      const caseStudyMatch = path.match(/^\/case-studies\/([a-z0-9-]+)\/?$/i);
+      if (caseStudyMatch) {
+        const study = caseStudies.find(item => item.id === caseStudyMatch[1].toLowerCase());
+        if (study) { openCaseStudy(study, false); return; }
+      }
       const noteMatch = path.match(/^\/notes\/([a-z0-9-]+)\/?$/i);
       if (noteMatch) {
         const slug = noteMatch[1].toLowerCase();
@@ -1325,10 +1363,12 @@ export default function Home() {
       }
       const section = sections.find(item => item.path === path);
       if (section) {
+        const target = section.path === "/projects" ? "work" : section.path === "/home" ? "home" : section.path.slice(1);
+        const returningFromDetail = activeNoteSlug !== null || activeRepo !== null || activeCaseStudy !== null || notFoundPath !== null;
+        if (returningFromDetail) pendingSectionRestoreRef.current = { id: target, behavior: "auto" };
         showHome(false, false);
         setActiveSectionPath(section.path);
-        const target = section.path === "/projects" ? "work" : section.path === "/home" ? "home" : section.path.slice(1);
-        scrollToSection(target, "auto", section.path === "/notes");
+        if (!returningFromDetail) scrollToSection(target, "auto");
         return;
       }
       if (path === "/") { showHome(false); return; }
@@ -1336,7 +1376,7 @@ export default function Home() {
     };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, [repos]);
+  }, [repos, activeNoteSlug, activeRepo, activeCaseStudy, notFoundPath]);
 
   const projectSearchText = (repo: GithubRepo) => {
     const meta = repoMetadata[repo.name];
@@ -1357,7 +1397,7 @@ export default function Home() {
 
   const terminalBaseCommands = [
     "help", "whoami", "ls", "exp", "skills", "projects", "contact", "version", "build", "neofetch",
-    "resume", "recruiter", "now", "changelog", "notes", "health", "status", "diagnostics", "install", "shortcuts", "theme",
+    "resume", "recruiter", "now", "changelog", "notes", "case-studies", "availability", "accessibility", "language", "health", "status", "diagnostics", "install", "shortcuts", "theme",
     "clear", "sudo hire osameh", "sudo su", "cat welcome.txt",
     ...sections.map(item => item.path),
   ];
@@ -1441,6 +1481,10 @@ export default function Home() {
         "notes         engineering notes index",
         "notes <text>  search engineering notes",
         "cat note <id> open an engineering note",
+        "case-studies  professional case studies",
+        "availability  current collaboration status",
+        "accessibility open accessibility controls",
+        "language      toggle English / Persian",
         "health        live origin and GitHub health center",
         "status        local diagnostics",
         "install       install the PWA when available",
@@ -1503,6 +1547,10 @@ export default function Home() {
     if (command === "now") { setTerminalLines(lines => [...lines, "› " + raw, "opening /now…"]); setSearchResults([]); goTo(sections[4]); return; }
     if (command === "changelog") { setTerminalLines(lines => [...lines, "› " + raw, "opening /changelog…"]); setSearchResults([]); goTo(sections[5]); return; }
     if (command === "notes") { setTerminalLines(lines => [...lines, "› " + raw, "opening /notes…"]); setSearchResults([]); goTo(sections[7]); return; }
+    if (command === "case-studies" || command === "cases") { setTerminalLines(lines => [...lines, "› " + raw, "opening /case-studies…"]); setSearchResults([]); goTo(sections[8]); return; }
+    if (command === "availability") { setTerminalLines(lines => [...lines, "› " + raw, t("availability")]); setSearchResults([]); setAvailabilityOpen(true); return; }
+    if (command === "accessibility" || command === "a11y") { setTerminalLines(lines => [...lines, "› " + raw, "opening accessibility controls…"]); setSearchResults([]); setAccessibilityOpen(true); return; }
+    if (command === "language" || command === "lang") { const nextLocale = locale === "en" ? "fa" : "en"; setLocale(nextLocale); setTerminalLines(lines => [...lines, "› " + raw, `language → ${nextLocale}`]); setSearchResults([]); return; }
     if (command === "health" || command === "status-server") { setTerminalLines(lines => [...lines, "› " + raw, "opening live system health…"]); setSearchResults([]); window.dispatchEvent(new Event("portfolio:diagnostics")); return; }
     if (command.startsWith("cat note ")) { const slug = raw.slice(9).trim().toLowerCase(); const note = engineeringNotes.find(item => item.slug === slug); if (note) { setTerminalLines(lines => [...lines, "› " + raw, `opening ${slug}.md…`]); setSearchResults([]); openNote(note.slug); } else { setTerminalLines(lines => [...lines, "› " + raw, `note not found: ${slug}`]); } return; }
     if (command.startsWith("notes ")) { const noteQuery = raw.slice(6).trim().toLowerCase(); const matches = engineeringNotes.filter(note => `${note.title} ${note.summary} ${note.tags.join(" ")} ${note.slug}`.toLowerCase().includes(noteQuery)); setTerminalLines(lines => [...lines, "› " + raw, matches.length ? `Found ${matches.length} engineering note${matches.length === 1 ? "" : "s"}.` : `No notes match “${noteQuery}”.`]); setSearchResults(matches.map(note => ({ label: note.title, path: `/notes/${note.slug}`, kind: "section" as const }))); return; }
@@ -1647,6 +1695,11 @@ export default function Home() {
     { id: "now", label: "Go to Now", hint: "/now", keywords: "now current working learning", icon: "about", action: () => goTo(sections[4]) },
     { id: "changelog", label: "Open Changelog", hint: "/changelog", keywords: "changelog releases versions updates", icon: "build", action: () => goTo(sections[5]) },
     { id: "notes", label: "Open Engineering Notes", hint: "/notes", keywords: "notes blog articles engineering architecture devops", icon: "about", action: () => goTo(sections[7]) },
+    { id: "case-studies", label: "Open Case Studies", hint: "/case-studies", keywords: "case studies freelance client work outcomes architecture consulting", icon: "experience", action: () => goTo(sections[8]) },
+    { id: "availability", label: t("availabilityTitle"), hint: t("availabilityShort"), keywords: "availability hiring freelance opportunities work recruiter", icon: "hire", action: () => setAvailabilityOpen(true) },
+    { id: "accessibility", label: t("accessibilityTitle"), hint: "preferences", keywords: "accessibility contrast motion focus larger text wcag", icon: "theme", action: () => setAccessibilityOpen(true) },
+    { id: "language-en", label: "Language: English", hint: locale === "en" ? "current" : "switch", keywords: "language english en ltr", icon: "about", action: () => setLocale("en") },
+    { id: "language-fa", label: "زبان: فارسی", hint: locale === "fa" ? "current" : "switch", keywords: "language persian farsi fa rtl فارسی زبان", icon: "about", action: () => setLocale("fa") },
     { id: "resume", label: "Open Resume", hint: "resume.pdf", keywords: "resume cv download career", icon: "experience", action: () => window.dispatchEvent(new Event("portfolio:resume")) },
     { id: "recruiter", label: "Start Recruiter Mode", hint: "guided tour", keywords: "recruiter tour featured hiring shortlist", icon: "hire", action: () => setRecruiterModeOpen(true) },
     { id: "diagnostics", label: "System Health Center", hint: "/status", keywords: "status health diagnostics latency system pwa api build github", icon: "build", action: () => window.dispatchEvent(new Event("portfolio:diagnostics")) },
@@ -1661,10 +1714,17 @@ export default function Home() {
     { id: "hire", label: "sudo hire osameh", hint: "easter egg", keywords: "hire sudo easter egg terminal", icon: "hire", action: runHireEasterEgg },
     ...projectTechOptions.slice(0, 80).map((tech, index) => ({ id: `tech-${index}-${String(tech).toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, label: `Filter projects by ${tech}`, hint: "technology", keywords: `technology stack skill filter projects ${tech}`, icon: "code" as const, action: () => exploreTech(String(tech)) })),
     ...engineeringNotes.map(note => ({ id: `note-${note.slug}`, label: `Read note: ${note.title}`, hint: `${note.readingMinutes} min · ${note.tags[0]}`, keywords: `note article blog ${note.slug} ${note.summary} ${note.tags.join(" ")}`, icon: "about" as const, action: () => openNote(note.slug) })),
+    ...caseStudies.map(study => ({ id: `case-study-${study.id}`, label: `Case study: ${study.title}`, hint: study.industry, keywords: `case study client freelance ${study.summary} ${study.stack.join(" ")} ${study.relatedSkills.join(" ")}`, icon: "experience" as const, action: () => openCaseStudy(study) })),
+    ...skills.flatMap(([group, ...items]) => items.map((skill, index) => ({ id: `skill-${group}-${index}-${skill}`.toLowerCase().replace(/[^a-z0-9]+/g, "-"), label: `Skill: ${skill}`, hint: group, keywords: `skill technology stack ${group} ${skill}`, icon: "code" as const, action: () => exploreTech(skill) }))),
+    ...roles.map((role, index) => ({ id: `role-${index}`, label: `${role.role} @ ${role.company}`, hint: role.years, keywords: `experience career role company ${role.company} ${role.role} ${role.detail}`, icon: "experience" as const, action: () => goTo(sections[3]) })),
     ...repos.map(repo => ({ id: `project-${repo.id}`, label: `Open project: ${repoMetadata[repo.name]?.project.name || repo.name}`, hint: repoMetadata[repo.name]?.project.type || repo.language || "GitHub", keywords: `project repo ${projectSearchText(repo)}`, icon: "code" as const, action: () => openProject(repo) })),
   ];
   const normalizedCommandQuery = commandQuery.trim().toLowerCase();
-  const filteredPaletteCommands = paletteCommands.filter(item => !normalizedCommandQuery || `${item.label} ${item.hint} ${item.keywords}`.toLowerCase().includes(normalizedCommandQuery));
+  const filteredPaletteCommands = paletteCommands
+    .map(item => ({ item, score: universalSearchScore(normalizedCommandQuery, item) }))
+    .filter(entry => entry.score >= 0)
+    .sort((a, b) => b.score - a.score || a.item.label.localeCompare(b.item.label))
+    .map(entry => entry.item);
   const safeCommandIndex = filteredPaletteCommands.length ? Math.min(commandIndex, filteredPaletteCommands.length - 1) : 0;
   const runPaletteCommand = (item: PaletteCommand) => {
     setCommandPaletteOpen(false);
@@ -1736,15 +1796,24 @@ export default function Home() {
             <div className="menu-group"><p><Code2 size={13} /> Programming language</p>
               {(Object.entries(codeProfiles) as [CodeLanguage, typeof code][]).map(([id, profile]) => <button key={id} onClick={() => setCodeLanguage(id)}><span><i className="language-dot" />{profile.label}</span>{codeLanguage === id && <Check size={14} />}</button>)}
             </div>
-            <div className="menu-foot">Preferences save automatically</div>
+            <div className="menu-group"><p>🌐 {t("language")}</p>
+              <button onClick={() => setLocale("en")}><span>English</span>{locale === "en" && <Check size={14} />}</button>
+              <button onClick={() => setLocale("fa")}><span>فارسی</span>{locale === "fa" && <Check size={14} />}</button>
+            </div>
+            <div className="menu-group"><p>♿ {t("accessibility")}</p>
+              <button onClick={() => { setFileMenuOpen(false); setAccessibilityOpen(true); }}><span>{t("accessibilityTitle")}</span><ChevronRight size={14} /></button>
+            </div>
+            <div className="menu-foot">{t("preferencesSaved")}</div>
           </div>}
         </div>
         <nav className={menuOpen ? "nav-links open" : "nav-links"} aria-label="Primary navigation">
-          {[{ label: "about", section: sections[1] }, { label: "work", section: sections[2] }, { label: "experience", section: sections[3] }, { label: "now", section: sections[4] }, { label: "notes", section: sections[7] }, { label: "contact", section: sections[6] }].map(item => <a href={item.section.path} key={item.label} onClick={event => { event.preventDefault(); setMenuOpen(false); goTo(item.section); }}>{item.label}</a>)}
+          {[{ label: t("navAbout"), section: sections[1] }, { label: t("navWork"), section: sections[2] }, { label: t("navCaseStudies"), section: sections[8] }, { label: t("navExperience"), section: sections[3] }, { label: t("navNow"), section: sections[4] }, { label: t("navNotes"), section: sections[7] }, { label: t("navContact"), section: sections[6] }].map(item => <a href={item.section.path} key={item.label} onClick={event => { event.preventDefault(); setMenuOpen(false); goTo(item.section); }}>{item.label}</a>)}
         </nav>
         <div className="header-actions">
           <PwaInstallControl />
-          <span className="availability"><i /> Available for meaningful work</span>
+          <LanguageControl />
+          <AccessibilityControlButton />
+          <AvailabilityBadge />
           <button className="menu-button" onClick={() => setMenuOpen(!menuOpen)} aria-label="Toggle menu">{menuOpen ? <X size={20} /> : <Menu size={20} />}</button>
         </div>
       </header>
@@ -1775,6 +1844,7 @@ export default function Home() {
           <button className={activeSectionPath === "/now" && !activeRepo && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/now" && !activeRepo && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => goTo(sections[4])}><Zap size={14} /> now.md</button>
           <button className={activeSectionPath === "/changelog" && !activeRepo && !activeNoteSlug && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/changelog" && !activeRepo && !activeNoteSlug && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => goTo(sections[5])}><RefreshCw size={14} /> changelog.md</button>
           <button className={activeSectionPath === "/notes" && !activeRepo && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/notes" && !activeRepo && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => activeNoteSlug ? closeNote() : goTo(sections[7])}><Braces size={14} /> engineering-notes</button>
+          <button className={activeSectionPath === "/case-studies" && !activeRepo && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/case-studies" && !activeRepo && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => goTo(sections[8])}><FileCode2 size={14} /> case-studies</button>
           <button className={activeSectionPath === "/contact" && !activeRepo && !activeNoteSlug && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/contact" && !activeRepo && !activeNoteSlug && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => goTo(sections[6])}><Mail size={14} /> contact.md</button>
 
           <div className="explorer-plugins" aria-label="Portfolio tools">
@@ -1872,12 +1942,12 @@ export default function Home() {
           </section>
 
           <section id="about" className="about section-pad">
-            <div className="section-heading"><span>01</span><div><p>ABOUT.ME</p><h2>Engineering with range.</h2></div></div>
+            <div className="section-heading"><span>01</span><div><p>ABOUT.ME</p><h2>{t("aboutTitle")}</h2></div></div>
             <div className="about-grid">
               <div className="about-copy">
-                <p>I work comfortably across the stack — close to the metal in C++ and Qt, inside production backends with .NET, or crafting polished interfaces with Nuxt.</p>
-                <p>My focus is always the same: <strong>understand the real problem, choose the right level of complexity, and ship work that people can trust.</strong></p>
-                <div className="signal-row"><span><Zap size={15} /> 4+ years in production</span><span><MapPin size={15} /> Tehran, Iran</span></div>
+                <p>{t("aboutP1")}</p>
+                <p><strong>{t("aboutP2")}</strong></p>
+                <div className="signal-row"><span><Zap size={15} /> {t("productionYears")}</span><span><MapPin size={15} /> {t("location")}</span></div>
               </div>
               <div className="skills-viewer">
                 <div className="skills-view-toolbar"><div><button className={skillsView === "code" ? "active" : ""} onClick={() => setSkillsView("code")}><Code2 size={13} /> Code</button><button className={skillsView === "ui" ? "active" : ""} onClick={() => setSkillsView("ui")}><LayoutGrid size={13} /> Preview</button></div><span>{skillsView === "code" ? code.label + " source" : "Visual stack"}</span></div>
@@ -1893,8 +1963,8 @@ export default function Home() {
           </section>
 
           <section id="work" ref={projectsSectionRef} className="work section-pad">
-            <div className="section-heading"><span>02</span><div><p>{code.projects.toUpperCase()}</p><h2>Everything I’m building.</h2></div><div className="section-heading-actions"><button type="button" className="section-link section-link-button" onClick={() => setRecruiterModeOpen(true)}><Command size={15} /> Recruiter mode</button><a href="https://github.com/osameh15?tab=repositories" target="_blank" rel="noreferrer" className="section-link">GitHub profile <ArrowUpRight size={15} /></a></div></div>
-            <p className="projects-intro">A live view of public work enriched by repository-owned <code>portfolio.json</code> metadata. Archived repositories stay out of the way.</p>
+            <div className="section-heading"><span>02</span><div><p>{code.projects.toUpperCase()}</p><h2>{t("projectsTitle")}</h2></div><div className="section-heading-actions"><button type="button" className="section-link section-link-button" onClick={() => setRecruiterModeOpen(true)}><Command size={15} /> {t("recruiterMode")}</button><a href="https://github.com/osameh15?tab=repositories" target="_blank" rel="noreferrer" className="section-link">{t("githubProfile")} <ArrowUpRight size={15} /></a></div></div>
+            <p className="projects-intro">{t("projectsIntro")}</p>
             {metadataState === "loading" && <div className="metadata-loading"><LoaderCircle className="spin" size={14} /> Reading project metadata…</div>}
             <FeaturedProjects repos={repos} metadata={repoMetadata} onOpen={repo => { const full = repos.find(item => item.id === repo.id); if (full) openProject(full); }} onRecruiterMode={() => setRecruiterModeOpen(true)} />
             <div id="project-filter-panel" className="project-controls" aria-label="Project search and filters">
@@ -1924,8 +1994,10 @@ export default function Home() {
             </>}
           </section>
 
+          <CaseStudiesSection onOpen={openCaseStudy} />
+
           <section id="experience" className="experience section-pad">
-            <div className="section-heading"><span>03</span><div><p>EXPERIENCE/</p><h2>Built in the real world.</h2></div></div>
+            <div className="section-heading"><span>04</span><div><p>EXPERIENCE/</p><h2>{t("experienceTitle")}</h2></div></div>
             <div className="experience-layout">
               <div className="role-list">{roles.map((role, index) => <article className="role" key={role.company}>
                 <div className="role-marker"><Circle size={10} fill="currentColor" />{index < roles.length - 1 && <i />}</div>
@@ -1944,10 +2016,10 @@ export default function Home() {
           <EngineeringNotesSection onOpenNote={openNote} />
 
           <section id="contact" className="contact section-pad">
-            <div className="contact-icon"><ServerCog size={27} /></div><p className="eyebrow">READY FOR THE NEXT BUILD</p>
-            <h2>Have a difficult problem?<br /><em>Let’s make it simple.</em></h2>
-            <p>Open to thoughtful engineering roles, ambitious products, and conversations about how software should work.</p>
-            <a href="mailto:osirandoust@gmail.com" className="primary-btn">Start a conversation <Mail size={17} /></a>
+            <div className="contact-icon"><ServerCog size={27} /></div><p className="eyebrow">{t("contactEyebrow")}</p>
+            <h2>{t("contactTitleLead")}<br /><em>{t("contactTitleAccent")}</em></h2>
+            <p>{t("contactCopy")}</p>
+            <a href="mailto:osirandoust@gmail.com" className="primary-btn">{t("contact")} <Mail size={17} /></a>
             <ContactForm fileName={contactFiles[codeLanguage]} />
             <div className="email-options" aria-label="Email contacts">
               <a href="mailto:osirandoust@gmail.com"><span>Personal</span>osirandoust@gmail.com</a>
@@ -2011,15 +2083,15 @@ export default function Home() {
           <div className="context-menu-foot"><span>{BUILD_DISPLAY}</span><span><kbd>↑↓</kbd> navigate · <kbd>Esc</kbd> close</span></div>
         </div>}
         {commandPaletteOpen && <div className="command-palette-backdrop" role="presentation" onMouseDown={() => setCommandPaletteOpen(false)}>
-          <section className="command-palette" role="dialog" aria-modal="true" aria-label="Command Palette" onMouseDown={event => event.stopPropagation()}>
+          <section className="command-palette" role="dialog" aria-modal="true" aria-label={t("universalSearch")} onMouseDown={event => event.stopPropagation()}>
             <div className="command-palette-search"><Search size={17} /><input ref={commandPaletteInputRef} value={commandQuery} onChange={event => setCommandQuery(event.target.value)} onKeyDown={event => {
               if (event.key === "Escape") { event.preventDefault(); setCommandPaletteOpen(false); return; }
               if (event.key === "ArrowDown") { event.preventDefault(); if (filteredPaletteCommands.length) setCommandIndex(index => (Math.min(index, filteredPaletteCommands.length - 1) + 1) % filteredPaletteCommands.length); return; }
               if (event.key === "ArrowUp") { event.preventDefault(); if (filteredPaletteCommands.length) setCommandIndex(index => (Math.min(index, filteredPaletteCommands.length - 1) - 1 + filteredPaletteCommands.length) % filteredPaletteCommands.length); return; }
               if (event.key === "Enter" && filteredPaletteCommands[safeCommandIndex]) { event.preventDefault(); runPaletteCommand(filteredPaletteCommands[safeCommandIndex]); }
-            }} placeholder="Search commands, projects, technologies…" aria-label="Search commands" autoComplete="off" /><kbd>ESC</kbd></div>
+            }} placeholder={t("universalSearchPlaceholder")} aria-label={t("universalSearch")} autoComplete="off" /><kbd>ESC</kbd></div>
             <div ref={commandPaletteListRef} className="command-palette-list" role="listbox" aria-label="Available commands">
-              {filteredPaletteCommands.length ? filteredPaletteCommands.map((item, index) => <button key={item.id} className={index === safeCommandIndex ? "active" : ""} role="option" aria-selected={index === safeCommandIndex} onMouseEnter={() => setCommandIndex(index)} onClick={() => runPaletteCommand(item)}><span className="command-palette-icon">{paletteIcon(item.icon)}</span><span><b>{item.label}</b><small>{item.hint}</small></span><CornerDownLeft size={13} /></button>) : <div className="command-palette-empty"><Search size={18} /><span>No command matches “{commandQuery}”.</span></div>}
+              {filteredPaletteCommands.length ? filteredPaletteCommands.map((item, index) => <button key={item.id} className={index === safeCommandIndex ? "active" : ""} role="option" aria-selected={index === safeCommandIndex} onMouseEnter={() => setCommandIndex(index)} onClick={() => runPaletteCommand(item)}><span className="command-palette-icon">{paletteIcon(item.icon)}</span><span><b>{item.label}</b><small>{item.hint}</small></span><CornerDownLeft size={13} /></button>) : <div className="command-palette-empty"><Search size={18} /><span>{t("noResults")} {commandQuery && <>“{commandQuery}”</>}</span></div>}
             </div>
             <div className="command-palette-foot"><span><kbd>↑</kbd><kbd>↓</kbd> navigate</span><span><kbd>↵</kbd> run</span><span><kbd>esc</kbd> close</span><code>{BUILD_VERSION}</code></div>
           </section>
@@ -2029,6 +2101,8 @@ export default function Home() {
           <span>{actionToast.message}</span>
         </div>}
         {compareRepos.length > 0 && <div className="compare-bar"><span><Code2 size={14} /> Compare queue</span><div>{compareRepos.map(repo => <button key={repo.id} onClick={() => toggleCompareRepo(repo)}>{repo.name} <X size={12} /></button>)}</div><button className="compare-run" disabled={compareRepos.length !== 2} onClick={() => { if (compareRepos.length === 2) { setCompareModalOpen(true); trackEvent("project_compare", compareRepos.map(repo => repo.name).join(" vs ")); } }}>{compareRepos.length === 2 ? "Compare 2 projects" : "Select one more"}</button></div>}
+        <CaseStudyModal study={activeCaseStudy} onClose={() => closeCaseStudy()} />
+        <PortfolioFeatureModals />
         <RecruiterMode open={recruiterModeOpen} repos={repos} metadata={repoMetadata} onClose={() => setRecruiterModeOpen(false)} onOpenProject={repo => { const full = repos.find(item => item.id === repo.id); if (full) openProject(full); }} />
         <ResumeViewer onOpenChange={setResumeOpen} />
         <BuildInfoModal />

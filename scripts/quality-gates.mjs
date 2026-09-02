@@ -24,8 +24,18 @@ for (const note of notes) {
 }
 if (!failures.some(item => item.includes("note"))) pass(`${notes.length} engineering notes validated`);
 
+const caseStudies = JSON.parse(readFileSync(resolve("public/case-studies-index.json"), "utf8"));
+const caseIds = new Set();
+for (const study of caseStudies) {
+  if (!/^[a-z0-9-]+$/.test(study.id || "")) fail(`Invalid case study id: ${study.id}`);
+  if (caseIds.has(study.id)) fail(`Duplicate case study id: ${study.id}`);
+  caseIds.add(study.id);
+  if (!study.title || !study.summary || !Array.isArray(study.stack)) fail(`Incomplete case study metadata: ${study.id}`);
+}
+if (!failures.some(item => item.includes("case study"))) pass(`${caseStudies.length} case studies validated`);
+
 const htaccess = readFileSync(resolve("public/.htaccess"), "utf8");
-for (const route of ["api/health", "notes/", "sitemap\\.xml", "projects/"]) {
+for (const route of ["api/health", "notes/", "case-studies/", "sitemap\\.xml", "projects/"]) {
   if (htaccess.includes(route)) pass(`route contract includes ${route}`); else fail(`Missing route contract: ${route}`);
 }
 
@@ -34,7 +44,7 @@ for (const requirement of [/<html[^>]+lang=/i, /<meta[^>]+name=["']viewport["']/
   if (requirement.test(index)) pass(`SEO/accessibility shell check ${requirement}`); else fail(`index.html failed baseline check ${requirement}`);
 }
 
-for (const php of ["public/project.php", "public/note.php", "public/sitemap.php", "public/api/health.php"]) {
+for (const php of ["public/project.php", "public/note.php", "public/case-study.php", "public/sitemap.php", "public/api/health.php"]) {
   if (existsSync(resolve(php))) pass(`${php} present`); else fail(`${php} missing`);
 }
 

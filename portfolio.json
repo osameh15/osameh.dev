@@ -91,7 +91,13 @@
       "Staging environment",
       "CI quality gates",
       "Live health checks",
-      "Engineering notes"
+      "Engineering notes",
+      "Client case studies",
+      "Availability control",
+      "English / Persian i18n",
+      "RTL",
+      "Accessibility preferences",
+      "Universal search"
     ]
   },
   "caseStudy": {
@@ -113,7 +119,12 @@
       "Dynamic project/note structured data and runtime sitemap generation",
       "Staging deployment channel with noindex protection and CI quality gates",
       "Live privacy-safe health center plus Markdown engineering notes",
-      "Responsive mobile project navigation, viewport-capped modals, and scroll-synchronized Engineering Notes"
+      "Responsive mobile project navigation, viewport-capped modals, and scroll-synchronized Engineering Notes",
+      "Privacy-safe professional client/freelance case studies with deep-link SEO metadata",
+      "Central availability configuration integrated with header, Terminal and recruiter-facing flows",
+      "Persistent English/Persian localization with RTL-aware IDE shell behavior",
+      "Accessibility Control Center with reduced motion, contrast, text scale and enhanced focus preferences",
+      "Universal Search across projects, notes, case studies, skills, experience and settings with ranked matching"
     ],
     "challenges": [
       {
@@ -327,7 +338,10 @@
       "public/api/health.php",
       "public/sitemap.php",
       ".github/workflows/quality.yml",
-      ".github/workflows/staging.yml"
+      ".github/workflows/staging.yml",
+      "src/PortfolioFeatures.tsx",
+      "src/caseStudiesData.ts",
+      "public/case-study.php"
     ]
   },
   "recruiter": {
@@ -347,7 +361,11 @@
       "Metadata-driven architecture",
       "Source code tooling",
       "Responsive UI engineering",
-      "Accessibility-aware navigation"
+      "Accessibility-aware navigation",
+      "Internationalization architecture",
+      "Accessibility preferences",
+      "Universal search",
+      "Case-study storytelling"
     ],
     "talkingPoints": [
       "Repository-owned portfolio.json files drive case studies, featured work, architecture and source-explorer behavior",

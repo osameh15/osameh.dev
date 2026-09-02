@@ -4,56 +4,64 @@ All notable changes to **osameh.dev** are documented here.
 
 The project follows [Semantic Versioning](https://semver.org/). The early production releases were shipped in rapid succession while the portfolio was moved from its hosted prototype to the current ParsPack/CDN deployment.
 
+## 5.0.0 - 2026-09-02
+
+### Added
+- Privacy-safe Freelance / Client Case Studies with data-driven detail views, stable `/case-studies/<id>` deep links, crawler metadata, structured data, and sitemap coverage.
+- Central Availability Control surfaced through the header, File/Terminal workflows, with a single editable configuration for opportunity types, work modes, timezone, and contact CTA.
+- English/Persian internationalization foundation with persistent locale preference, `lang`/`dir` synchronization, RTL-aware layout isolation for technical content, and localized core portfolio/feature copy.
+- Accessibility Control Center with persistent Reduce Motion, Increased Contrast, Larger Text, and Enhanced Focus preferences while respecting `prefers-reduced-motion`.
+- Universal Search on the existing `Ctrl/Cmd + K` command surface, ranked across projects, Engineering Notes, case studies, skills, experience, navigation, and portfolio settings.
+- Terminal commands for case studies, availability, accessibility, and language switching.
+- E2E regression coverage for locale persistence/RTL, accessibility persistence, availability, case-study deep links and Back restoration, Explorer scroll-spy integration, keyboard focus containment, Universal Search, and mobile modal constraints.
+
+### Changed
+- Portfolio preferences now share one feature-settings layer instead of introducing separate state systems for language, accessibility, and availability.
+- Core home/navigation copy is locale-aware while technical identifiers, source code, repository names, package names, and programming terms remain isolated from RTL translation.
+- Case Studies are integrated into Explorer/navigation and recruiter-facing discovery without fabricating client names or private business metrics.
+- Case-study close and browser Back restoration now use the same post-render anchor strategy as Engineering Notes, preventing mixed-section landing positions.
+- Availability labels, visual state, opportunity types, and work modes are derived from one status/config source instead of duplicated UI copy.
+- Feature dialogs contain keyboard focus while open and restore page scrolling on close.
+- Repository metadata now advertises the completed 15/15 product roadmap capabilities.
+
+### Security
+- Case studies expose only deliberately anonymized, high-level professional information; no private client names, secrets, deployment credentials, or internal metrics are published.
+- Existing server-side GitHub token isolation, staging noindex behavior, CSP, API boundaries, and deployment-secret model remain unchanged.
+
 ## 4.2.2 - 2026-09-02
 
 ### Fixed
-- Updated the Engineering Notes light-theme contrast regression to target the section label that is actually rendered by the Notes index instead of the article-only eyebrow selector.
-- Contrast targets now assert visibility with a focused five-second failure message before evaluating computed colors, avoiding opaque full-test timeouts when markup changes.
+- Hardened the Engineering Notes light-theme contrast regression selector and visibility assertion used by the browser quality suite.
 
 ## 4.2.1 - 2026-09-02
 
 ### Fixed
-- Made the Skills Preview contrast test use an exact accessible-name match, preventing the Resume Viewer preview plugin from triggering a Playwright strict-mode collision.
-- The mobile project toolbar now scrolls horizontally to keep the automatically selected Gallery control fully visible at the end of the document.
-- Returning from an Engineering Note now bypasses the global smooth-scroll rule and lands at the Notes index immediately.
+- Tightened light-theme Skills Preview contrast checks.
+- Kept the mobile project Gallery quick-access item fully visible when it becomes active at the end of the document.
+- Returning from Engineering Notes bypasses smooth scrolling for deterministic restoration.
 
-### Tests
-- Tightened the Notes return regression to reject multi-second smooth scrolling.
-- Extended the mobile Gallery regression to verify both selected state and full toolbar visibility.
+### Changed
+- Expanded browser regressions around light-theme contrast and mobile project-navigation visibility.
 
 ## 4.2.0 - 2026-09-02
 
 ### Changed
-- Rebuilt the light theme around semantic canvas, surface, text, accent and border tokens so new feature styles cannot silently restore dark surfaces.
-- Redesigned the Hero engineering showcase, including Primary lanes, metrics, terminal output and stack chips, for strong light-theme readability.
-- Converted Skills Preview and Skills Code into cohesive light workbench surfaces with clear hover and active states.
-- Unified light-theme styling across the IDE shell, tabs, project routes, Engineering Notes, Recruiter Mode, 404, command surfaces, modals and project navigation.
-- Reworked Compare, selected Compare chips and the floating compare queue to remove dark-on-dark controls.
+- Rebuilt Light Theme around semantic canvas, surface, text, accent, and border behavior across the IDE shell.
+- Redesigned the light Hero/workbench treatment and unified light styling for projects, Notes, Recruiter Mode, 404, compare, command surfaces, modals, and navigation states.
+- Improved hover, selected, focus, and disabled-state contrast across primary interactive surfaces.
 
-### Quality
-- Added contrast-ratio regression checks for the Hero, Skills Preview, Notes, project tabs, 404 and floating Compare UI.
-
-## 4.1.2 - 2026-09-01
+## 4.1.1 - 2026-09-02
 
 ### Fixed
-- Rebuilt the compact PWA install control with a dedicated square icon frame so the download glyph is geometrically centered inside both its button and the mobile header.
-- The mobile project quick-access toolbar now selects Gallery automatically when the document reaches its end, even when the final section cannot cross the normal scroll-spy probe line.
-- The Engineering Note toolbar now sticks below the complete top-bar and editor-tab stack (`94px` on tablet and `90px` on mobile) instead of being obscured beneath the tabs.
+- Engineering Note close and browser Back navigation now restore the exact Engineering Notes anchor only after the portfolio DOM has committed, eliminating the mixed Changelog/Notes landing position.
+- Browser history scroll restoration is controlled by the SPA while mounted so native history restoration cannot overwrite the final Notes position.
+- Engineering Note TOC selection stays pinned to the clicked destination during smooth scrolling and resumes live scroll-spy tracking after the jump or any manual wheel, touch, pointer, or keyboard navigation.
+- TOC heading lookup is scoped to the active note article and duplicate generated heading IDs are de-duplicated, preventing unstable selections and accidental jumps.
+- Header PWA install/download action no longer wraps with the availability label and its Lucide icon uses explicit block/flex centering on desktop, tablet, and mobile.
 
 ### Changed
-- Added responsive browser regressions for PWA icon geometry, Gallery end-of-document selection, and Notes toolbar stacking.
-
-## 4.1.1 - 2026-09-01
-
-### Fixed
-- Engineering Note return navigation now runs after the portfolio DOM is committed and corrects late layout shifts, so both the in-page back control and browser Back land at the beginning of Engineering Notes.
-- Browser history scroll restoration can no longer override the application’s section navigation with the previous article position.
-- Engineering Note heading IDs are namespaced per article and TOC queries are scoped to the rendered Markdown, eliminating collisions with the surrounding IDE shell.
-- Repeated TOC clicks keep the selected entry stable throughout smooth scrolling; manual wheel/touch navigation immediately returns control to scroll-based selection.
-- The compact PWA download/install control now occupies the header alignment context and centers its icon vertically on narrow screens.
-
-### Changed
-- Added browser regression scenarios for exact Notes restoration, repeated TOC selection, and mobile header icon centering.
+- Mobile/tablet Engineering Note TOC automatically keeps the active chip visible inside its horizontal scroller without moving the document itself.
+- Expanded Playwright coverage for repeated TOC jumps, manual scroll-spy updates, exact note-return positioning, and browser Back behavior.
 
 ## 4.1.0 - 2026-09-01
 
@@ -369,3 +377,4 @@ The project follows [Semantic Versioning](https://semver.org/). The early produc
 ### Security
 - `GITHUB_TOKEN` stays outside the web root and is never included in browser bundles or Git history.
 - Browser GitHub access is proxied through same-origin PHP endpoints.
+
