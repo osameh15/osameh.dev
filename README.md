@@ -334,9 +334,9 @@ The build pipeline:
 
 ## Dynamic SEO and discovery
 
-Project deep links are rendered through a small PHP metadata layer before React starts. Each `/projects/<repo>` response can include repository-owned title/description data, project-specific Open Graph metadata, `SoftwareSourceCode` / `SoftwareApplication` structured data, and breadcrumbs. Engineering-note deep links receive `TechArticle` structured data.
+Project deep links are rendered through a small PHP metadata layer before React starts. Each `/projects/<repo>` response can include repository-owned title/description data, project-specific Open Graph metadata, `SoftwareSourceCode` / `SoftwareApplication` structured data, and breadcrumbs. Engineering-note deep links receive `TechArticle` structured data. Professional case-study deep links receive privacy-safe Article/breadcrumb metadata through the same server-rendered discovery layer.
 
-`/sitemap.xml` is generated dynamically from the current public GitHub repositories plus the note manifest, with a checked-in static sitemap retained as a fallback.
+`/sitemap.xml` is generated dynamically from the current public GitHub repositories, Engineering Notes, and case-study manifest, with a checked-in static sitemap retained as a fallback.
 
 ## Staging and quality gates
 
@@ -353,6 +353,18 @@ Quality gates now cover repository metadata, PHP syntax, TypeScript, deployment-
 Notes are stored as Markdown under `public/notes-content/` and indexed by `public/notes-index.json`. The index renders notes in batches of six as the library grows. Each article provides reading time, tags, deep links, a scroll-synchronized table of contents with active-section state, copyable code blocks, and sharing. Notes are also discoverable from Command Palette and Terminal (`notes`, `notes <text>`, `cat note <slug>`).
 
 On tablet and mobile, the table of contents becomes a sticky horizontal navigation strip instead of disappearing. Returning from an article restores the Engineering Notes index at its section anchor.
+
+## v5 product layer
+
+The original 15-feature roadmap is now complete. The final product layer adds:
+
+- **Freelance / Client Case Studies** — privacy-safe, data-driven professional stories with deep links, SEO metadata, sitemap entries, and no fabricated client metrics.
+- **Availability Control** — one central availability configuration surfaced in the header, Terminal, and recruiter-facing workflow.
+- **English / Persian i18n** — persistent locale selection, `lang`/`dir` synchronization, localized core copy, RTL-aware layout behavior, and LTR isolation for code/repository identifiers.
+- **Accessibility Control Center** — persistent reduced-motion, increased-contrast, larger-text, and enhanced-focus preferences with OS reduced-motion support.
+- **Universal Search** — the existing `Ctrl/Cmd + K` palette now ranks navigation, projects, notes, case studies, skills, experience, and settings instead of relying on raw substring filtering.
+
+These preferences share a single `FeaturePreferencesProvider` rather than separate global state systems.
 
 ## Deployment
 
@@ -372,6 +384,8 @@ public_html/
 │   └── health.php
 ├── notes-content/
 ├── notes-index.json
+├── case-studies-index.json
+├── case-study.php
 ├── icons/
 ├── resume/
 ├── favicon.svg
@@ -436,37 +450,24 @@ The site also includes an in-app resume viewer and download/open controls.
 
 The most recent releases are summarized here. See **[CHANGELOG.md](CHANGELOG.md)** for the complete production history.
 
-### v4.2.2 — Contrast-test reliability patch
+### v5.0.0 — Roadmap complete
 
-- Corrected the Engineering Notes contrast selector to match the real Notes index markup.
-- Added fail-fast visibility assertions for every contrast target so CI reports the missing surface directly instead of timing out after 30 seconds.
+- completes all 15 major roadmap features with professional case studies, availability, EN/FA i18n, accessibility controls, and Universal Search
+- adds case-study deep links plus server-side crawler metadata and sitemap discovery
+- adds persistent language/accessibility preferences without duplicating the existing theme architecture
+- upgrades `Ctrl/Cmd + K` into ranked site-wide discovery and extends Terminal integration
 
-### v4.2.1 — Release-test & navigation polish
+### v4.2.2 — Light-theme regression hardening
 
-- Fixed the Playwright strict-mode collision between Skills Preview and the Resume Viewer preview plugin.
-- The automatically active Gallery control now scrolls fully into view in the mobile project toolbar.
-- Engineering Note return navigation now lands at the Notes index immediately instead of animating through Changelog.
+- keeps the 4.2 semantic light-theme redesign protected by stricter Engineering Notes and primary-surface contrast regressions
+- follows the 4.2.1 mobile gallery/notes restoration fixes and the 4.2.0 cross-shell light-theme redesign
 
-### v4.2.0 — Cohesive light-theme redesign
+### v4.1.1 — Notes navigation stability
 
-- Semantic light-theme tokens now govern canvases, surfaces, text, accents and borders.
-- Hero, Skills Preview, tabs, projects, Notes, Recruiter Mode, 404 and modal surfaces were redesigned as one coherent light system.
-- Compare controls and the floating queue now use explicit high-contrast selected and interactive states.
-- Browser coverage checks representative foreground/background pairs against WCAG contrast thresholds.
-
-### v4.1.2 — Mobile toolbar finishing pass
-
-- centered the PWA download glyph through a dedicated square icon frame instead of font-size-based label hiding
-- made Gallery activate automatically in the mobile project toolbar at the end of the document
-- positioned the sticky Engineering Notes navigation below both the app header and editor tabs on tablet/mobile
-- added focused responsive regression coverage for all three behaviors
-
-### v4.1.1 — Notes navigation stabilization
-
-- made Engineering Note return positioning commit-aware and resistant to browser scroll restoration/layout shifts
-- scoped article heading IDs and TOC queries so the sidebar cannot collide with the surrounding IDE shell
-- stabilized repeated TOC selection during smooth scrolling while preserving immediate manual-scroll tracking
-- vertically centered the compact mobile download/install icon and added focused browser regression coverage
+- restores Engineering Notes at the exact section anchor after note close and browser Back
+- keeps the article TOC selected reliably across repeated clicks, smooth scrolling, and manual scrolling
+- vertically centers the PWA download/install action across desktop, tablet, and mobile header layouts
+- adds focused Playwright regressions for the remaining 4.1.0 navigation issues
 
 ### v4.1.0 — Responsive polish & notes navigation
 

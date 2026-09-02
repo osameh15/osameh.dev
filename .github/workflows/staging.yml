@@ -22,9 +22,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
       - name: Install dependencies
-        run: npm ci --no-audit --no-fund
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -f package-lock.json ]]; then
+            npm ci --no-audit --no-fund
+          else
+            echo "::notice::package-lock.json is unavailable in this source bundle; using npm install."
+            npm install --no-audit --no-fund
+          fi
       - name: Quality gates
         run: |
           npm run quality

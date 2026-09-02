@@ -77,6 +77,8 @@ jobs:
           test -f dist/api/contact.php
           test -f dist/api/health.php
           test -f dist/note.php
+          test -f dist/case-study.php
+          test -f dist/case-studies-index.json
           test -f dist/sitemap.php
           test -f dist/notes-index.json
           test -f dist/sw.js

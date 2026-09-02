@@ -10,6 +10,8 @@ const files = [
   ["public/api/health.php", "dist/api/health.php"],
   ["public/project.php", "dist/project.php"],
   ["public/note.php", "dist/note.php"],
+  ["public/case-study.php", "dist/case-study.php"],
+  ["public/case-studies-index.json", "dist/case-studies-index.json"],
   ["public/sitemap.php", "dist/sitemap.php"],
   ["public/notes-index.json", "dist/notes-index.json"],
   ["public/project-og.php", "dist/project-og.php"],
