@@ -1206,7 +1206,16 @@ export default function Home() {
       if (request.token !== sectionScrollTokenRef.current) return;
       const stickyOffset = window.innerWidth <= 720 ? 72 : 96;
       const top = target.getBoundingClientRect().top + window.scrollY - stickyOffset;
-      window.scrollTo({ top: Math.max(0, top), behavior });
+      const destination = Math.max(0, top);
+      if (request.exact) {
+        const root = document.documentElement;
+        const previousScrollBehavior = root.style.scrollBehavior;
+        root.style.scrollBehavior = "auto";
+        window.scrollTo(0, destination);
+        root.style.scrollBehavior = previousScrollBehavior;
+        return;
+      }
+      window.scrollTo({ top: destination, behavior });
     };
 
     move(request.exact ? "auto" : request.behavior);

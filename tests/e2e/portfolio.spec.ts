@@ -43,7 +43,7 @@ test("engineering note TOC follows selection and returns to the notes index", as
   await expect.poll(async () => {
     const box = await notesHeading.boundingBox();
     return box?.y ?? 9999;
-  }).toBeLessThan(260);
+  }, { timeout: 750 }).toBeLessThan(260);
 });
 
 test("browser back restores the engineering notes section exactly", async ({ page }) => {
@@ -53,7 +53,7 @@ test("browser back restores the engineering notes section exactly", async ({ pag
   await page.goBack();
   const notes = page.locator("#notes");
   await expect(notes).toBeVisible();
-  await expect.poll(async () => Math.abs((await notes.boundingBox())?.y ?? 9999)).toBeLessThan(105);
+  await expect.poll(async () => Math.abs((await notes.boundingBox())?.y ?? 9999), { timeout: 750 }).toBeLessThan(105);
 });
 
 test("engineering note TOC remains stable across repeated selection", async ({ page }) => {
@@ -137,6 +137,12 @@ test("mobile project toolbar selects Gallery at the document end", async ({ page
   await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "auto" }));
   const gallery = page.getByRole("button", { name: "Jump to Gallery" });
   await expect(gallery).toHaveAttribute("aria-current", "location");
+  await expect.poll(async () => {
+    const navBox = await page.locator(".project-quick-access").boundingBox();
+    const galleryBox = await gallery.boundingBox();
+    if (!navBox || !galleryBox) return false;
+    return galleryBox.x >= navBox.x - 1 && galleryBox.x + galleryBox.width <= navBox.x + navBox.width + 1;
+  }).toBe(true);
 });
 
 test("light theme keeps key interactive surfaces visible", async ({ page }) => {
@@ -185,7 +191,7 @@ test("light theme meets contrast targets across primary surfaces", async ({ page
   for (const selector of [".hero .eyebrow", ".showcase-signal-list b", ".showcase-signal-list span", ".showcase-chip-cloud span"]) {
     expect(await contrastRatio(selector), selector).toBeGreaterThanOrEqual(4.5);
   }
-  await page.getByRole("button", { name: "Preview" }).click();
+  await page.getByRole("button", { name: "Preview", exact: true }).click();
   for (const selector of [".skill-card h3", ".skills-preview article>div button"]) {
     expect(await contrastRatio(selector), selector).toBeGreaterThanOrEqual(4.5);
   }

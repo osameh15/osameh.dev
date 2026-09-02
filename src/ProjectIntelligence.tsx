@@ -329,6 +329,7 @@ export function ProjectQuickAccess({ repo }: { repo: RepoLike }) {
     { id: `gallery-${repo.name}`, label: "Gallery", short: "GL", icon: <Sparkles size={15} /> },
   ], [repo.name]);
   const [active, setActive] = useState(items[0]?.id || "");
+  const navRef = useRef<HTMLElement>(null);
   const manualTargetRef = useRef<string | null>(null);
   const manualTimerRef = useRef<number | null>(null);
 
@@ -337,6 +338,18 @@ export function ProjectQuickAccess({ repo }: { repo: RepoLike }) {
     manualTargetRef.current = null;
     if (manualTimerRef.current !== null) window.clearTimeout(manualTimerRef.current);
   }, [items]);
+
+  useEffect(() => {
+    const nav = navRef.current;
+    if (!nav || nav.scrollWidth <= nav.clientWidth) return;
+    const control = nav.querySelector<HTMLElement>('button[aria-current="location"]');
+    if (!control) return;
+    const left = control.offsetLeft - (nav.clientWidth - control.offsetWidth) / 2;
+    nav.scrollTo({
+      left: Math.max(0, Math.min(left, nav.scrollWidth - nav.clientWidth)),
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+    });
+  }, [active]);
 
   useEffect(() => {
     let frame = 0;
@@ -407,7 +420,7 @@ export function ProjectQuickAccess({ repo }: { repo: RepoLike }) {
     if (manualTimerRef.current !== null) window.clearTimeout(manualTimerRef.current);
   }, []);
 
-  return <nav className="project-quick-access" aria-label={`${repo.name} project quick access`}>
+  return <nav ref={navRef} className="project-quick-access" aria-label={`${repo.name} project quick access`}>
     <div className="project-quick-access-rail" />
     {items.map(item => <button key={item.id} type="button" className={active === item.id ? "active" : ""} onClick={() => jump(item.id)} aria-label={`Jump to ${item.label}`} aria-current={active === item.id ? "location" : undefined}>
       <span className="project-quick-icon">{item.icon}</span>

@@ -436,6 +436,12 @@ The site also includes an in-app resume viewer and download/open controls.
 
 The most recent releases are summarized here. See **[CHANGELOG.md](CHANGELOG.md)** for the complete production history.
 
+### v4.2.1 — Release-test & navigation polish
+
+- Fixed the Playwright strict-mode collision between Skills Preview and the Resume Viewer preview plugin.
+- The automatically active Gallery control now scrolls fully into view in the mobile project toolbar.
+- Engineering Note return navigation now lands at the Notes index immediately instead of animating through Changelog.
+
 ### v4.2.0 — Cohesive light-theme redesign
 
 - Semantic light-theme tokens now govern canvases, surfaces, text, accents and borders.

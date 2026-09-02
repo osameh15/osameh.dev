@@ -4,6 +4,17 @@ All notable changes to **osameh.dev** are documented here.
 
 The project follows [Semantic Versioning](https://semver.org/). The early production releases were shipped in rapid succession while the portfolio was moved from its hosted prototype to the current ParsPack/CDN deployment.
 
+## 4.2.1 - 2026-09-02
+
+### Fixed
+- Made the Skills Preview contrast test use an exact accessible-name match, preventing the Resume Viewer preview plugin from triggering a Playwright strict-mode collision.
+- The mobile project toolbar now scrolls horizontally to keep the automatically selected Gallery control fully visible at the end of the document.
+- Returning from an Engineering Note now bypasses the global smooth-scroll rule and lands at the Notes index immediately.
+
+### Tests
+- Tightened the Notes return regression to reject multi-second smooth scrolling.
+- Extended the mobile Gallery regression to verify both selected state and full toolbar visibility.
+
 ## 4.2.0 - 2026-09-02
 
 ### Changed
