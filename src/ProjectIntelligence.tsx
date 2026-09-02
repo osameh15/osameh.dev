@@ -350,6 +350,13 @@ export function ProjectQuickAccess({ repo }: { repo: RepoLike }) {
         .map(item => document.getElementById(item.id))
         .filter((element): element is HTMLElement => Boolean(element));
       if (!elements.length) return;
+      const pageBottom = window.scrollY + window.innerHeight;
+      const documentBottom = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
+      if (documentBottom - pageBottom <= Math.max(8, window.innerHeight * .02)) {
+        const last = elements[elements.length - 1];
+        if (last?.id) setActive(last.id);
+        return;
+      }
       const anchor = Math.max(110, Math.min(window.innerHeight * .32, 300));
       let selected = elements[0];
       let nearestDistance = Number.POSITIVE_INFINITY;

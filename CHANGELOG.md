@@ -4,6 +4,28 @@ All notable changes to **osameh.dev** are documented here.
 
 The project follows [Semantic Versioning](https://semver.org/). The early production releases were shipped in rapid succession while the portfolio was moved from its hosted prototype to the current ParsPack/CDN deployment.
 
+## 4.1.2 - 2026-09-01
+
+### Fixed
+- Rebuilt the compact PWA install control with a dedicated square icon frame so the download glyph is geometrically centered inside both its button and the mobile header.
+- The mobile project quick-access toolbar now selects Gallery automatically when the document reaches its end, even when the final section cannot cross the normal scroll-spy probe line.
+- The Engineering Note toolbar now sticks below the complete top-bar and editor-tab stack (`94px` on tablet and `90px` on mobile) instead of being obscured beneath the tabs.
+
+### Changed
+- Added responsive browser regressions for PWA icon geometry, Gallery end-of-document selection, and Notes toolbar stacking.
+
+## 4.1.1 - 2026-09-01
+
+### Fixed
+- Engineering Note return navigation now runs after the portfolio DOM is committed and corrects late layout shifts, so both the in-page back control and browser Back land at the beginning of Engineering Notes.
+- Browser history scroll restoration can no longer override the application’s section navigation with the previous article position.
+- Engineering Note heading IDs are namespaced per article and TOC queries are scoped to the rendered Markdown, eliminating collisions with the surrounding IDE shell.
+- Repeated TOC clicks keep the selected entry stable throughout smooth scrolling; manual wheel/touch navigation immediately returns control to scroll-based selection.
+- The compact PWA download/install control now occupies the header alignment context and centers its icon vertically on narrow screens.
+
+### Changed
+- Added browser regression scenarios for exact Notes restoration, repeated TOC selection, and mobile header icon centering.
+
 ## 4.1.0 - 2026-09-01
 
 ### Added
@@ -318,4 +340,3 @@ The project follows [Semantic Versioning](https://semver.org/). The early produc
 ### Security
 - `GITHUB_TOKEN` stays outside the web root and is never included in browser bundles or Git history.
 - Browser GitHub access is proxied through same-origin PHP endpoints.
-

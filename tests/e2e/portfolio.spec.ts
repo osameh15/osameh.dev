@@ -46,6 +46,65 @@ test("engineering note TOC follows selection and returns to the notes index", as
   }).toBeLessThan(260);
 });
 
+test("browser back restores the engineering notes section exactly", async ({ page }) => {
+  await page.goto("/notes");
+  await page.getByRole("button", { name: /Read note/i }).first().click();
+  await expect(page.locator(".note-detail")).toBeVisible();
+  await page.goBack();
+  const notes = page.locator("#notes");
+  await expect(notes).toBeVisible();
+  await expect.poll(async () => Math.abs((await notes.boundingBox())?.y ?? 9999)).toBeLessThan(105);
+});
+
+test("engineering note TOC remains stable across repeated selection", async ({ page }) => {
+  await page.goto("/notes/repository-driven-portfolio");
+  const buttons = page.locator(".note-toc button");
+  await expect(buttons.first()).toBeVisible();
+  const count = await buttons.count();
+  expect(count).toBeGreaterThan(1);
+  const last = buttons.nth(count - 1);
+  await last.click();
+  await expect(last).toHaveAttribute("aria-current", "location");
+  await buttons.first().click();
+  await expect(buttons.first()).toHaveAttribute("aria-current", "location");
+  await last.click();
+  await expect(last).toHaveAttribute("aria-current", "location");
+});
+
+test("mobile install icon is vertically centered in the header", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  await page.evaluate(() => {
+    const event = new Event("beforeinstallprompt");
+    Object.assign(event, { prompt: async () => undefined, userChoice: Promise.resolve({ outcome: "dismissed" }) });
+    window.dispatchEvent(event);
+  });
+  const header = page.locator(".topbar");
+  const install = page.locator(".pwa-install");
+  await expect(install).toBeVisible();
+  const headerBox = await header.boundingBox();
+  const installBox = await install.boundingBox();
+  expect(headerBox).not.toBeNull();
+  expect(installBox).not.toBeNull();
+  const headerCenter = headerBox!.y + headerBox!.height / 2;
+  const installCenter = installBox!.y + installBox!.height / 2;
+  expect(Math.abs(headerCenter - installCenter)).toBeLessThanOrEqual(1);
+  const iconBox = await install.locator(".pwa-install-icon svg").boundingBox();
+  expect(iconBox).not.toBeNull();
+  const iconCenter = iconBox!.y + iconBox!.height / 2;
+  expect(Math.abs(installCenter - iconCenter)).toBeLessThanOrEqual(1);
+});
+
+test("mobile notes toolbar stays below the editor tabs", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/notes/repository-driven-portfolio");
+  const tabsBox = await page.locator(".tabs-row").boundingBox();
+  const tocBox = await page.locator(".note-toc").boundingBox();
+  expect(tabsBox).not.toBeNull();
+  expect(tocBox).not.toBeNull();
+  expect(tocBox!.y).toBeGreaterThanOrEqual(tabsBox!.y + tabsBox!.height - 1);
+});
+
 test("large diagnostics modal stays viewport-capped and scrollable", async ({ page }) => {
   await page.goto("/");
   await page.evaluate(() => window.dispatchEvent(new Event("portfolio:diagnostics")));
@@ -70,6 +129,14 @@ test("mobile project view exposes bottom quick access navigation", async ({ page
   const box = await nav.boundingBox();
   expect(box).not.toBeNull();
   expect(box!.y + box!.height).toBeLessThanOrEqual(844);
+});
+
+test("mobile project toolbar selects Gallery at the document end", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/projects/osameh.dev");
+  await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "auto" }));
+  const gallery = page.getByRole("button", { name: "Jump to Gallery" });
+  await expect(gallery).toHaveAttribute("aria-current", "location");
 });
 
 test("light theme keeps key interactive surfaces visible", async ({ page }) => {

@@ -43,7 +43,7 @@ export function EngineeringNotesSection({ onOpenNote }: { onOpenNote: (slug: str
 
 type TocItem = { id: string; label: string; level: number };
 
-function prepareNoteHtml(markdown: string) {
+function prepareNoteHtml(markdown: string, namespace: string) {
   const raw = marked.parse(markdown, { gfm: true, breaks: false }) as string;
   const clean = DOMPurify.sanitize(raw, {
     USE_PROFILES: { html: true },
@@ -54,7 +54,8 @@ function prepareNoteHtml(markdown: string) {
   const toc: TocItem[] = [];
   doc.querySelectorAll("h2,h3").forEach((heading, index) => {
     const label = heading.textContent?.trim() || `Section ${index + 1}`;
-    const id = label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || `section-${index + 1}`;
+    const slug = label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "section";
+    const id = `note-${namespace}-${index + 1}-${slug}`;
     heading.id = id;
     toc.push({ id, label, level: heading.tagName === "H2" ? 2 : 3 });
   });
@@ -85,6 +86,9 @@ export function EngineeringNoteView({ slug, onClose }: { slug: string; onClose: 
   const [copied, setCopied] = useState(false);
   const [activeTocId, setActiveTocId] = useState("");
   const articleRef = useRef<HTMLElement | null>(null);
+  const tocRef = useRef<HTMLElement | null>(null);
+  const navigationTargetRef = useRef("");
+  const navigationTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!note) { setState("error"); return; }
@@ -93,7 +97,7 @@ export function EngineeringNoteView({ slug, onClose }: { slug: string; onClose: 
     fetch(`/notes-content/${encodeURIComponent(note.slug)}.md`, { signal: controller.signal, headers: { Accept: "text/markdown" } })
       .then(response => { if (!response.ok) throw new Error("note"); return response.text(); })
       .then(markdown => {
-        const prepared = prepareNoteHtml(markdown);
+        const prepared = prepareNoteHtml(markdown, note.slug);
         setHtml(prepared.html);
         setToc(prepared.toc);
         setState("ready");
@@ -110,15 +114,18 @@ export function EngineeringNoteView({ slug, onClose }: { slug: string; onClose: 
   useEffect(() => {
     if (state !== "ready" || !toc.length) return;
     let frame = 0;
+    const headingFor = (id: string) => articleRef.current?.querySelector<HTMLElement>(`[id="${CSS.escape(id)}"]`) || null;
     const syncActiveHeading = () => {
       frame = 0;
       const root = articleRef.current;
       if (!root) return;
       const probe = Math.max(110, Math.min(window.innerHeight * .24, 190));
+      const navigationTarget = navigationTargetRef.current ? headingFor(navigationTargetRef.current) : null;
+      if (navigationTarget && navigationTarget.getBoundingClientRect().top > probe + 8) return;
+      navigationTargetRef.current = "";
       let current = toc[0]?.id || "";
       for (const item of toc) {
-        const candidate = document.getElementById(item.id);
-        const heading = candidate && root.contains(candidate) ? candidate : null;
+        const heading = headingFor(item.id);
         if (!heading) continue;
         if (heading.getBoundingClientRect().top <= probe) current = item.id;
         else break;
@@ -129,23 +136,43 @@ export function EngineeringNoteView({ slug, onClose }: { slug: string; onClose: 
       if (frame) return;
       frame = window.requestAnimationFrame(syncActiveHeading);
     };
+    const cancelNavigationLock = () => { navigationTargetRef.current = ""; };
     syncActiveHeading();
     window.addEventListener("scroll", schedule, { passive: true });
     window.addEventListener("resize", schedule);
+    window.addEventListener("wheel", cancelNavigationLock, { passive: true });
+    window.addEventListener("touchstart", cancelNavigationLock, { passive: true });
     return () => {
       if (frame) window.cancelAnimationFrame(frame);
       window.removeEventListener("scroll", schedule);
       window.removeEventListener("resize", schedule);
+      window.removeEventListener("wheel", cancelNavigationLock);
+      window.removeEventListener("touchstart", cancelNavigationLock);
     };
   }, [state, toc, html]);
 
+  useEffect(() => {
+    const activeButton = tocRef.current?.querySelector<HTMLElement>(`button[data-toc-id="${CSS.escape(activeTocId)}"]`);
+    const tocElement = tocRef.current;
+    if (!activeButton || !tocElement || tocElement.scrollWidth <= tocElement.clientWidth) return;
+    const left = activeButton.offsetLeft - (tocElement.clientWidth - activeButton.offsetWidth) / 2;
+    tocElement.scrollTo({ left: Math.max(0, left), behavior: "smooth" });
+  }, [activeTocId]);
+
+  useEffect(() => () => {
+    if (navigationTimerRef.current) window.clearTimeout(navigationTimerRef.current);
+  }, []);
+
   const jumpToHeading = (id: string) => {
-    const candidate = document.getElementById(id);
-    const heading = candidate && articleRef.current?.contains(candidate) ? candidate : null;
+    const heading = articleRef.current?.querySelector<HTMLElement>(`[id="${CSS.escape(id)}"]`) || null;
     if (!heading) return;
+    navigationTargetRef.current = id;
     setActiveTocId(id);
-    const top = heading.getBoundingClientRect().top + window.scrollY - 102;
+    const stickyOffset = window.innerWidth <= 720 ? 72 : 102;
+    const top = heading.getBoundingClientRect().top + window.scrollY - stickyOffset;
     window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+    if (navigationTimerRef.current) window.clearTimeout(navigationTimerRef.current);
+    navigationTimerRef.current = window.setTimeout(() => { navigationTargetRef.current = ""; }, 1000);
   };
 
   const copyUrl = async () => {
@@ -190,7 +217,7 @@ export function EngineeringNoteView({ slug, onClose }: { slug: string; onClose: 
       <div className="note-detail-actions"><button className="secondary-btn" onClick={() => void share()}><Share2 size={14} /> Share note</button><button className="secondary-btn" onClick={() => void copyUrl()}>{copied ? <Check size={14} /> : <Copy size={14} />} {copied ? "Copied" : "Copy link"}</button></div>
     </header>
     <div className="note-reading-layout">
-      <aside className="note-toc"><p>ON THIS PAGE</p>{toc.length ? toc.map(item => <button key={item.id} type="button" className={`${item.level === 3 ? "nested " : ""}${activeTocId === item.id ? "active" : ""}`.trim()} onClick={() => jumpToHeading(item.id)} aria-current={activeTocId === item.id ? "location" : undefined}>{item.label}</button>) : <span>Table of contents appears after the note loads.</span>}</aside>
+      <aside ref={tocRef} className="note-toc"><p>ON THIS PAGE</p>{toc.length ? toc.map(item => <button key={item.id} type="button" data-toc-id={item.id} className={`${item.level === 3 ? "nested " : ""}${activeTocId === item.id ? "active" : ""}`.trim()} onClick={() => jumpToHeading(item.id)} aria-current={activeTocId === item.id ? "location" : undefined}>{item.label}</button>) : <span>Table of contents appears after the note loads.</span>}</aside>
       <main className="note-reading-pane">
         {state === "loading" ? <div className="note-loading"><LoaderCircle className="spin" size={20} /><span>Loading note.md…</span></div> : state === "error" ? <div className="note-loading error"><span>This note could not be loaded.</span></div> : <article ref={articleRef} className="note-markdown" onClick={handleArticleClick} dangerouslySetInnerHTML={{ __html: html }} />}
       </main>

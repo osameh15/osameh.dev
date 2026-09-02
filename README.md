@@ -434,7 +434,21 @@ The site also includes an in-app resume viewer and download/open controls.
 
 ## Release history
 
-The five most recent releases are summarized here. See **[CHANGELOG.md](CHANGELOG.md)** for the complete production history.
+The most recent releases are summarized here. See **[CHANGELOG.md](CHANGELOG.md)** for the complete production history.
+
+### v4.1.2 — Mobile toolbar finishing pass
+
+- centered the PWA download glyph through a dedicated square icon frame instead of font-size-based label hiding
+- made Gallery activate automatically in the mobile project toolbar at the end of the document
+- positioned the sticky Engineering Notes navigation below both the app header and editor tabs on tablet/mobile
+- added focused responsive regression coverage for all three behaviors
+
+### v4.1.1 — Notes navigation stabilization
+
+- made Engineering Note return positioning commit-aware and resistant to browser scroll restoration/layout shifts
+- scoped article heading IDs and TOC queries so the sidebar cannot collide with the surrounding IDE shell
+- stabilized repeated TOC selection during smooth scrolling while preserving immediate manual-scroll tracking
+- vertically centered the compact mobile download/install icon and added focused browser regression coverage
 
 ### v4.1.0 — Responsive polish & notes navigation
 
