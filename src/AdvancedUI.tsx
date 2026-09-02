@@ -315,7 +315,7 @@ export function ShortcutGuide() {
   useModalScrollLock(open);
   useEffect(() => { const listener = () => setOpen(true); window.addEventListener("portfolio:shortcuts", listener); return () => window.removeEventListener("portfolio:shortcuts", listener); }, []);
   if (!open) return null;
-  const rows = [["Ctrl/Cmd + Shift + P", "Universal Search"], ["`", "Toggle terminal"], ["Tab", "Terminal autocomplete"], ["Shift + Tab", "Previous autocomplete suggestion"], ["G then P", "Projects"], ["G then A", "About"], ["G then E", "Experience"], ["G then N", "Now"], ["G then C", "Contact"], ["/", "Focus project search"], ["?", "Keyboard shortcuts"], ["Esc", "Close active modal/tab"]];
+  const rows = [["Ctrl/Cmd + Shift + P", "Command Palette"], ["`", "Toggle terminal"], ["Tab", "Terminal autocomplete"], ["Shift + Tab", "Previous autocomplete suggestion"], ["G then P", "Projects"], ["G then A", "About"], ["G then E", "Experience"], ["G then N", "Now"], ["G then C", "Contact"], ["/", "Focus project search"], ["?", "Keyboard shortcuts"], ["Esc", "Close active modal/tab"]];
   return <div className="advanced-modal-backdrop" onMouseDown={() => setOpen(false)}><section className="advanced-modal shortcuts-modal" role="dialog" aria-modal="true" onMouseDown={e => e.stopPropagation()}><header><div><Keyboard size={17} /><span>keyboard-shortcuts.md</span></div><button onClick={() => setOpen(false)}><X size={17} /></button></header><div className="shortcut-grid">{rows.map(([keys, action]) => <div key={keys}><kbd>{keys}</kbd><span>{action}</span></div>)}</div></section></div>;
 }
 
@@ -356,7 +356,7 @@ export function PwaInstallControl() {
     return () => { window.removeEventListener("beforeinstallprompt", before as EventListener); window.removeEventListener("appinstalled", appInstalled); window.removeEventListener("portfolio:install", install); };
   }, [prompt]);
   if (installed || !prompt) return null;
-  return <button className="pwa-install" onClick={() => window.dispatchEvent(new Event("portfolio:install"))}><Download size={14} /> Install app</button>;
+  return <button type="button" className="pwa-install" aria-label="Install app" onClick={() => window.dispatchEvent(new Event("portfolio:install"))}><Download size={14} aria-hidden="true" /> <span>Install app</span></button>;
 }
 
 export function ContactForm({ fileName = "send-message.ts" }: { fileName?: string }) {

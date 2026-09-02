@@ -110,3 +110,78 @@ html[data-theme="light"] .availability-selective>i{background:var(--light-accent
 html[data-theme="light"] .availability-freelance>i{background:#9a7928;box-shadow:0 0 0 3px #f2e9c8}
 html[data-theme="light"] .availability-focused>i{background:#657168;box-shadow:0 0 0 3px #e1e6e2}
 html[data-theme="light"] .availability-unavailable>i{background:#737b75;box-shadow:none}
+
+
+/* v5.1.0 — header controls, modal rhythm, and light-theme surface consistency. */
+.pwa-install{
+  height:34px;
+  min-height:34px;
+  min-width:34px;
+  margin-right:0;
+  padding:0 10px;
+  border-radius:0;
+  line-height:1;
+  box-sizing:border-box;
+  align-self:center;
+}
+.pwa-install svg,.feature-icon-button svg{display:block;flex:0 0 auto}
+.header-actions{align-items:center}
+
+/* Reserve a matching scrollbar gutter on both inline edges. The content cards
+   therefore keep equal visual margins even when a modal body needs a scrollbar. */
+.feature-modal-body{
+  width:100%;
+  box-sizing:border-box;
+  padding-inline:18px;
+  scrollbar-gutter:stable both-edges;
+}
+.case-study-detail{padding-inline:0}
+
+/* Client and capability cards are true light surfaces in the 4.2+ semantic
+   palette, not the muted editor canvas. */
+html[data-theme="light"] .case-study-card,
+html[data-theme="light"] .capability-card{background:var(--light-surface);border-color:var(--light-border)}
+html[data-theme="light"] .case-study-modal{background:var(--light-surface)}
+
+@media(max-width:720px){
+  .pwa-install{width:34px;padding:0;justify-content:center}
+  .pwa-install span{display:none}
+  .feature-modal-body{padding-inline:14px;scrollbar-gutter:stable both-edges}
+  .case-study-detail{padding-inline:0}
+}
+
+
+/* v5.1.0 final UI alignment and modal behavior. */
+:root{--header-control-height:34px}
+.header-actions>:is(.pwa-install,.feature-icon-button,.availability-button){
+  height:var(--header-control-height);
+  min-height:var(--header-control-height);
+  box-sizing:border-box;
+  align-self:center;
+}
+.header-actions>.pwa-install{padding-inline:10px;margin:0;border-radius:0}
+.header-actions>.feature-icon-button{width:var(--header-control-height);min-width:var(--header-control-height);padding:0}
+.header-actions>.availability-button{padding-inline:10px}
+
+/* Scrollbars must not steal only the right-side gutter. Feature dialogs scroll
+   in their body; legacy dialogs scroll on the outer dialog. Both reserve equal
+   inline gutter space so bordered rows remain optically centered. */
+.feature-modal-body,.advanced-modal{scrollbar-gutter:stable both-edges}
+.feature-modal-body{padding-inline:18px}
+.accessibility-toggle,.availability-status-card,.availability-details>div,.accessibility-live-preview,.accessibility-summary{
+  width:100%;
+  margin-inline:0;
+  box-sizing:border-box;
+}
+
+/* Explicit semantic surfaces keep v5.1 additions aligned with the 4.2 light redesign. */
+html[data-theme="light"] :is(.case-study-card,.capability-card,.accessibility-toggle,.availability-details>div,.accessibility-live-preview){
+  background:var(--light-surface);
+  border-color:var(--light-border);
+}
+html[data-theme="light"] :is(.case-study-modal,.accessibility-center,.availability-modal){background:var(--light-surface)}
+
+@media(max-width:720px){
+  .header-actions>.pwa-install,.header-actions>.feature-icon-button{width:var(--header-control-height);min-width:var(--header-control-height);padding:0}
+  .feature-modal-body{padding-inline:14px}
+}

@@ -4,6 +4,24 @@ All notable changes to **osameh.dev** are documented here.
 
 The project follows [Semantic Versioning](https://semver.org/). The early production releases were shipped in rapid succession while the portfolio was moved from its hosted prototype to the current ParsPack/CDN deployment.
 
+## 5.1.0 - 2026-09-02
+
+### Added
+- Dedicated right-click context actions for **Engineering Notes** and **Case Studies**, including open, copy/share-link, and live-site actions where appropriate.
+- Terminal commands for `activity`, `case-studies`, `case <id>`, `capabilities`, `palette`, `mood:list`, availability/mood status, and Accessibility controls so the v5 product layer is reachable from the IDE terminal.
+
+### Changed
+- Consolidated the site-wide ranked search experience into a single **Command Palette** surface with one `Ctrl/Cmd + Shift + P` shortcut; the redundant application-level `Ctrl/Cmd + K` alias was removed.
+- Standardized Header utility controls to one 34px control height, including **Install app**, Command Palette, Accessibility, and Portfolio Mood actions.
+- Portfolio Mood now exposes a distinct compact Header label for every preset: `Available`, `Selective`, `Freelance`, `Focused`, or `Unavailable`.
+- Modal scroll surfaces reserve symmetric inline scrollbar gutters so bordered rows and cards keep equal left/right spacing.
+
+### Fixed
+- Closing a Case Study now restores the exact covered workspace without scheduling a later section-03 scroll; delayed initial route timers were removed, the pre-modal position is restored explicitly, and real wheel/touch/pointer/keyboard navigation cancels stale section-restoration work.
+- Browser Back from an open Case Study restores the covered workspace state instead of forcing an exact Case Studies section jump.
+- Explicit semantic Light Theme surfaces now cover Case Study, capability, Accessibility, and Availability cards consistently with the 4.2 redesign.
+- Removed an accidental duplicate local declaration in project-tab close logic and expanded regression coverage around modal scroll restoration, header sizing, context menus, and modal gutter symmetry.
+
 ## 5.0.0 - 2026-09-02
 
 ### Added

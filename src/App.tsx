@@ -92,6 +92,8 @@ type ContextMenuState = {
   linkUrl?: string;
   linkLabel?: string;
   selection?: string;
+  noteSlug?: string;
+  caseStudyId?: string;
 };
 
 type PaletteCommand = {
@@ -559,6 +561,7 @@ export default function Home() {
   const pendingSectionScrollRef = useRef<{ id: string; behavior: ScrollBehavior; exact: boolean; token: number } | null>(null);
   const sectionScrollTokenRef = useRef(0);
   const sectionScrollTimersRef = useRef<number[]>([]);
+  const caseStudyOriginRef = useRef<{ path: string; sectionPath: string; scrollX: number; scrollY: number } | null>(null);
   useEffect(() => {
     const previous = window.history.scrollRestoration;
     window.history.scrollRestoration = "manual";
@@ -665,7 +668,11 @@ export default function Home() {
     else if (knownPaths.includes(path.toLowerCase()) && !["/", "/home", "/resume", "/status"].includes(path.toLowerCase())) {
       setActiveSectionPath(path.toLowerCase());
       const target = path.toLowerCase() === "/projects" ? "work" : path.slice(1);
-      window.setTimeout(() => scrollToSection(target, "auto"), 80);
+      // Resolve deep-link section navigation immediately. A delayed route timer
+      // can race with opening a modal and later snap the workspace back to the
+      // section after the dialog closes. scrollToSection already waits for two
+      // animation frames, which is enough for the portfolio DOM to commit.
+      if (document.documentElement.dataset.modalOpen !== "true") scrollToSection(target, "auto");
     } else if (!knownPaths.includes(path.toLowerCase()) && !/^\/projects\/[^/]+\/?$/i.test(path) && !/^\/notes\/[^/]+\/?$/i.test(path) && !/^\/case-studies\/[^/]+\/?$/i.test(path)) setNotFoundPath(path);
   }, []);
 
@@ -801,8 +808,7 @@ export default function Home() {
       const modifier = event.ctrlKey || event.metaKey;
       const key = event.key.toLowerCase();
       const primaryShortcut = modifier && event.shiftKey && !event.altKey && key === "p";
-      const legacyAlias = modifier && !event.shiftKey && !event.altKey && key === "k";
-      if (!primaryShortcut && !legacyAlias) return;
+      if (!primaryShortcut) return;
       event.preventDefault();
       event.stopPropagation();
       openUniversalSearch();
@@ -833,6 +839,10 @@ export default function Home() {
 
       const projectTarget = target.closest<HTMLElement>("[data-project-name]");
       const repoName = projectTarget?.dataset.projectName || (target.closest(".ide-project-view") ? activeRepo?.name : undefined);
+      const noteTarget = target.closest<HTMLElement>("[data-note-slug]");
+      const caseStudyTarget = target.closest<HTMLElement>("[data-case-study-id]");
+      const noteSlug = noteTarget?.dataset.noteSlug || activeNoteSlug || undefined;
+      const caseStudyId = caseStudyTarget?.dataset.caseStudyId || activeCaseStudy?.id || undefined;
       const imageTarget = target.closest<HTMLElement>("[data-image-url]");
       let imageUrl = imageTarget?.dataset.imageUrl;
       let imageIndex = imageTarget?.dataset.imageIndex ? Number(imageTarget.dataset.imageIndex) : undefined;
@@ -857,7 +867,7 @@ export default function Home() {
       }
 
       setContextMenu({
-        x, y, repoName, imageUrl, imageIndex,
+        x, y, repoName, noteSlug, caseStudyId, imageUrl, imageIndex,
         linkUrl: anchor?.href,
         linkLabel: anchor?.textContent?.trim() || anchor?.getAttribute("aria-label") || undefined,
         selection: selectedText || undefined,
@@ -885,7 +895,7 @@ export default function Home() {
       window.removeEventListener("scroll", closeOnScroll, true);
       window.removeEventListener("resize", closeOnResize);
     };
-  }, [activeRepo, repoGalleries]);
+  }, [activeRepo, activeNoteSlug, activeCaseStudy, repoGalleries]);
 
   useEffect(() => {
     if (!contextMenu) return;
@@ -1270,6 +1280,26 @@ export default function Home() {
     return () => window.removeEventListener("portfolio:modal-open", cancelForModal);
   }, [cancelSectionScroll]);
 
+  // Any real user navigation wins over delayed exact-scroll stabilization.
+  // This is especially important after closing a modal: wheel/touch/keyboard
+  // input must never be followed by an old timer pulling the workspace back.
+  useEffect(() => {
+    const cancelForUserIntent = () => cancelSectionScroll();
+    const cancelForKey = (event: KeyboardEvent) => {
+      if (["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "].includes(event.key)) cancelSectionScroll();
+    };
+    window.addEventListener("wheel", cancelForUserIntent, { passive: true });
+    window.addEventListener("touchstart", cancelForUserIntent, { passive: true });
+    window.addEventListener("pointerdown", cancelForUserIntent, { passive: true });
+    window.addEventListener("keydown", cancelForKey, true);
+    return () => {
+      window.removeEventListener("wheel", cancelForUserIntent);
+      window.removeEventListener("touchstart", cancelForUserIntent);
+      window.removeEventListener("pointerdown", cancelForUserIntent);
+      window.removeEventListener("keydown", cancelForKey, true);
+    };
+  }, [cancelSectionScroll]);
+
   const applySectionScroll = (request: { id: string; behavior: ScrollBehavior; exact: boolean; token: number }) => {
     if (request.token !== sectionScrollTokenRef.current) return false;
     const target = document.getElementById(request.id);
@@ -1355,6 +1385,16 @@ export default function Home() {
 
   const openCaseStudy = (study: CaseStudy, updateHistory = true) => {
     cancelSectionScroll();
+    if (updateHistory) {
+      caseStudyOriginRef.current = {
+        path: window.location.pathname,
+        sectionPath: activeSectionPath,
+        scrollX: window.scrollX,
+        scrollY: window.scrollY,
+      };
+    } else {
+      caseStudyOriginRef.current = null;
+    }
     setNotFoundPath(null);
     setActiveRepo(null);
     setActiveNoteSlug(null);
@@ -1369,13 +1409,31 @@ export default function Home() {
   };
 
   const closeCaseStudy = (returnToSection = true) => {
+    // Closing a dialog must restore the view it covered, not navigate the
+    // document. This prevents delayed section-scroll timers from pulling the
+    // user back to section 03 after Escape/mouse-close.
+    cancelSectionScroll();
+    const origin = caseStudyOriginRef.current;
+    caseStudyOriginRef.current = null;
     setActiveCaseStudy(null);
     document.title = "Osameh Irandoust — Software Engineer";
-    if (returnToSection) {
-      setActiveSectionPath("/case-studies");
-      if (window.location.pathname !== "/case-studies") window.history.pushState({}, "", "/case-studies");
-      scrollToSection("case-studies", "auto", true);
+    if (!returnToSection) return;
+
+    if (origin) {
+      setActiveSectionPath(origin.sectionPath);
+      if (window.location.pathname !== origin.path) {
+        window.history.replaceState({ restoredFromCaseStudy: true }, "", origin.path);
+      }
+      // useModalScrollLock restores the exact covered scroll position during
+      // the same React commit. Do not schedule any section scroll here.
+      return;
     }
+
+    // A directly loaded /case-studies/:id URL has no covered workspace to
+    // restore, so closing it intentionally lands on the Case Studies index.
+    setActiveSectionPath("/case-studies");
+    if (window.location.pathname !== "/case-studies") window.history.replaceState({}, "", "/case-studies");
+    window.requestAnimationFrame(() => scrollToSection("case-studies", "auto", true));
   };
 
   const closeProject = (repo: GithubRepo, returnHome = false) => {
@@ -1395,6 +1453,11 @@ export default function Home() {
   };
 
   const goTo = (result: SearchResult) => {
+    if (result.path.startsWith("/case-studies/") && result.path !== "/case-studies") {
+      const study = caseStudies.find(item => `/case-studies/${item.id}` === result.path);
+      if (study) openCaseStudy(study);
+      return;
+    }
     if (result.path.startsWith("/notes/") && result.path !== "/notes") {
       openNote(result.path.slice("/notes/".length));
       return;
@@ -1415,6 +1478,15 @@ export default function Home() {
   useEffect(() => {
     const handlePopState = () => {
       const path = window.location.pathname;
+      const coveredCaseStudyOrigin = caseStudyOriginRef.current;
+      if (activeCaseStudy && coveredCaseStudyOrigin && path === coveredCaseStudyOrigin.path) {
+        cancelSectionScroll();
+        caseStudyOriginRef.current = null;
+        setActiveCaseStudy(null);
+        setActiveSectionPath(coveredCaseStudyOrigin.sectionPath);
+        document.title = "Osameh Irandoust — Software Engineer";
+        return;
+      }
       const caseStudyMatch = path.match(/^\/case-studies\/([a-z0-9-]+)\/?$/i);
       if (caseStudyMatch) {
         const study = caseStudies.find(item => item.id === caseStudyMatch[1].toLowerCase());
@@ -1446,7 +1518,7 @@ export default function Home() {
     };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, [repos]);
+  }, [repos, activeCaseStudy, cancelSectionScroll]);
 
   const projectSearchText = (repo: GithubRepo) => {
     const meta = repoMetadata[repo.name];
@@ -1467,7 +1539,7 @@ export default function Home() {
 
   const terminalBaseCommands = [
     "help", "whoami", "ls", "exp", "skills", "projects", "contact", "version", "build", "neofetch",
-    "resume", "recruiter", "now", "activity", "changelog", "notes", "case-studies", "availability", "mood", "accessibility", "health", "status", "diagnostics", "install", "shortcuts", "theme",
+    "resume", "recruiter", "now", "activity", "changelog", "notes", "case-studies", "cases", "capabilities", "palette", "availability", "mood", "mood:list", "accessibility", "health", "status", "diagnostics", "install", "shortcuts", "theme",
     "clear", "sudo hire osameh", "sudo su", "cat welcome.txt",
     ...sections.map(item => item.path),
   ];
@@ -1480,10 +1552,11 @@ export default function Home() {
     if (lower.startsWith("cat note ")) candidates = engineeringNotes.map(note => `cat note ${note.slug}`);
     else if (lower.startsWith("cat ")) candidates = [...projectNames.map(name => `cat ${name}`), "cat note "];
     else if (lower.startsWith("notes ")) candidates = engineeringNotes.flatMap(note => [note.slug, ...note.tags]).map(term => `notes ${term}`);
+    else if (lower.startsWith("case ")) candidates = caseStudies.map(study => `case ${study.id}`);
     else if (lower.startsWith("share ")) candidates = projectNames.map(name => `share ${name}`);
     else if (lower.startsWith("open ")) candidates = ["github", "gitlab", "linkedin", "telegram", "instagram", "whatsapp", "mail", "business"].map(name => `open ${name}`);
     else if (lower.startsWith("search ")) candidates = [...projectTechOptions, ...projectNames].map(term => `search ${term}`);
-    else candidates = [...terminalBaseCommands, "cat ", "cat note ", "notes", "notes ", "health", "share ", "open ", "search "];
+    else candidates = [...terminalBaseCommands, "cat ", "cat note ", "notes", "notes ", "case ", "health", "share ", "open ", "search "];
     return Array.from(new Set(candidates)).filter(candidate => candidate.toLowerCase().startsWith(lower));
   };
 
@@ -1547,13 +1620,18 @@ export default function Home() {
         "resume        open the embedded CV",
         "recruiter     start the guided recruiter tour",
         "now           current focus",
+        "activity      recent GitHub repository activity",
         "changelog     portfolio release history",
         "notes         engineering notes index",
         "notes <text>  search engineering notes",
         "cat note <id> open an engineering note",
-        "case-studies  professional case studies",
+        "case-studies  published client work + capabilities",
+        "case <id>     open a case study directly",
+        "capabilities  list what I can build",
+        "palette       open Command Palette (Ctrl/Cmd+Shift+P)",
         "availability  current collaboration status",
         "mood          current portfolio availability mood",
+        "mood:list     list the five availability presets",
         "accessibility open accessibility controls",
         "health        live origin and GitHub health center",
         "status        local diagnostics",
@@ -1600,6 +1678,8 @@ export default function Home() {
         "  Stack     .NET · C++ · Nuxt · PHP · SQL",
         `  Projects  ${repos.length} public repositories`,
         `  Build     ${BUILD_VERSION}`,
+        `  Mood      ${availabilityConfig.activeStatus} · ${availabilityProfile.shortLabel}`,
+        `  Cases     ${caseStudies.length} published · ${capabilities.length} capabilities`,
         `  Theme     ${document.documentElement.dataset.theme || "dark"}`,
         `  Network   ${navigator.onLine ? "online" : "offline"}`,
         "  Status    Ready to build_",
@@ -1618,7 +1698,11 @@ export default function Home() {
     if (command === "activity" || command === "github-activity") { setTerminalLines(lines => [...lines, "› " + raw, "opening /activity…"]); setSearchResults([]); goTo(sectionByPath("/activity")); return; }
     if (command === "changelog") { setTerminalLines(lines => [...lines, "› " + raw, "opening /changelog…"]); setSearchResults([]); goTo(sectionByPath("/changelog")); return; }
     if (command === "notes") { setTerminalLines(lines => [...lines, "› " + raw, "opening /notes…"]); setSearchResults([]); goTo(sectionByPath("/notes")); return; }
-    if (command === "case-studies" || command === "cases") { setTerminalLines(lines => [...lines, "› " + raw, "opening /case-studies…"]); setSearchResults([]); goTo(sectionByPath("/case-studies")); return; }
+    if (command === "case-studies" || command === "cases") { setTerminalLines(lines => [...lines, "› " + raw, `published case studies: ${caseStudies.length}`, ...caseStudies.map(study => `  ${study.id}  ${study.title}`), `capabilities: ${capabilities.length}`, "opening /case-studies…"]); setSearchResults([]); goTo(sectionByPath("/case-studies")); return; }
+    if (command.startsWith("case ")) { const id = raw.slice(5).trim().toLowerCase(); const study = caseStudies.find(item => item.id === id); if (study) { setTerminalLines(lines => [...lines, "› " + raw, `opening case-study/${study.id}.md…`]); setSearchResults([]); openCaseStudy(study); } else { setTerminalLines(lines => [...lines, "› " + raw, `case study not found: ${id}`, "Run `case-studies` to list published work."]); } return; }
+    if (command === "capabilities") { setTerminalLines(lines => [...lines, "› " + raw, `capabilities (${capabilities.length}):`, ...capabilities.map(item => `  ${item.title} — ${item.focus.slice(0, 2).join(" · ")}`)]); setSearchResults([]); return; }
+    if (command === "palette" || command === "command-palette") { setTerminalLines(lines => [...lines, "› " + raw, "opening Command Palette…"]); setSearchResults([]); openUniversalSearch(); return; }
+    if (command === "mood:list") { const statuses = Object.entries(availabilityConfig.profiles).map(([id, profile]) => `${id.padEnd(11)} ${profile.label}`); setTerminalLines(lines => [...lines, "› " + raw, ...statuses]); setSearchResults([]); return; }
     if (command === "availability" || command === "mood") { setTerminalLines(lines => [...lines, "› " + raw, `mood: ${availabilityConfig.activeStatus}`, availabilityProfile.label]); setSearchResults([]); setAvailabilityOpen(true); return; }
     if (command === "accessibility" || command === "a11y") { setTerminalLines(lines => [...lines, "› " + raw, "opening accessibility controls…"]); setSearchResults([]); setAccessibilityOpen(true); return; }
     if (command === "health" || command === "status-server") { setTerminalLines(lines => [...lines, "› " + raw, "opening live system health…"]); setSearchResults([]); window.dispatchEvent(new Event("portfolio:diagnostics")); return; }
@@ -1644,8 +1728,10 @@ export default function Home() {
     }
     if (command === "ls") {
       const liveTabs = [
-        `${!activeRepo && !notFoundPath ? "*" : " "} ${code.file}  [home]`,
+        `${!activeRepo && !activeNoteSlug && !activeCaseStudy && !notFoundPath ? "*" : " "} ${code.file}  [home]`,
         ...openedRepos.map(repo => `${activeRepo?.id === repo.id ? "*" : " "} ${repo.name}.md  [project]`),
+        ...(activeNoteSlug ? [`* ${activeNoteSlug}.md  [note]`] : []),
+        ...(activeCaseStudy ? [`* case-study/${activeCaseStudy.id}.md  [case-study]`] : []),
         ...(notFoundPath ? ["* 404.md  [not found]"] : []),
       ];
       setTerminalLines(lines => [...lines, "› " + raw, `open tabs (${liveTabs.length}):`, ...liveTabs, "* = active tab"]);
@@ -1737,7 +1823,9 @@ export default function Home() {
       "/home": "home portfolio software engineer",
       "/about": "about profile bio skills stack docker linux wpf dotnet nuxt backend full stack systems",
       "/projects": "projects work repositories github source architecture code technologies",
+      "/case-studies": "case studies client freelance amorella capabilities product delivery modernization communications",
       "/experience": "experience career jobs freelance backend full stack android wordpress",
+      "/activity": "github activity commits repository recent activity",
       "/now": "now current working learning focus",
       "/changelog": "changelog release versions updates history",
       "/notes": "notes engineering blog articles architecture devops security caching github",
@@ -1750,7 +1838,10 @@ export default function Home() {
     const noteMatches = engineeringNotes
       .filter(note => `${note.title} ${note.summary} ${note.tags.join(" ")} ${note.slug}`.toLowerCase().includes(query))
       .map(note => ({ label: note.title, path: `/notes/${note.slug}`, kind: "section" as const }));
-    const matches: SearchResult[] = [...sectionMatches, ...projectMatches, ...noteMatches].filter((item, index, all) => all.findIndex(other => other.kind === item.kind && other.path === item.path) === index);
+    const caseStudyMatches = caseStudies
+      .filter(study => `${study.title} ${study.client} ${study.industry} ${study.stack.join(" ")} ${study.summary}`.toLowerCase().includes(query))
+      .map(study => ({ label: study.title, path: `/case-studies/${study.id}`, kind: "section" as const }));
+    const matches: SearchResult[] = [...sectionMatches, ...projectMatches, ...noteMatches, ...caseStudyMatches].filter((item, index, all) => all.findIndex(other => other.kind === item.kind && other.path === item.path) === index);
     setTerminalLines(lines => [...lines, "› " + raw, matches.length ? "Found " + matches.length + " result" + (matches.length === 1 ? "." : "s.") : "No matches for “" + query + "”."]);
     setSearchResults(matches.slice(0, 10));
     if (!matches.length) showActionToast(`No matches for “${query}”.`, "info");
@@ -1816,7 +1907,11 @@ export default function Home() {
     return <Command size={16} />;
   };
   const contextRepo = contextMenu?.repoName ? repos.find(repo => repo.name.toLowerCase() === contextMenu.repoName?.toLowerCase()) || fallbackRepos.find(repo => repo.name.toLowerCase() === contextMenu.repoName?.toLowerCase()) || null : null;
+  const contextNote = contextMenu?.noteSlug ? engineeringNotes.find(note => note.slug === contextMenu.noteSlug) || null : null;
+  const contextCaseStudy = contextMenu?.caseStudyId ? caseStudies.find(study => study.id === contextMenu.caseStudyId) || null : null;
   const projectShareUrl = (repo: GithubRepo) => `${window.location.origin}/projects/${encodeURIComponent(repo.name)}`;
+  const noteShareUrl = (slug: string) => `${window.location.origin}/notes/${encodeURIComponent(slug)}`;
+  const caseStudyShareUrl = (id: string) => `${window.location.origin}/case-studies/${encodeURIComponent(id)}`;
   const runContextAction = (action: () => void) => { setContextMenu(null); action(); };
   const normalizedProjectQuery = projectQuery.trim().toLowerCase();
   const filteredRepos = [...repos].filter(repo => {
@@ -2105,7 +2200,7 @@ export default function Home() {
           </>}
         </div>
         {contextMenu && <div className="custom-context-menu" ref={contextMenuRef} role="menu" aria-label="Portfolio context menu">
-          <div className="context-menu-head"><span><Command size={13} /> osameh.dev</span><code>{contextRepo ? contextRepo.name : contextMenu.imageUrl ? "image" : contextMenu.linkUrl ? "link" : "workspace"}</code></div>
+          <div className="context-menu-head"><span><Command size={13} /> osameh.dev</span><code>{contextRepo ? contextRepo.name : contextNote ? `note/${contextNote.slug}` : contextCaseStudy ? `case/${contextCaseStudy.id}` : contextMenu.imageUrl ? "image" : contextMenu.linkUrl ? "link" : "workspace"}</code></div>
           {contextMenu.selection && <div className="context-menu-group"><button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => { void copyText(contextMenu.selection || "", "Selection copied"); })}><Copy size={15} /><span>Copy selection</span><kbd>⌘C</kbd></button></div>}
           {contextMenu.imageUrl && <div className="context-menu-group"><p>IMAGE</p>
             {contextRepo && contextMenu.imageIndex !== undefined && contextMenu.imageIndex >= 0 && <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => setGalleryLightbox({ repo: contextRepo.name, index: contextMenu.imageIndex || 0 }))}><ImageIcon size={15} /><span>Open fullscreen</span><small>Gallery</small></button>}
@@ -2119,12 +2214,23 @@ export default function Home() {
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => { void copyText(projectShareUrl(contextRepo), "Project link copied"); })}><Link2 size={15} /><span>Copy project link</span></button>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => { openProject(contextRepo); window.setTimeout(() => document.getElementById(`gallery-${contextRepo.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 120); })}><ImageIcon size={15} /><span>Open gallery</span><small>{repoGalleries[contextRepo.name]?.length || "Auto"}</small></button>
           </div>}
-          {contextMenu.linkUrl && <div className="context-menu-group"><p>LINK</p>
+          {contextNote && <div className="context-menu-group"><p>ENGINEERING NOTE</p>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => openNote(contextNote.slug))}><Braces size={15} /><span>Open note</span><small>{contextNote.slug}.md</small></button>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => { void copyText(noteShareUrl(contextNote.slug), "Note link copied"); })}><Link2 size={15} /><span>Copy note link</span></button>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => { if (navigator.share) void navigator.share({ title: contextNote.title, url: noteShareUrl(contextNote.slug) }).catch(() => undefined); else void copyText(noteShareUrl(contextNote.slug), "Note link copied"); })}><Send size={15} /><span>Share note</span><small>{contextNote.readingMinutes} min read</small></button>
+          </div>}
+          {contextCaseStudy && <div className="context-menu-group"><p>CASE STUDY</p>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => openCaseStudy(contextCaseStudy))}><FileCode2 size={15} /><span>Open case study</span><small>{contextCaseStudy.client}</small></button>
+            {contextCaseStudy.siteUrl && <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => window.open(contextCaseStudy.siteUrl, "_blank", "noopener,noreferrer"))}><ExternalLink size={15} /><span>Visit live site</span><small>Client work</small></button>}
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => { if (navigator.share) void navigator.share({ title: contextCaseStudy.title, url: caseStudyShareUrl(contextCaseStudy.id) }).catch(() => undefined); else void copyText(caseStudyShareUrl(contextCaseStudy.id), "Case study link copied"); })}><Send size={15} /><span>Share case study</span><small>Native share</small></button>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => { void copyText(caseStudyShareUrl(contextCaseStudy.id), "Case study link copied"); })}><Link2 size={15} /><span>Copy case study link</span></button>
+          </div>}
+          {contextMenu.linkUrl && !contextNote && !contextCaseStudy && <div className="context-menu-group"><p>LINK</p>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => { window.location.href = contextMenu.linkUrl || "#"; })}><ExternalLink size={15} /><span>Open link</span><small>{contextMenu.linkLabel?.slice(0, 20)}</small></button>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => window.open(contextMenu.linkUrl || "", "_blank", "noopener,noreferrer"))}><ExternalLink size={15} /><span>Open in new tab</span></button>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => { void copyText(contextMenu.linkUrl || "", "Link copied"); })}><Copy size={15} /><span>Copy link</span></button>
           </div>}
-          {!contextRepo && !contextMenu.imageUrl && !contextMenu.linkUrl && <div className="context-menu-group"><p>NAVIGATE</p>
+          {!contextRepo && !contextNote && !contextCaseStudy && !contextMenu.imageUrl && !contextMenu.linkUrl && <div className="context-menu-group"><p>NAVIGATE</p>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => goTo(sectionByPath("/home")))}><HomeIcon size={15} /><span>Home</span><small>/home</small></button>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => goTo(sectionByPath("/about")))}><Braces size={15} /><span>About</span><small>/about</small></button>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => goTo(sectionByPath("/projects")))}><Code2 size={15} /><span>Projects</span><small>/projects</small></button>
@@ -2137,7 +2243,7 @@ export default function Home() {
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => goTo(sectionByPath("/contact")))}><Mail size={15} /><span>Contact</span><small>/contact</small></button>
           </div>}
           <div className="context-menu-group"><p>WORKSPACE</p>
-            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(openUniversalSearch)}><Command size={15} /><span>Universal Search</span><kbd>⇧⌘P</kbd></button>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(openUniversalSearch)}><Command size={15} /><span>Command Palette</span><kbd>⇧⌘P</kbd></button>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => openTerminal())}><Terminal size={15} /><span>Open Terminal</span><kbd>`</kbd></button>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => window.dispatchEvent(new Event("portfolio:resume")))}><FileCode2 size={15} /><span>Open Resume</span><small>PDF</small></button>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => setRecruiterModeOpen(true))}><Command size={15} /><span>Recruiter mode</span><small>tour</small></button>
@@ -2170,7 +2276,11 @@ export default function Home() {
           <span>{actionToast.message}</span>
         </div>}
         {compareRepos.length > 0 && <div className="compare-bar"><span><Code2 size={14} /> Compare queue</span><div>{compareRepos.map(repo => <button key={repo.id} onClick={() => toggleCompareRepo(repo)}>{repo.name} <X size={12} /></button>)}</div><button className="compare-run" disabled={compareRepos.length !== 2} onClick={() => { if (compareRepos.length === 2) { setCompareModalOpen(true); trackEvent("project_compare", compareRepos.map(repo => repo.name).join(" vs ")); } }}>{compareRepos.length === 2 ? "Compare 2 projects" : "Select one more"}</button></div>}
-        <CaseStudyModal study={activeCaseStudy} onClose={() => closeCaseStudy()} />
+        <CaseStudyModal
+          study={activeCaseStudy}
+          onClose={() => closeCaseStudy()}
+          restorePosition={caseStudyOriginRef.current ? { x: caseStudyOriginRef.current.scrollX, y: caseStudyOriginRef.current.scrollY } : undefined}
+        />
         <PortfolioFeatureModals />
         <RecruiterMode open={recruiterModeOpen} repos={repos} metadata={repoMetadata} onClose={() => setRecruiterModeOpen(false)} onOpenProject={repo => { const full = repos.find(item => item.id === repo.id); if (full) openProject(full); }} />
         <ResumeViewer onOpenChange={setResumeOpen} />

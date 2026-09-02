@@ -73,6 +73,10 @@ else fail(`README release summary contains ${readmeReleaseCount} releases; maxim
 if (!/English-only/i.test(readme) || /English \/ Persian i18n|EN\/FA i18n/i.test(readme)) fail("README language contract is not consistently English-only");
 else pass("README English-only product contract");
 
+const packageVersion = JSON.parse(readFileSync(resolve("package.json"), "utf8")).version;
+if (!readme.includes(`### v${packageVersion}`) || !readFileSync(resolve("CHANGELOG.md"), "utf8").includes(`## ${packageVersion} -`)) fail("Current package version is not represented in README/CHANGELOG release history");
+else pass(`Documentation includes current release v${packageVersion}`);
+
 const appSource = readFileSync(resolve("src/App.tsx"), "utf8");
 const featureSource = readFileSync(resolve("src/PortfolioFeatures.tsx"), "utf8");
 if (/LanguageControl|setLocale\(|portfolio-locale/.test(appSource)) fail("App still contains locale-switching UI/state");
@@ -90,6 +94,20 @@ if (/♿/.test(appSource) || /♿/.test(featureSource)) fail("Accessibility UI s
 else pass("Accessibility controls use theme-compatible vector icons");
 if (!appSource.includes('path: "/activity"') || !appSource.includes('github-activity')) fail("GitHub Activity is missing from SPA/Explorer navigation");
 else pass("GitHub Activity navigation contract is present");
+if (!appSource.includes('Ctrl/Cmd+Shift+P') || /ctrlKey[^\n]{0,140}key ===? ["']k/i.test(appSource)) fail("Command Palette shortcut contract is inconsistent or Ctrl/Cmd+K alias remains");
+else pass("Command Palette uses one Ctrl/Cmd + Shift + P shortcut");
+if (!appSource.includes("ENGINEERING NOTE") || !appSource.includes("CASE STUDY") || !featureSource.includes("data-note-slug") && !readFileSync(resolve("src/EngineeringNotes.tsx"), "utf8").includes("data-note-slug")) fail("Dedicated Note/Case Study context-menu hooks are incomplete");
+else pass("Engineering Notes and Case Studies expose dedicated context-menu hooks/actions");
+const terminalContracts = ["case-studies", "case <id>", "capabilities", "activity", "palette", "mood:list", "accessibility"];
+if (!terminalContracts.every(token => appSource.includes(token))) fail("Terminal command coverage is missing one or more v5.1 feature commands");
+else pass("Terminal covers Case Studies, capabilities, GitHub Activity, Mood, Accessibility, and Command Palette");
+if (!featureCss.includes("scrollbar-gutter:stable both-edges") || !featureCss.includes("--header-control-height:34px")) fail("v5.1 modal/header alignment contracts are missing");
+else pass("v5.1 modal gutter and header-control sizing contracts are present");
+if (/routeScrollTimerRef/.test(appSource)) fail("Delayed initial route scrolling can race with modal restoration");
+else pass("Section deep links no longer depend on delayed route timers");
+const modalScrollSource = readFileSync(resolve("src/modalScroll.ts"), "utf8");
+if (!modalScrollSource.includes("restorePosition") || !featureSource.includes("restorePosition")) fail("Case Study modal does not provide an explicit pre-modal restore position");
+else pass("Modal scroll lock supports deterministic pre-modal restoration");
 const requiredSectionSequence = ['path: "/projects"', 'path: "/case-studies"', 'path: "/experience"', 'path: "/activity"', 'path: "/now"'];
 const sectionPositions = requiredSectionSequence.map(token => appSource.indexOf(token));
 if (sectionPositions.some(position => position < 0) || sectionPositions.some((position, index) => index > 0 && position <= sectionPositions[index - 1])) fail("Main section registry is out of document order");

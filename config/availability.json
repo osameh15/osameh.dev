@@ -15,14 +15,14 @@
   "profiles": {
     "open": {
       "label": "Open to opportunities",
-      "shortLabel": "Open",
+      "shortLabel": "Available",
       "description": "Actively open to relevant engineering roles, product teams, and serious collaboration.",
       "ctaEnabled": true,
       "tone": "open"
     },
     "selective": {
       "label": "Open to selected opportunities",
-      "shortLabel": "Open to",
+      "shortLabel": "Selective",
       "description": "Open to thoughtful engineering roles, ambitious products, and high-leverage collaboration.",
       "ctaEnabled": true,
       "tone": "selective"
@@ -35,7 +35,7 @@
       "tone": "freelance"
     },
     "focused": {
-      "label": "Heads down — limited availability",
+      "label": "Heads down \u2014 limited availability",
       "shortLabel": "Focused",
       "description": "Focused on current work. Exceptional opportunities are still welcome, but capacity is intentionally limited.",
       "ctaEnabled": true,

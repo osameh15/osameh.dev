@@ -123,7 +123,7 @@
       "Central availability configuration integrated with header, Terminal and recruiter-facing flows",
       "English-only interface contract with fixed en/LTR document metadata and no locale-switching state",
       "Accessibility Control Center with reduced motion, contrast, text scale and enhanced focus preferences",
-      "Universal Search across projects, notes, case studies, skills, experience and settings with ranked matching"
+      "Ranked Command Palette search across projects, notes, case studies, skills, experience and settings"
     ],
     "challenges": [
       {

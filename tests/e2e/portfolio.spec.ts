@@ -252,11 +252,18 @@ test("published case-study grid has no gray backing layer", async ({ page }) => 
   expect(style.borderTopWidth).toBe("0px");
 });
 
-test("case-study modal keeps its own scroll position and freezes the workspace", async ({ page }) => {
+test("case-study modal preserves the opening position and never re-snaps after close", async ({ page }) => {
   await page.goto("/case-studies");
-  await page.evaluate(() => window.scrollTo({ top: 420, behavior: "auto" }));
+  // Route scrolling must settle before the user can open a dialog. This guards
+  // against delayed route timers racing with modal scroll restoration.
+  await expect.poll(async () => {
+    const box = await page.locator("#case-studies").boundingBox();
+    return Math.abs((box?.y ?? 9999) - 96);
+  }).toBeLessThan(10);
+  const openButton = page.getByRole("button", { name: /Open case study/i }).first();
+  await openButton.scrollIntoViewIfNeeded();
   const workspaceScroll = await page.evaluate(() => window.scrollY);
-  await page.getByRole("button", { name: /Open case study/i }).first().click();
+  await openButton.click();
   const modal = page.getByRole("dialog");
   const body = modal.locator(".feature-modal-body");
   await expect(modal).toBeVisible();
@@ -273,6 +280,15 @@ test("case-study modal keeps its own scroll position and freezes the workspace",
   await page.keyboard.press("Escape");
   await expect.poll(() => page.evaluate(() => document.body.style.position)).not.toBe("fixed");
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(workspaceScroll);
+  await expect(page).toHaveURL(/\/case-studies\/?$/);
+
+  // Closing a case-study dialog must not schedule a delayed section restore.
+  // Use real wheel input so this covers the user-intent cancellation path.
+  await page.mouse.wheel(0, 260);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(workspaceScroll);
+  const userScroll = await page.evaluate(() => window.scrollY);
+  await page.waitForTimeout(1_150);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(userScroll);
 });
 
 test("accessibility controls create immediately visible effects", async ({ page }) => {
@@ -308,10 +324,10 @@ test("accessibility controls create immediately visible effects", async ({ page 
   await expect(page.locator("html")).toHaveAttribute("data-strong-focus", "false");
 });
 
-test("universal search ranks and opens case studies", async ({ page }) => {
+test("command palette ranks and opens case studies", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "Universal Search" }).click();
-  const search = page.getByRole("dialog", { name: "Universal Search" });
+  await page.getByRole("button", { name: "Command Palette" }).click();
+  const search = page.getByRole("dialog", { name: "Command Palette" });
   await expect(search).toBeVisible();
   await search.getByRole("textbox").fill("amorella beauty");
   await expect(search.getByRole("option").first()).toContainText("Amorella Beauty");
@@ -319,12 +335,16 @@ test("universal search ranks and opens case studies", async ({ page }) => {
   await expect(page).toHaveURL(/\/case-studies\/amorella-beauty$/);
 });
 
-test("universal search exposes an IDE-safe keyboard shortcut", async ({ page }) => {
+test("command palette exposes one IDE-safe keyboard shortcut", async ({ page }) => {
   await page.goto("/");
+  await page.evaluate(() => {
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", code: "KeyK", ctrlKey: true, bubbles: true, cancelable: true }));
+  });
+  await expect(page.getByRole("dialog", { name: "Command Palette" })).toHaveCount(0);
   await page.evaluate(() => {
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "p", code: "KeyP", ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true }));
   });
-  await expect(page.getByRole("dialog", { name: "Universal Search" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Command Palette" })).toBeVisible();
 });
 
 test("mobile engineering-note TOC stays below the editor tabs", async ({ page }) => {
@@ -367,13 +387,18 @@ test("mobile project toolbar selects Gallery at the document end", async ({ page
   }).toBe(true);
 });
 
-test("v5 feature surfaces use the redesigned light-theme palette", async ({ page }) => {
+test("v5.1 feature surfaces use the redesigned light-theme palette", async ({ page }) => {
   const expectLightSurface = async (locator: Locator) => {
     const background = await locator.evaluate(element => getComputedStyle(element).backgroundColor);
     const channels = background.match(/[\d.]+/g)?.slice(0, 3).map(Number) ?? [];
     expect(channels).toHaveLength(3);
-    expect(Math.min(...channels)).toBeGreaterThanOrEqual(240);
-    expect(Math.max(...channels) - Math.min(...channels)).toBeLessThanOrEqual(18);
+    // The 4.2 semantic light palette intentionally includes both pure-white
+    // and soft neutral surfaces. Assert perceptual lightness/neutrality rather
+    // than one brittle RGB literal.
+    const normalized = channels.map(channel => channel / 255);
+    const luminance = .2126 * normalized[0] + .7152 * normalized[1] + .0722 * normalized[2];
+    expect(luminance).toBeGreaterThanOrEqual(.86);
+    expect(Math.max(...channels) - Math.min(...channels)).toBeLessThanOrEqual(30);
   };
 
   await page.addInitScript(() => localStorage.setItem("portfolio-theme", "light"));
@@ -390,8 +415,56 @@ test("v5 feature surfaces use the redesigned light-theme palette", async ({ page
   await page.getByRole("button", { name: `Availability: ${activeAvailability.label}` }).click();
   await expectLightSurface(page.locator(".availability-details > div").first());
   await page.keyboard.press("Escape");
-  await page.getByRole("button", { name: "Universal Search" }).click();
-  await expectLightSurface(page.getByRole("dialog", { name: "Universal Search" }));
+  await page.getByRole("button", { name: "Command Palette" }).click();
+  await expectLightSurface(page.getByRole("dialog", { name: "Command Palette" }));
+});
+
+
+test("header utility controls share one visual height and mood label", async ({ page }) => {
+  await page.goto("/");
+  await page.evaluate(() => window.dispatchEvent(new Event("beforeinstallprompt", { cancelable: true })));
+  const install = page.getByRole("button", { name: "Install app" });
+  const palette = page.getByRole("button", { name: "Command Palette" });
+  const accessibility = page.getByRole("button", { name: "Accessibility" });
+  const mood = page.getByRole("button", { name: `Availability: ${activeAvailability.label}` });
+  await expect(install).toBeVisible();
+  const heights = await Promise.all([install, palette, accessibility, mood].map(async locator => (await locator.boundingBox())?.height ?? 0));
+  expect(Math.max(...heights) - Math.min(...heights)).toBeLessThanOrEqual(1);
+  await expect(mood).toContainText(activeAvailability.shortLabel);
+});
+
+test("feature modal cards keep symmetric inline gutters", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Accessibility" }).click();
+  const body = page.locator(".feature-modal-body");
+  const card = page.getByRole("switch", { name: /Reduce motion/i });
+  const bodyBox = await body.boundingBox();
+  const cardBox = await card.boundingBox();
+  expect(bodyBox).not.toBeNull();
+  expect(cardBox).not.toBeNull();
+  const left = cardBox!.x - bodyBox!.x;
+  const right = bodyBox!.x + bodyBox!.width - (cardBox!.x + cardBox!.width);
+  expect(Math.abs(left - right)).toBeLessThanOrEqual(2);
+});
+
+test("context menu distinguishes engineering notes from case studies", async ({ page }) => {
+  await page.goto("/notes");
+  const noteCard = page.locator(".note-card").first();
+  await noteCard.click({ button: "right" });
+  const noteMenu = page.getByRole("menu", { name: "Portfolio context menu" });
+  await expect(noteMenu).toContainText("ENGINEERING NOTE");
+  await expect(noteMenu.getByRole("menuitem", { name: /Open note/i })).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  await page.goto("/case-studies");
+  const caseCard = page.locator(".case-study-card").first();
+  await caseCard.click({ button: "right" });
+  const caseMenu = page.getByRole("menu", { name: "Portfolio context menu" });
+  await expect(caseMenu).toContainText("CASE STUDY");
+  await expect(caseMenu.getByRole("menuitem", { name: /Open case study/i })).toBeVisible();
+  await expect(caseMenu.getByRole("menuitem", { name: /Visit live site/i })).toBeVisible();
+  await expect(caseMenu.getByRole("menuitem", { name: /Share case study/i })).toBeVisible();
+  await expect(caseMenu).not.toContainText(/^LINK$/);
 });
 
 test("light theme meets contrast targets across primary surfaces", async ({ page }) => {

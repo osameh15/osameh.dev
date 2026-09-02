@@ -19,12 +19,14 @@ type SavedBodyState = {
 let lockCount = 0;
 let saved: SavedBodyState | null = null;
 
-function acquireBodyScrollLock() {
+function acquireBodyScrollLock(restorePosition?: { x: number; y: number }) {
   const body = document.body;
   const root = document.documentElement;
   if (lockCount === 0) {
-    const scrollX = window.scrollX;
-    const scrollY = window.scrollY;
+    const frozenScrollX = window.scrollX;
+    const frozenScrollY = window.scrollY;
+    const scrollX = restorePosition?.x ?? frozenScrollX;
+    const scrollY = restorePosition?.y ?? frozenScrollY;
     const scrollbar = Math.max(0, window.innerWidth - root.clientWidth);
     saved = {
       scrollX,
@@ -53,7 +55,9 @@ function acquireBodyScrollLock() {
     body.style.overflow = "hidden";
     body.style.overscrollBehavior = "none";
     body.style.position = "fixed";
-    body.style.top = `-${scrollY}px`;
+    // Freeze where the document is rendered right now, while keeping an
+    // optional pre-modal restore target for deterministic close behavior.
+    body.style.top = `-${frozenScrollY}px`;
     body.style.left = "0";
     body.style.right = "0";
     body.style.width = "100%";
@@ -87,9 +91,11 @@ function acquireBodyScrollLock() {
   };
 }
 
-export function useModalScrollLock(open: boolean) {
+export function useModalScrollLock(open: boolean, restorePosition?: { x: number; y: number }) {
+  const restoreX = restorePosition?.x;
+  const restoreY = restorePosition?.y;
   useLayoutEffect(() => {
     if (!open) return;
-    return acquireBodyScrollLock();
-  }, [open]);
+    return acquireBodyScrollLock(restoreX === undefined || restoreY === undefined ? undefined : { x: restoreX, y: restoreY });
+  }, [open, restoreX, restoreY]);
 }

@@ -19,9 +19,9 @@ A production portfolio for **Osameh Irandoust**, designed as an IDE-inspired wor
 - Published freelance/client case studies with deep links and crawler metadata, plus a separate “What I can build” capability layer
 - Central availability status surfaced in the header and Terminal, driven by one config file with five preset states and an optional manual GitHub Actions updater
 - Accessibility Control Center with persistent motion, contrast, text-size, and focus preferences
-- Ranked Universal Search integrated into the IDE command surface, with a visible header action and `Ctrl/Cmd + Shift + P` shortcut
+- Ranked Command Palette search integrated into the IDE command surface, with one visible header action and one `Ctrl/Cmd + Shift + P` shortcut
 - English-only product interface with a fixed `lang="en"` / `dir="ltr"` document contract
-- Context-aware custom context menu and IDE-style Universal Search palette
+- Context-aware custom context menu and IDE-style ranked Command Palette
 - Interactive terminal with the backtick (`) shortcut, autofocus, resize/maximize support, and developer commands
 - Built-in resume viewer and packaged PDF CV
 - Installable PWA with offline shell and service worker
@@ -239,7 +239,7 @@ The terminal panel can be vertically resized by dragging its top handle, maximiz
 ## Keyboard navigation
 
 ```text
-Ctrl/Cmd + Shift + P   Universal Search
+Ctrl/Cmd + Shift + P   Command Palette
 `              Toggle terminal
 G then H       Home
 G then A       About
@@ -389,7 +389,7 @@ Version 5.0.0 expands the portfolio with four product-facing capabilities built 
 - **Freelance / Client Case Studies** — public, verifiable client work is separated from capability cards. The first published case study is **Amorella Beauty** (`https://amorellabeauty.ir/`); three experience-backed capability areas describe the kinds of systems I can build without presenting them as named client projects.
 - **Portfolio Mood / Availability Control** — one central availability configuration drives the header status, recruiter-facing availability details, Terminal/Search metadata, and contact CTA.
 - **Accessibility Control Center** — persistent reduced-motion, increased-contrast, larger-text, and enhanced-focus preferences with OS reduced-motion support.
-- **Universal Search** — the IDE palette opens from the header or `Ctrl/Cmd + Shift + P` and ranks navigation, projects, notes, case studies, skills, experience, and settings instead of relying on raw substring filtering. `Ctrl/Cmd + K` remains a best-effort alias where the browser does not reserve it.
+- **Ranked search** — the IDE Command Palette ranks navigation, projects, notes, case studies, skills, experience, and settings instead of relying on raw substring filtering.
 
 Accessibility preferences are centralized in `FeaturePreferencesProvider`, while availability is driven by the repository-owned mood configuration described below.
 
@@ -419,7 +419,7 @@ npm run mood -- freelance
 
 Or run **Actions → Set portfolio mood** and choose a preset. The workflow commits only `config/availability.json` to `develop`; the normal staging quality/deploy pipeline then verifies the change on `staging.osameh.dev`. Production still requires the normal `develop → main` promotion.
 
-The active profile controls the header badge, Availability modal, Terminal/Universal Search status, CTA visibility, description, opportunity types, work modes, and timezone from the same config. To see all presets locally, run `npm run mood:list`. Legacy commands `open-selective` and `limited` are accepted as aliases for `selective` and `focused`. Every generated `build-info.json` also exposes `availabilityMood`, so staging/production can be checked to confirm which mood is actually deployed.
+The active profile controls the header badge, Availability modal, Terminal/Command Palette status, CTA visibility, description, opportunity types, work modes, and timezone from the same config. To see all presets locally, run `npm run mood:list`. Legacy commands `open-selective` and `limited` are accepted as aliases for `selective` and `focused`. Every generated `build-info.json` also exposes `availabilityMood`, so staging/production can be checked to confirm which mood is actually deployed.
 
 ## Deployment
 
@@ -505,12 +505,22 @@ The site also includes an in-app resume viewer and download/open controls.
 
 The **six most recent releases** are summarized here. See **[CHANGELOG.md](CHANGELOG.md)** for the complete production history. This section is intentionally capped at six releases.
 
+### v5.1.0 — Interaction reliability & developer UX
+
+- standardizes the Install, Command Palette, Accessibility, and Portfolio Mood header controls
+- consolidates site-wide ranked search into a single **Command Palette** with one `Ctrl/Cmd + Shift + P` shortcut
+- makes the header availability label follow the active mood (`Available`, `Selective`, `Freelance`, `Focused`, or `Unavailable`)
+- fixes modal inline-gutter symmetry and eliminates delayed Case Study scroll snap-back after closing
+- adds dedicated right-click actions for Engineering Notes and Case Studies
+- expands Terminal commands for Case Studies, capabilities, GitHub Activity, Portfolio Mood, Accessibility, and the Command Palette
+- hardens the new v5 surfaces against Light Theme and browser-regression drift
+
 ### v5.0.0 — Portfolio product layer
 
 - adds published freelance/client Case Studies, beginning with Amorella Beauty, plus a separate **What I can build** capability layer
 - introduces a five-state **Portfolio Mood** system for availability, editable from `config/availability.json`, local npm commands, or the **Set portfolio mood** GitHub Action
 - adds an Accessibility Control Center with persistent Reduce Motion, Increased Contrast, Larger Text, and Enhanced Focus preferences
-- upgrades the IDE command surface into ranked Universal Search for projects, Engineering Notes, case studies, skills, experience, navigation, and settings
+- upgrades the IDE command surface into ranked search across projects, Engineering Notes, case studies, skills, experience, navigation, and settings
 - adds GitHub Activity to Explorer/Outline navigation in the same sequence as the document and extends the v4.2 semantic light-theme system across every new v5 surface
 - separates staging and production deployment credentials while requiring the reusable quality pipeline and tested artifact before either environment can deploy
 
@@ -536,14 +546,6 @@ The **six most recent releases** are summarized here. See **[CHANGELOG.md](CHANG
 - restores Engineering Notes at the exact section anchor after note close and browser Back
 - keeps the article TOC selected reliably across repeated clicks, smooth scrolling, and manual scrolling
 - vertically centers the PWA download/install action across desktop, tablet, and mobile header layouts
-
-### v4.1.0 — Responsive polish & notes navigation
-
-- strengthened light-theme contrast across activity, Notes, Source Explorer, Health Center, Changelog, and modal surfaces
-- Engineering Notes render six at a time and article TOC selection follows scrolling/clicks reliably
-- capped large modals to a scrollable 75% viewport and added mobile project bottom navigation
-
-**Full history:** [CHANGELOG.md](CHANGELOG.md)
 
 ## License
 

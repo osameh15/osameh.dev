@@ -93,6 +93,17 @@ jobs:
       - name: Browser E2E and accessibility smoke
         run: npm run test:e2e
 
+      - name: Upload Playwright diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-diagnostics-${{ inputs.build_mode || 'production' }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 5
+
       - name: Lighthouse quality report
         shell: bash
         run: |

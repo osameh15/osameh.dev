@@ -542,7 +542,7 @@ html[data-theme="light"] .engineering-notes,html[data-theme="light"] .note-detai
 @media(max-width:720px){.notes-intro{margin:-25px 0 30px}.notes-count{display:none}.note-card{min-height:300px;padding:18px}.note-detail-hero{padding:48px 22px 36px}.note-detail-hero h1{font-size:42px}.note-detail-actions{flex-direction:column}.note-reading-layout{padding:30px 22px 70px}.health-hero{grid-template-columns:1fr;padding:17px}.health-latency-strip{grid-template-columns:1fr;margin:0 17px 14px}.health-check-grid{grid-template-columns:1fr;margin:0 17px}.health-client-grid{grid-template-columns:1fr 1fr;padding:14px 17px}.health-center-modal .diagnostics-note{padding:0 17px 18px}}
 
 /* v4.1.0 — responsive polish, light-theme consistency, notes navigation and health layout */
-.advanced-modal{width:min(960px,calc(100vw - 48px));max-height:75vh;overscroll-behavior:contain;scrollbar-gutter:stable}
+.advanced-modal{width:min(960px,calc(100vw - 48px));max-height:75vh;overscroll-behavior:contain;scrollbar-gutter:stable both-edges}
 .health-center-modal{width:min(1080px,calc(100vw - 48px));max-height:75vh}
 .recruiter-mode{width:min(980px,calc(100vw - 48px));max-height:75vh}
 .advanced-modal>header a.icon-text-btn{align-items:center;justify-content:center;line-height:1}.advanced-modal>header a.icon-text-btn svg{display:block;flex:0 0 auto}.resume-header-actions{align-items:center}

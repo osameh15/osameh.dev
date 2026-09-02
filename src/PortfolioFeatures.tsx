@@ -32,8 +32,8 @@ export const availabilityConfig = availabilityData as AvailabilityConfig;
 export const availabilityProfile = availabilityConfig.profiles[availabilityConfig.activeStatus];
 
 const dictionary = {
-  availability: "Open to selected opportunities",
-  availabilityShort: "Selected opportunities",
+  availability: "Selective",
+  availabilityShort: "Selective",
   availabilityTitle: "Availability",
   accessibility: "Accessibility",
   accessibilityTitle: "Accessibility Control Center",
@@ -69,8 +69,8 @@ const dictionary = {
   opportunities: "Opportunity types",
   timezone: "Timezone",
   contact: "Start a conversation",
-  universalSearch: "Universal Search",
-  universalSearchPlaceholder: "Search projects, notes, case studies, skills, experience…",
+  universalSearch: "Command Palette",
+  universalSearchPlaceholder: "Search projects, notes, case studies, skills, experience, or commands…",
   navAbout: "about",
   navWork: "work",
   navExperience: "experience",
@@ -276,7 +276,7 @@ export function CaseStudiesSection({ onOpen }: { onOpen: (study: CaseStudy) => v
 
     <div className="published-case-studies">
       <div className="published-case-studies-heading"><p>PUBLIC CLIENT WORK</p><h3>Published case studies.</h3></div>
-      <div className="client-case-study-grid">{caseStudies.map((study, index) => <article className="case-study-card" key={study.id}>
+      <div className="client-case-study-grid">{caseStudies.map((study, index) => <article className="case-study-card" key={study.id} data-case-study-id={study.id}>
         <header><span>{String(index + 1).padStart(2, "0")}</span><small>{study.privacy === "anonymized" ? t("confidential") : study.client}</small></header>
         <p className="case-study-type">{study.industry} · {study.projectType}</p><h3>{study.title}</h3><p>{study.summary}</p>
         <div className="case-study-stack">{study.stack.slice(0, 5).map(item => <span key={item}>{item}</span>)}</div>
@@ -296,9 +296,9 @@ export function CaseStudiesSection({ onOpen }: { onOpen: (study: CaseStudy) => v
   </section>;
 }
 
-export function CaseStudyModal({ study, onClose }: { study: CaseStudy | null; onClose: () => void }) {
+export function CaseStudyModal({ study, onClose, restorePosition }: { study: CaseStudy | null; onClose: () => void; restorePosition?: { x: number; y: number } }) {
   const { t } = usePortfolioFeatures();
-  useModalScrollLock(Boolean(study));
+  useModalScrollLock(Boolean(study), restorePosition);
   useEffect(() => {
     if (!study) return;
     const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
@@ -307,7 +307,7 @@ export function CaseStudyModal({ study, onClose }: { study: CaseStudy | null; on
   }, [study, onClose]);
   if (!study) return null;
   return <div className="feature-modal-backdrop" role="presentation" onMouseDown={onClose}>
-    <section className="feature-modal case-study-modal" role="dialog" aria-modal="true" aria-labelledby="case-study-title" onKeyDown={trapDialogFocus} onMouseDown={event => event.stopPropagation()}>
+    <section className="feature-modal case-study-modal" data-case-study-id={study.id} role="dialog" aria-modal="true" aria-labelledby="case-study-title" onKeyDown={trapDialogFocus} onMouseDown={event => event.stopPropagation()}>
       <header><span><Search size={16} /><b dir="ltr">case-study/{study.id}.md</b></span><button type="button" autoFocus onClick={onClose} aria-label={t("close")}><X size={17} /></button></header>
       <div className="feature-modal-body case-study-detail">
         <div className="case-study-detail-hero"><p>{study.industry} · {study.projectType}</p><h2 id="case-study-title">{study.title}</h2><span>{study.client} · {study.role}</span>{study.siteUrl && <a className="case-study-live-link" href={study.siteUrl} target="_blank" rel="noreferrer">{t("liveSite")} <ArrowUpRight size={14} /></a>}</div>

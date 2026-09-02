@@ -24,7 +24,7 @@ export function EngineeringNotesSection({ onOpenNote }: { onOpenNote: (slug: str
     </div>
     <p className="notes-intro">Architecture decisions, deployment lessons, performance trade-offs, and implementation details from software I actually build and operate.</p>
     <div className="notes-grid">
-      {visibleNotes.map((note, index) => <article key={note.slug} className="note-card">
+      {visibleNotes.map((note, index) => <article key={note.slug} className="note-card" data-note-slug={note.slug}>
         <header><span>{String(index + 1).padStart(2, "0")}</span><BookOpen size={17} /></header>
         <div className="note-card-meta"><span><Clock3 size={12} /> {note.readingMinutes} min</span><span><CalendarDays size={12} /> {noteDate(note.publishedAt)}</span></div>
         <h3>{note.title}</h3>
@@ -222,7 +222,7 @@ export function EngineeringNoteView({ slug, onClose }: { slug: string; onClose: 
 
   if (!note) return <section className="note-detail note-detail-error"><h1>Note not found.</h1><button className="secondary-btn" onClick={onClose}><ArrowLeft size={15} /> Back to notes</button></section>;
 
-  return <section className="note-detail" aria-labelledby="note-detail-title">
+  return <section className="note-detail" data-note-slug={note.slug} aria-labelledby="note-detail-title">
     <header className="note-detail-hero">
       <div className="note-detail-breadcrumb"><button type="button" onClick={onClose}><ArrowLeft size={14} /> Engineering Notes</button><span>/</span><code>{note.slug}.md</code></div>
       <p className="eyebrow">ENGINEERING NOTE / {note.tags[0]?.toUpperCase()}</p>
