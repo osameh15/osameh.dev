@@ -29,7 +29,7 @@ self.addEventListener("fetch", event => {
     return;
   }
 
-  if (url.pathname.startsWith("/assets/") || /\.(?:png|jpe?g|webp|avif|svg|woff2)$/i.test(url.pathname)) {
+  if (url.pathname.startsWith("/assets/") || url.pathname.startsWith("/notes-content/") || /\.(?:png|jpe?g|webp|avif|svg|woff2)$/i.test(url.pathname)) {
     event.respondWith(caches.match(request).then(cached => cached || fetch(request).then(response => {
       if (response.ok) caches.open(CACHE_VERSION).then(cache => cache.put(request, response.clone()));
       return response;

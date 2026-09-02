@@ -44,8 +44,27 @@ jobs:
             npm install --no-audit --no-fund
           fi
 
+      - name: Repository quality gates
+        run: npm run quality
+
+      - name: PHP lint
+        shell: bash
+        run: find public -name '*.php' -print0 | xargs -0 -n1 php -l
+
       - name: Build production bundle
         run: npm run build
+
+      - name: Verify deployment bundle and links
+        run: npm run verify:dist
+
+      - name: Install Playwright smoke runner without changing lockfile
+        run: npm install --no-save --no-package-lock @playwright/test@1.55.0
+
+      - name: Install Chromium for release smoke
+        run: npx playwright install --with-deps chromium
+
+      - name: Browser release smoke
+        run: npx playwright test
 
       - name: Validate deployment bundle
         shell: bash
@@ -56,6 +75,10 @@ jobs:
           test -f dist/build-info.json
           test -f dist/api/github.php
           test -f dist/api/contact.php
+          test -f dist/api/health.php
+          test -f dist/note.php
+          test -f dist/sitemap.php
+          test -f dist/notes-index.json
           test -f dist/sw.js
           jq . dist/build-info.json
 

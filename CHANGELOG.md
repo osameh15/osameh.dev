@@ -4,6 +4,99 @@ All notable changes to **osameh.dev** are documented here.
 
 The project follows [Semantic Versioning](https://semver.org/). The early production releases were shipped in rapid succession while the portfolio was moved from its hosted prototype to the current ParsPack/CDN deployment.
 
+## 4.2.2 - 2026-09-02
+
+### Fixed
+- Updated the Engineering Notes light-theme contrast regression to target the section label that is actually rendered by the Notes index instead of the article-only eyebrow selector.
+- Contrast targets now assert visibility with a focused five-second failure message before evaluating computed colors, avoiding opaque full-test timeouts when markup changes.
+
+## 4.2.1 - 2026-09-02
+
+### Fixed
+- Made the Skills Preview contrast test use an exact accessible-name match, preventing the Resume Viewer preview plugin from triggering a Playwright strict-mode collision.
+- The mobile project toolbar now scrolls horizontally to keep the automatically selected Gallery control fully visible at the end of the document.
+- Returning from an Engineering Note now bypasses the global smooth-scroll rule and lands at the Notes index immediately.
+
+### Tests
+- Tightened the Notes return regression to reject multi-second smooth scrolling.
+- Extended the mobile Gallery regression to verify both selected state and full toolbar visibility.
+
+## 4.2.0 - 2026-09-02
+
+### Changed
+- Rebuilt the light theme around semantic canvas, surface, text, accent and border tokens so new feature styles cannot silently restore dark surfaces.
+- Redesigned the Hero engineering showcase, including Primary lanes, metrics, terminal output and stack chips, for strong light-theme readability.
+- Converted Skills Preview and Skills Code into cohesive light workbench surfaces with clear hover and active states.
+- Unified light-theme styling across the IDE shell, tabs, project routes, Engineering Notes, Recruiter Mode, 404, command surfaces, modals and project navigation.
+- Reworked Compare, selected Compare chips and the floating compare queue to remove dark-on-dark controls.
+
+### Quality
+- Added contrast-ratio regression checks for the Hero, Skills Preview, Notes, project tabs, 404 and floating Compare UI.
+
+## 4.1.2 - 2026-09-01
+
+### Fixed
+- Rebuilt the compact PWA install control with a dedicated square icon frame so the download glyph is geometrically centered inside both its button and the mobile header.
+- The mobile project quick-access toolbar now selects Gallery automatically when the document reaches its end, even when the final section cannot cross the normal scroll-spy probe line.
+- The Engineering Note toolbar now sticks below the complete top-bar and editor-tab stack (`94px` on tablet and `90px` on mobile) instead of being obscured beneath the tabs.
+
+### Changed
+- Added responsive browser regressions for PWA icon geometry, Gallery end-of-document selection, and Notes toolbar stacking.
+
+## 4.1.1 - 2026-09-01
+
+### Fixed
+- Engineering Note return navigation now runs after the portfolio DOM is committed and corrects late layout shifts, so both the in-page back control and browser Back land at the beginning of Engineering Notes.
+- Browser history scroll restoration can no longer override the application’s section navigation with the previous article position.
+- Engineering Note heading IDs are namespaced per article and TOC queries are scoped to the rendered Markdown, eliminating collisions with the surrounding IDE shell.
+- Repeated TOC clicks keep the selected entry stable throughout smooth scrolling; manual wheel/touch navigation immediately returns control to scroll-based selection.
+- The compact PWA download/install control now occupies the header alignment context and centers its icon vertically on narrow screens.
+
+### Changed
+- Added browser regression scenarios for exact Notes restoration, repeated TOC selection, and mobile header icon centering.
+
+## 4.1.0 - 2026-09-01
+
+### Added
+- Six-at-a-time lazy rendering for the Engineering Notes index, ready to scale as the article library grows.
+- Scroll-synchronized Engineering Note table of contents with persistent selected state and reliable heading jumps.
+- Mobile project bottom navigation derived from the existing project quick-access sections.
+
+### Fixed
+- Returning from an Engineering Note now restores the beginning of the Engineering Notes section instead of landing at an offset scroll position.
+- Removed the gray backing exposed by the incomplete final row in the System Health check grid.
+- Release graph hover no longer replaces the detail panel; the panel now follows the explicitly selected release node.
+- Improved mobile modal overflow so large dialogs remain capped and internally scrollable rather than taking over the whole viewport.
+- Centered compact download/install controls and improved narrow-screen source/editor status layouts.
+
+### Changed
+- Audited light-theme contrast across Recent GitHub Activity, Notes, Source Explorer, Health Center, Changelog, modals, and interactive controls.
+- Tablet/mobile Engineering Note navigation becomes a horizontally scrollable sticky TOC instead of disappearing.
+- Responsive layouts now reserve space for the mobile project bottom navigation and reduce oversized typography/padding on narrow screens.
+- Expanded Playwright regression coverage for note navigation, viewport-capped diagnostics, mobile project quick access, and light-theme controls.
+- Lighthouse preview readiness retries are now silent until a real timeout/failure, avoiding misleading transient curl errors in CI logs.
+
+## 4.0.0 - 2026-09-01
+
+### Added
+- Dynamic project structured data using `SoftwareSourceCode` / `SoftwareApplication` plus breadcrumb markup.
+- Dynamic `sitemap.xml` generation from live public repositories and engineering notes, with a static fallback sitemap.
+- `develop` → `staging.osameh.dev` deployment channel with staging-specific `noindex`, `nofollow`, and `noarchive` protection.
+- Repository quality gates for metadata, notes, PHP lint, TypeScript, built-file verification, browser E2E smoke, accessibility checks, and Lighthouse SEO/accessibility/best-practices thresholds.
+- Live `/api/health` endpoint and an expanded System Health Center with safe dependency checks and client-to-origin latency history.
+- Engineering Notes section with Markdown-backed articles, deep links, table of contents, code-copy controls, tags, reading time, sharing, Terminal integration, and Command Palette integration.
+- Note-specific `TechArticle` and breadcrumb structured data for `/notes/<slug>`.
+
+### Changed
+- Production deployment now runs repository quality checks, PHP linting, deployment-bundle verification, and browser smoke tests before FTPS upload.
+- `portfolio.json` now advertises staging, quality gates, dynamic SEO, health checks, and engineering notes as first-class project capabilities.
+- System Diagnostics is now a live privacy-safe operational health view rather than a mostly local client snapshot.
+
+### Security
+- Staging responses are explicitly excluded from indexing.
+- Health diagnostics expose only operational status, safe labels, build metadata, and latency — never secrets, raw filesystem paths, IPs, or credentials.
+- Project and note deep links preserve the existing noindex behavior for invalid soft-404 routes.
+
 ## 3.1.1 - 2026-09-01
 
 ### Fixed
@@ -276,4 +369,3 @@ The project follows [Semantic Versioning](https://semver.org/). The early produc
 ### Security
 - `GITHUB_TOKEN` stays outside the web root and is never included in browser bundles or Git history.
 - Browser GitHub access is proxied through same-origin PHP endpoints.
-

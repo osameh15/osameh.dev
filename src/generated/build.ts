@@ -1,5 +1,5 @@
 // AUTO-GENERATED. Do not edit manually.
-export const BUILD_VERSION = "3.1.1";
-export const BUILD_ID = "v3.1.1-20260901T112512Z";
-export const BUILD_DISPLAY = "v3.1.1 · 0901.1125Z";
-export const BUILD_TIME = "2026-09-01T11:25:12.971Z";
+export const BUILD_VERSION = "4.2.2";
+export const BUILD_ID = "v4.2.2-20260902T081654Z";
+export const BUILD_DISPLAY = "v4.2.2 · 0902.0816Z";
+export const BUILD_TIME = "2026-09-02T08:16:54.634Z";

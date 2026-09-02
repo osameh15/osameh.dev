@@ -63,6 +63,7 @@ export function ChangelogSection() {
   const initialVisible = 5;
   const [expanded, setExpanded] = useState(false);
   const [selectedVersion, setSelectedVersion] = useState(changelog[0]?.version || "");
+  const [hoveredVersion, setHoveredVersion] = useState("");
   const visibleItems = expanded ? changelog : changelog.slice(0, initialVisible);
   const hiddenCount = Math.max(0, changelog.length - initialVisible);
 
@@ -82,21 +83,24 @@ export function ChangelogSection() {
           <p className="eyebrow">RELEASE GRAPH / LIVE HISTORY</p>
           <h3>Scan the latest releases, then drill into the exact version you want.</h3>
         </div>
-        <p>The newest five releases stay visible by default so the first screen remains focused. Hover, focus, or click any node to inspect its version and shipped changes in the detail panel.</p>
+        <p>The newest five releases stay visible by default so the first screen remains focused. Hover previews a node; select it to load that version and its shipped changes into the detail panel.</p>
       </div>
       <div className="changelog-graph-layout">
         <div className="changelog-graph-map" role="listbox" aria-label="Portfolio release graph">
           <div className="changelog-graph-line" aria-hidden="true" />
           {visibleItems.map((item, index) => {
             const isActive = selected?.version === item.version;
+            const isPreview = hoveredVersion === item.version && !isActive;
             return <button
               key={item.version}
               type="button"
               role="option"
               aria-selected={isActive}
-              className={isActive ? "changelog-node active" : "changelog-node"}
-              onMouseEnter={() => setSelectedVersion(item.version)}
-              onFocus={() => setSelectedVersion(item.version)}
+              className={`${isActive ? "changelog-node active" : "changelog-node"}${isPreview ? " preview" : ""}`}
+              onMouseEnter={() => setHoveredVersion(item.version)}
+              onMouseLeave={() => setHoveredVersion("")}
+              onFocus={() => setHoveredVersion(item.version)}
+              onBlur={() => setHoveredVersion("")}
               onClick={() => setSelectedVersion(item.version)}
               style={{ animationDelay: `${index * 70}ms` }}
             >
@@ -120,7 +124,7 @@ export function ChangelogSection() {
             </div>
             <code>v{selected.version}</code>
           </div>
-          <p className="changelog-detail-meta">Release {String(selectedIndex + 1).padStart(2, "0")} of {String(changelog.length).padStart(2, "0")} · Hover a node in the graph to move through the portfolio’s shipping history.</p>
+          <p className="changelog-detail-meta">Release {String(selectedIndex + 1).padStart(2, "0")} of {String(changelog.length).padStart(2, "0")} · Select a node in the graph to inspect that release. Hover only previews the node without changing the details panel.</p>
           <div className="changelog-detail-list">
             {selected.items.map((change, index) => <article key={change}>
               <span>{String(index + 1).padStart(2, "0")}</span>
@@ -218,49 +222,87 @@ export function BuildInfoModal() {
       </div>
       <div className="build-info-actions">
         <button className="primary-btn" onClick={() => { void copyBuildId(); }}><Check size={15} /> {copied ? "Build ID copied" : "Copy build ID"}</button>
-        <button className="secondary-btn" onClick={() => { setOpen(false); window.dispatchEvent(new Event("portfolio:diagnostics")); }}><MonitorCheck size={15} /> System diagnostics</button>
+        <button className="secondary-btn" onClick={() => { setOpen(false); window.dispatchEvent(new Event("portfolio:diagnostics")); }}><MonitorCheck size={15} /> System Health</button>
       </div>
       <p className="build-info-tip"><code>version</code> prints the version in Terminal. <code>build</code> opens this panel.</p>
     </section>
   </div>;
 }
 
+type HealthCheck = { id: string; label: string; status: "operational" | "degraded" | "down"; latencyMs: number | null; detail: string };
+type HealthPayload = { status: "operational" | "degraded"; generatedAt: string; build: { version: string; buildId: string; builtAt: string | null; environment: string }; checks: HealthCheck[] };
+
 export function SystemDiagnostics() {
   const [open, setOpen] = useState(false);
-  const [api, setApi] = useState<"checking" | "online" | "offline">("checking");
+  const [state, setState] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [health, setHealth] = useState<HealthPayload | null>(null);
   const [sw, setSw] = useState("Not registered");
+  const [requestLatency, setRequestLatency] = useState<number | null>(null);
+  const [latencyHistory, setLatencyHistory] = useState<number[]>([]);
+
+  const refresh = async () => {
+    setState("loading");
+    const started = performance.now();
+    try {
+      const response = await fetch(`/api/health?ts=${Date.now()}`, { headers: { Accept: "application/json" }, cache: "no-store" });
+      if (!response.ok) throw new Error("health");
+      const payload = await response.json() as HealthPayload;
+      const latency = Math.max(1, Math.round(performance.now() - started));
+      setRequestLatency(latency);
+      setLatencyHistory(current => [...current, latency].slice(-12));
+      setHealth(payload);
+      setState("ready");
+      if (payload.status === "degraded") notify("System Health is reporting a degraded dependency.", "warning", 4200);
+    } catch {
+      const latency = Math.max(1, Math.round(performance.now() - started));
+      setRequestLatency(latency);
+      setLatencyHistory(current => [...current, latency].slice(-12));
+      setState("error");
+      notify("Live health diagnostics could not reach the origin endpoint.", "warning", 4200);
+    }
+  };
+
   useEffect(() => {
     const listener = () => setOpen(true);
     window.addEventListener("portfolio:diagnostics", listener);
     return () => window.removeEventListener("portfolio:diagnostics", listener);
   }, []);
+
   useEffect(() => {
     if (!open) return;
-    setApi("checking");
-    fetch("/api/github/repos", { headers: { Accept: "application/json" } })
-      .then(r => {
-        const next = r.ok ? "online" : "offline";
-        setApi(next);
-        if (next === "offline") notify("GitHub API diagnostics reported an unavailable endpoint.", "warning", 4200);
-      })
-      .catch(() => { setApi("offline"); notify("GitHub API diagnostics could not complete.", "warning", 4200); });
+    void refresh();
     if ("serviceWorker" in navigator) navigator.serviceWorker.getRegistration()
       .then(reg => setSw(reg?.active ? "Active" : reg ? "Installing" : "Not registered"))
-      .catch(() => { setSw("Unavailable"); notify("Service Worker status could not be read.", "info"); });
+      .catch(() => setSw("Unavailable"));
   }, [open]);
+
   if (!open) return null;
-  const browser = `${navigator.userAgent.includes("Firefox") ? "Firefox" : navigator.userAgent.includes("Edg/") ? "Edge" : navigator.userAgent.includes("Chrome") ? "Chromium" : navigator.userAgent.includes("Safari") ? "Safari" : "Browser"}`;
-  return <div className="advanced-modal-backdrop" onMouseDown={() => setOpen(false)}><section className="advanced-modal diagnostics-modal" role="dialog" aria-modal="true" onMouseDown={e => e.stopPropagation()}>
-    <header><div><MonitorCheck size={17} /><span>system-info.json</span></div><button onClick={() => setOpen(false)} aria-label="Close"><X size={17} /></button></header>
-    <div className="diagnostics-grid">
-      <article><PackageCheck size={18} /><small>Build</small><b>{BUILD_VERSION}</b><code>{BUILD_ID}</code></article>
-      <article>{navigator.onLine ? <Wifi size={18} /> : <WifiOff size={18} />}<small>Network</small><b>{navigator.onLine ? "Online" : "Offline"}</b><code>{api === "checking" ? "checking API…" : `GitHub API ${api}`}</code></article>
-      <article><ShieldCheck size={18} /><small>PWA</small><b>{sw}</b><code>offline shell enabled</code></article>
-      <article><Laptop size={18} /><small>Client</small><b>{browser}</b><code>{window.innerWidth}x{window.innerHeight} · {window.devicePixelRatio}x</code></article>
-      <article><Activity size={18} /><small>Theme</small><b>{document.documentElement.dataset.theme || "dark"}</b><code>{document.documentElement.dataset.font || "inter"}</code></article>
-      <article><HardDrive size={18} /><small>Built</small><b>{new Date(BUILD_TIME).toLocaleDateString()}</b><code>{new Date(BUILD_TIME).toLocaleTimeString()}</code></article>
+  const browser = navigator.userAgent.includes("Firefox") ? "Firefox" : navigator.userAgent.includes("Edg/") ? "Edge" : navigator.userAgent.includes("Chrome") ? "Chromium" : navigator.userAgent.includes("Safari") ? "Safari" : "Browser";
+  const maxLatency = Math.max(1, ...latencyHistory);
+  const overall = state === "error" ? "Unavailable" : state === "loading" && !health ? "Checking" : health?.status === "degraded" ? "Degraded" : "Operational";
+
+  return <div className="advanced-modal-backdrop" onMouseDown={() => setOpen(false)}><section className="advanced-modal diagnostics-modal health-center-modal" role="dialog" aria-modal="true" aria-labelledby="health-center-title" onMouseDown={e => e.stopPropagation()}>
+    <header><div><MonitorCheck size={17} /><span>system-health.json</span></div><div className="health-header-actions"><button onClick={() => void refresh()} disabled={state === "loading"} aria-label="Refresh system health"><RefreshCw className={state === "loading" ? "spin" : ""} size={16} /></button><button onClick={() => setOpen(false)} aria-label="Close"><X size={17} /></button></div></header>
+    <div className="health-hero">
+      <div><p className="eyebrow">LIVE / SYSTEM HEALTH</p><h2 id="health-center-title">Production signals, without exposing internals.</h2><p>The browser measures the round trip to a same-origin health endpoint. The server checks only safe operational dependencies and never returns credentials, filesystem paths, raw IPs, or environment secrets.</p></div>
+      <div className={`health-overall ${overall.toLowerCase()}`}><span><i />{overall}</span><strong>{requestLatency ? `${requestLatency} ms` : "—"}</strong><small>browser → origin</small></div>
     </div>
-    <p className="diagnostics-note">Diagnostics are computed locally. No fingerprint or device identifier is stored by the portfolio.</p>
+    <div className="health-latency-strip" aria-label="Recent health request latency">
+      <div><small>RECENT ORIGIN LATENCY</small><b>{latencyHistory.length ? `${latencyHistory[latencyHistory.length - 1]} ms` : "collecting…"}</b></div>
+      <div className="health-sparkline">{latencyHistory.length ? latencyHistory.map((value, index) => <i key={`${value}-${index}`} style={{ height: `${Math.max(12, Math.round((value / maxLatency) * 100))}%` }} title={`${value} ms`} />) : Array.from({ length: 8 }).map((_, index) => <i key={index} className="placeholder" />)}</div>
+    </div>
+    <div className="health-check-grid">
+      {(health?.checks || []).map(item => <article key={item.id} className={`health-check ${item.status}`}><div><span className="health-dot" /><small>{item.label}</small></div><b>{item.status === "operational" ? "Operational" : item.status === "degraded" ? "Degraded" : "Down"}</b><p>{item.detail}</p><code>{item.latencyMs !== null ? `${Math.round(item.latencyMs)} ms` : "local check"}</code></article>)}
+      {!health && state === "loading" && Array.from({ length: 6 }).map((_, index) => <article key={index} className="health-check health-skeleton"><span /><span /><span /></article>)}
+      {state === "error" && <article className="health-check down"><div><span className="health-dot" /><small>Health endpoint</small></div><b>Unavailable</b><p>The local health endpoint did not return a valid response.</p><code>retry available</code></article>}
+    </div>
+    <div className="health-client-grid">
+      <article>{navigator.onLine ? <Wifi size={18} /> : <WifiOff size={18} />}<small>CLIENT NETWORK</small><b>{navigator.onLine ? "Online" : "Offline"}</b><span>browser connectivity</span></article>
+      <article><ShieldCheck size={18} /><small>SERVICE WORKER</small><b>{sw}</b><span>offline shell</span></article>
+      <article><Laptop size={18} /><small>CLIENT</small><b>{browser}</b><span>{window.innerWidth}×{window.innerHeight} · {window.devicePixelRatio}x</span></article>
+      <article><PackageCheck size={18} /><small>BUILD</small><b>v{health?.build.version || BUILD_VERSION}</b><span>{health?.build.environment || "production"}</span></article>
+    </div>
+    <p className="diagnostics-note">Generated {health?.generatedAt ? new Date(health.generatedAt).toLocaleTimeString() : "on refresh"}. Diagnostics are ephemeral and privacy-friendly.</p>
   </section></div>;
 }
 
@@ -309,7 +351,10 @@ export function PwaInstallControl() {
     return () => { window.removeEventListener("beforeinstallprompt", before as EventListener); window.removeEventListener("appinstalled", appInstalled); window.removeEventListener("portfolio:install", install); };
   }, [prompt]);
   if (installed || !prompt) return null;
-  return <button className="pwa-install" onClick={() => window.dispatchEvent(new Event("portfolio:install"))}><Download size={14} /> Install app</button>;
+  return <button className="pwa-install" onClick={() => window.dispatchEvent(new Event("portfolio:install"))} aria-label="Install app">
+    <span className="pwa-install-icon" aria-hidden="true"><Download size={14} /></span>
+    <span className="pwa-install-label">Install app</span>
+  </button>;
 }
 
 export function ContactForm({ fileName = "send-message.ts" }: { fileName?: string }) {

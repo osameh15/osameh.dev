@@ -12,11 +12,12 @@ const buildDisplay = `v${pkg.version} · ${displayStamp}`;
 mkdirSync(resolve("src/generated"), { recursive: true });
 writeFileSync(resolve("src/generated/build.ts"), `// AUTO-GENERATED. Do not edit manually.\nexport const BUILD_VERSION = ${JSON.stringify(pkg.version)};\nexport const BUILD_ID = ${JSON.stringify(buildId)};\nexport const BUILD_DISPLAY = ${JSON.stringify(buildDisplay)};\nexport const BUILD_TIME = ${JSON.stringify(iso)};\n`);
 
+const environment = process.env.DEPLOY_ENV === "staging" ? "staging" : "production";
 const info = {
   version: pkg.version,
   buildId,
   builtAt: iso,
-  environment: "production",
+  environment,
 };
 writeFileSync(resolve("public/build-info.json"), JSON.stringify(info, null, 2) + "\n");
 console.log(`Prepared ${buildId}`);

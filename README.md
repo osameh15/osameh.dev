@@ -332,6 +332,28 @@ The build pipeline:
 5. copies PHP/API/PWA/deployment files into `dist/`
 6. finalizes the production `.htaccess`
 
+## Dynamic SEO and discovery
+
+Project deep links are rendered through a small PHP metadata layer before React starts. Each `/projects/<repo>` response can include repository-owned title/description data, project-specific Open Graph metadata, `SoftwareSourceCode` / `SoftwareApplication` structured data, and breadcrumbs. Engineering-note deep links receive `TechArticle` structured data.
+
+`/sitemap.xml` is generated dynamically from the current public GitHub repositories plus the note manifest, with a checked-in static sitemap retained as a fallback.
+
+## Staging and quality gates
+
+Production remains tied to `main`. The `develop` branch has a dedicated `staging.yml` workflow for `staging.osameh.dev`; the staging bundle removes canonical/OG URL metadata from the base document and forces `noindex,nofollow,noarchive` through both HTML/robots and response headers.
+
+Quality gates now cover repository metadata, PHP syntax, TypeScript, deployment-bundle verification, local-link checks, browser E2E smoke, baseline accessibility assertions, and Lighthouse accessibility/best-practices/SEO thresholds.
+
+## System Health Center
+
+`/api/health` reports safe operational signals for the portfolio origin, GitHub upstream reachability, API deployment presence, notes manifest, private-cache writability, and build metadata. The Health Center combines those server checks with browser-to-origin latency, Service Worker state, client connectivity, and the deployed build fingerprint. No credentials, raw paths, visitor identifiers, or IP addresses are returned.
+
+## Engineering Notes
+
+Notes are stored as Markdown under `public/notes-content/` and indexed by `public/notes-index.json`. The index renders notes in batches of six as the library grows. Each article provides reading time, tags, deep links, a scroll-synchronized table of contents with active-section state, copyable code blocks, and sharing. Notes are also discoverable from Command Palette and Terminal (`notes`, `notes <text>`, `cat note <slug>`).
+
+On tablet and mobile, the table of contents becomes a sticky horizontal navigation strip instead of disappearing. Returning from an article restores the Engineering Notes index at its section anchor.
+
 ## Deployment
 
 Upload the **contents** of `dist/` to `public_html` rather than uploading the `dist` folder itself.
@@ -344,6 +366,12 @@ public_html/
 ├── index.html
 ├── assets/
 ├── api/
+│   ├── github.php
+│   ├── contact.php
+│   ├── analytics.php
+│   └── health.php
+├── notes-content/
+├── notes-index.json
 ├── icons/
 ├── resume/
 ├── favicon.svg
@@ -351,9 +379,11 @@ public_html/
 ├── sw.js
 ├── robots.txt
 ├── sitemap.xml
+├── sitemap.php
 ├── build-info.json
 ├── project.php
 ├── project-og.php
+├── note.php
 └── not-found.php
 ```
 
@@ -404,7 +434,54 @@ The site also includes an in-app resume viewer and download/open controls.
 
 ## Release history
 
-The five most recent releases are summarized here. See **[CHANGELOG.md](CHANGELOG.md)** for the complete production history.
+The most recent releases are summarized here. See **[CHANGELOG.md](CHANGELOG.md)** for the complete production history.
+
+### v4.2.2 — Contrast-test reliability patch
+
+- Corrected the Engineering Notes contrast selector to match the real Notes index markup.
+- Added fail-fast visibility assertions for every contrast target so CI reports the missing surface directly instead of timing out after 30 seconds.
+
+### v4.2.1 — Release-test & navigation polish
+
+- Fixed the Playwright strict-mode collision between Skills Preview and the Resume Viewer preview plugin.
+- The automatically active Gallery control now scrolls fully into view in the mobile project toolbar.
+- Engineering Note return navigation now lands at the Notes index immediately instead of animating through Changelog.
+
+### v4.2.0 — Cohesive light-theme redesign
+
+- Semantic light-theme tokens now govern canvases, surfaces, text, accents and borders.
+- Hero, Skills Preview, tabs, projects, Notes, Recruiter Mode, 404 and modal surfaces were redesigned as one coherent light system.
+- Compare controls and the floating queue now use explicit high-contrast selected and interactive states.
+- Browser coverage checks representative foreground/background pairs against WCAG contrast thresholds.
+
+### v4.1.2 — Mobile toolbar finishing pass
+
+- centered the PWA download glyph through a dedicated square icon frame instead of font-size-based label hiding
+- made Gallery activate automatically in the mobile project toolbar at the end of the document
+- positioned the sticky Engineering Notes navigation below both the app header and editor tabs on tablet/mobile
+- added focused responsive regression coverage for all three behaviors
+
+### v4.1.1 — Notes navigation stabilization
+
+- made Engineering Note return positioning commit-aware and resistant to browser scroll restoration/layout shifts
+- scoped article heading IDs and TOC queries so the sidebar cannot collide with the surrounding IDE shell
+- stabilized repeated TOC selection during smooth scrolling while preserving immediate manual-scroll tracking
+- vertically centered the compact mobile download/install icon and added focused browser regression coverage
+
+### v4.1.0 — Responsive polish & notes navigation
+
+- strengthened light-theme contrast across activity, Notes, Source Explorer, Health Center, Changelog, and modal surfaces
+- Engineering Notes render six at a time and article TOC selection now follows scrolling/clicks reliably
+- fixed note-return scroll position, Health Center incomplete-row background, and release-node selection behavior
+- modals are capped to a scrollable 75vh and project quick access becomes a mobile bottom navigation rail
+
+### v4.0.0 — Production engineering layer
+
+- added dynamic project/note structured data and a runtime sitemap covering public repositories and engineering notes
+- added `develop` → `staging.osameh.dev` delivery with explicit noindex protection
+- added CI quality gates, Playwright browser smoke, accessibility checks, bundle/link validation, and Lighthouse thresholds
+- upgraded System Diagnostics into a live privacy-safe Health Center backed by `/api/health`
+- added Markdown Engineering Notes with deep links, TOC, code copy, share, Terminal search, and Command Palette access
 
 ### v3.1.1 — Alignment & source status polish
 
@@ -415,28 +492,14 @@ The five most recent releases are summarized here. See **[CHANGELOG.md](CHANGELO
 ### v3.1.0 — Interactive hero & source polish
 
 - added subtle pointer parallax, animated counters, mini-terminal status, and language-aware Stack Surface content to the custom hero showcase
-- Source Explorer now gives the repository tree its own visible scroll area and shows a dedicated loading state while file content is fetched
+- Source Explorer gives the repository tree its own visible scroll area and shows a dedicated loading state while file content is fetched
 - project quick-access rail is masked behind opaque icon pads so the vertical line never crosses through toolbar icons
-- README and release documentation were synchronized with the latest hero and repository-intelligence releases
 
 ### v3.0.5 — Hero showcase redesign
 
 - replaced the generic orbit-style hero graphic with a custom engineering showcase
 - added workflow, impact, stack, and build-rhythm panels tailored to the portfolio’s engineering identity
 - introduced dedicated dark/light styling for the new first-screen experience
-
-### v3.0.4 — Palette landing & ghost completion
-
-- technology filters launched from Command Palette now land directly on the project filter controls
-- terminal autocomplete previews the remaining completion as muted ghost text before Tab is pressed
-- Tab and Shift+Tab still cycle through matching commands, projects, services, and search terms
-
-### v3.0.3 — Navigation & search reliability
-
-- Source Explorer code panes now scroll independently for long files and wide lines
-- project quick access stays synchronized with toolbar jumps and natural scrolling
-- Terminal and Command Palette search repository-owned technology metadata such as Docker and WPF
-- Terminal now supports Tab / Shift+Tab autocomplete for commands, projects, destinations, and search terms
 
 **Full history:** [CHANGELOG.md](CHANGELOG.md)
 

@@ -1,12 +1,16 @@
 {
   "name": "osameh-portfolio",
-  "version": "3.1.1",
+  "version": "4.2.2",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "node scripts/prepare-build.mjs && tsc --noEmit && vite build && node scripts/ensure-deploy-files.mjs",
-    "preview": "vite preview --host 0.0.0.0"
+    "preview": "vite preview --host 0.0.0.0",
+    "typecheck": "tsc --noEmit",
+    "quality": "node scripts/quality-gates.mjs",
+    "verify:dist": "node scripts/verify-dist.mjs",
+    "build:staging": "DEPLOY_ENV=staging node scripts/prepare-build.mjs && tsc --noEmit && vite build && node scripts/ensure-deploy-files.mjs && node scripts/prepare-staging.mjs"
   },
   "dependencies": {
     "dompurify": "^3.2.6",
