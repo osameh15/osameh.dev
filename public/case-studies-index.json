@@ -1,29 +1,12 @@
 [
   {
-    "id": "realtime-communications",
-    "title": "Cross-platform real-time communications",
-    "summary": "Stabilizing a mature Qt/QML communications product while preserving background-call behavior across desktop and Android.",
-    "industry": "Communications",
-    "role": "Software Engineer",
-    "stack": ["C++", "Qt", "QML", "Android", "Java", "JNI", "WebSocket"],
-    "privacy": "anonymized"
-  },
-  {
-    "id": "business-platform",
-    "title": "Business platform modernization",
-    "summary": "Improving a production business platform across frontend responsiveness, backend services, data access, and operational tooling.",
-    "industry": "Business software",
-    "role": "Full-Stack Engineer",
-    "stack": ["Nuxt", "Vue", ".NET", "C#", "PostgreSQL", "ELK", "Ruby"],
-    "privacy": "anonymized"
-  },
-  {
-    "id": "marketplace-platform",
-    "title": "Marketplace and mobile product delivery",
-    "summary": "Building and evolving a product spanning Laravel APIs, responsive web experiences, relational data, authentication, and Android integration.",
-    "industry": "Consumer / marketplace",
-    "role": "Full-Stack Engineer",
-    "stack": ["PHP", "Laravel", "MySQL", "JavaScript", "Bootstrap", "Java", "Kotlin", "Android"],
-    "privacy": "anonymized"
+    "id": "amorella-beauty",
+    "title": "Amorella Beauty",
+    "summary": "A live client website delivered as part of my freelance web work, focused on a polished customer-facing experience and dependable production delivery.",
+    "industry": "Beauty",
+    "role": "Freelance Software Developer",
+    "stack": ["Web development", "Responsive UI", "Production deployment"],
+    "privacy": "public",
+    "siteUrl": "https://amorellabeauty.ir/"
   }
 ]

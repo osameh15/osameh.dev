@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Locator } from "@playwright/test";
 
 test("home shell and engineering notes are reachable", async ({ page }) => {
   await page.goto("/");
@@ -190,15 +190,54 @@ test("availability is centrally exposed from the header", async ({ page }) => {
   await expect(dialog.getByRole("link", { name: /Start a conversation/i })).toHaveAttribute("href", "mailto:osirandoust@gmail.com");
 });
 
+test("case studies distinguish capabilities from published client work", async ({ page }) => {
+  await page.goto("/case-studies");
+  await expect(page.locator(".capability-card")).toHaveCount(3);
+  await expect(page.locator(".published-case-studies .case-study-card")).toHaveCount(1);
+  await expect(page.locator(".published-case-studies")).toContainText("Amorella Beauty");
+  await expect(page.locator(".published-case-studies a[href=\"https://amorellabeauty.ir/\"]")).toBeVisible();
+});
+
+test("explorer keeps case studies immediately after projects", async ({ page }) => {
+  await page.goto("/");
+  const explorerLabels = await page.locator(".explorer > .file").allTextContents();
+  const projectsIndex = explorerLabels.findIndex(label => /projects/i.test(label));
+  const caseStudiesIndex = explorerLabels.findIndex(label => /case-studies/i.test(label));
+  expect(projectsIndex).toBeGreaterThanOrEqual(0);
+  expect(caseStudiesIndex).toBe(projectsIndex + 1);
+});
+
 test("universal search ranks and opens case studies", async ({ page }) => {
   await page.goto("/");
-  await page.keyboard.press("Control+K");
+  await page.getByRole("button", { name: "Universal Search" }).click();
   const search = page.getByRole("dialog", { name: "Universal Search" });
   await expect(search).toBeVisible();
-  await search.getByRole("textbox").fill("realtime communications");
-  await expect(search.getByRole("option").first()).toContainText("Cross-platform real-time communications");
+  await search.getByRole("textbox").fill("amorella beauty");
+  await expect(search.getByRole("option").first()).toContainText("Amorella Beauty");
   await search.getByRole("textbox").press("Enter");
-  await expect(page).toHaveURL(/\/case-studies\/realtime-communications$/);
+  await expect(page).toHaveURL(/\/case-studies\/amorella-beauty$/);
+});
+
+test("universal search exposes an IDE-safe keyboard shortcut", async ({ page }) => {
+  await page.goto("/");
+  await page.evaluate(() => {
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "p", code: "KeyP", ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true }));
+  });
+  await expect(page.getByRole("dialog", { name: "Universal Search" })).toBeVisible();
+});
+
+test("mobile engineering-note TOC stays below the editor tabs", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/notes/repository-driven-portfolio");
+  const toc = page.locator(".note-toc");
+  await expect(toc).toBeVisible();
+  await page.evaluate(() => window.scrollTo({ top: 900, behavior: "auto" }));
+  await expect.poll(async () => {
+    const tabsBox = await page.locator(".tabs-row").boundingBox();
+    const tocBox = await toc.boundingBox();
+    if (!tabsBox || !tocBox) return false;
+    return tocBox.y >= tabsBox.y + tabsBox.height + 10;
+  }).toBe(true);
 });
 
 test("mobile feature modals stay viewport capped and internally scrollable", async ({ page }) => {
@@ -228,26 +267,30 @@ test("mobile project toolbar selects Gallery at the document end", async ({ page
 });
 
 test("v5 feature surfaces use the redesigned light-theme palette", async ({ page }) => {
+  const expectLightSurface = async (locator: Locator) => {
+    const background = await locator.evaluate(element => getComputedStyle(element).backgroundColor);
+    const channels = background.match(/[\d.]+/g)?.slice(0, 3).map(Number) ?? [];
+    expect(channels).toHaveLength(3);
+    expect(Math.min(...channels)).toBeGreaterThanOrEqual(240);
+    expect(Math.max(...channels) - Math.min(...channels)).toBeLessThanOrEqual(18);
+  };
+
   await page.addInitScript(() => localStorage.setItem("portfolio-theme", "light"));
   await page.goto("/case-studies");
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
-  const cardBackground = await page.locator(".case-study-card").first().evaluate(element => getComputedStyle(element).backgroundColor);
-  expect(cardBackground).toBe("rgb(255, 255, 255)");
+  await expectLightSurface(page.locator(".capability-card").first());
+  await expectLightSurface(page.locator(".case-study-card").first());
   await page.getByRole("button", { name: /Open case study/i }).first().click();
-  const caseModalBackground = await page.locator(".case-study-modal").evaluate(element => getComputedStyle(element).backgroundColor);
-  expect(caseModalBackground).not.toBe("rgb(15, 20, 16)");
+  await expectLightSurface(page.locator(".case-study-modal"));
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Accessibility" }).click();
-  const toggleBackground = await page.getByRole("switch", { name: /Reduce motion/i }).evaluate(element => getComputedStyle(element).backgroundColor);
-  expect(toggleBackground).toBe("rgb(255, 255, 255)");
+  await expectLightSurface(page.getByRole("switch", { name: /Reduce motion/i }));
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: /Availability: Open to selected opportunities/i }).click();
-  const availabilitySurface = await page.locator(".availability-details > div").first().evaluate(element => getComputedStyle(element).backgroundColor);
-  expect(availabilitySurface).toBe("rgb(255, 255, 255)");
+  await expectLightSurface(page.locator(".availability-details > div").first());
   await page.keyboard.press("Escape");
-  await page.keyboard.press("Control+K");
-  const searchSurface = await page.getByRole("dialog", { name: "Universal Search" }).evaluate(element => getComputedStyle(element).backgroundColor);
-  expect(searchSurface).not.toBe("rgb(15, 20, 16)");
+  await page.getByRole("button", { name: "Universal Search" }).click();
+  await expectLightSurface(page.getByRole("dialog", { name: "Universal Search" }));
 });
 
 test("light theme meets contrast targets across primary surfaces", async ({ page }) => {

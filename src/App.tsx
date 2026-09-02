@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
 import {
   AlertTriangle, ArrowUpRight, Braces, BriefcaseBusiness as Linkedin, Camera as Instagram,
   Check, ChevronDown, ChevronLeft, ChevronRight, Circle, Code2, Command, Copy, Download, ExternalLink, FileCode2,
@@ -15,7 +15,7 @@ import { FeaturedProjects, ProjectArchitecture, ProjectCaseStudyV3, ProjectMetad
 import { fetchPortfolioMetadata, type PortfolioMetadata } from "./projectMetadata";
 import { EngineeringNotesSection, EngineeringNoteView } from "./EngineeringNotes";
 import { engineeringNotes } from "./notesData";
-import { AccessibilityControlButton, AvailabilityBadge, CaseStudiesSection, CaseStudyModal, PortfolioFeatureModals, caseStudies, usePortfolioFeatures } from "./PortfolioFeatures";
+import { AccessibilityControlButton, AvailabilityBadge, CaseStudiesSection, CaseStudyModal, PortfolioFeatureModals, capabilities, caseStudies, usePortfolioFeatures } from "./PortfolioFeatures";
 import type { CaseStudy } from "./caseStudiesData";
 
 type ThemePreference = "dark" | "light" | "system";
@@ -783,18 +783,33 @@ export default function Home() {
     return () => document.removeEventListener("keydown", konami);
   }, []);
 
+  const openUniversalSearch = useCallback(() => {
+    setContextMenu(null);
+    setFileMenuOpen(false);
+    setCommandQuery("");
+    setCommandIndex(0);
+    setCommandPaletteOpen(true);
+  }, []);
+
   useEffect(() => {
     const openPalette = (event: KeyboardEvent) => {
-      if (!(event.ctrlKey || event.metaKey) || event.altKey || event.key.toLowerCase() !== "k") return;
+      const modifier = event.ctrlKey || event.metaKey;
+      const key = event.key.toLowerCase();
+      const primaryShortcut = modifier && event.shiftKey && !event.altKey && key === "p";
+      const legacyAlias = modifier && !event.shiftKey && !event.altKey && key === "k";
+      if (!primaryShortcut && !legacyAlias) return;
       event.preventDefault();
-      setContextMenu(null);
-      setCommandQuery("");
-      setCommandIndex(0);
-      setCommandPaletteOpen(open => !open);
+      event.stopPropagation();
+      openUniversalSearch();
     };
-    document.addEventListener("keydown", openPalette);
-    return () => document.removeEventListener("keydown", openPalette);
-  }, []);
+    const openFromEvent = () => openUniversalSearch();
+    window.addEventListener("keydown", openPalette, true);
+    window.addEventListener("portfolio:search", openFromEvent);
+    return () => {
+      window.removeEventListener("keydown", openPalette, true);
+      window.removeEventListener("portfolio:search", openFromEvent);
+    };
+  }, [openUniversalSearch]);
 
   useEffect(() => {
     const handleContextMenu = (event: MouseEvent) => {
@@ -1745,6 +1760,7 @@ export default function Home() {
     { id: "hire", label: "sudo hire osameh", hint: "easter egg", keywords: "hire sudo easter egg terminal", icon: "hire", action: runHireEasterEgg },
     ...projectTechOptions.slice(0, 80).map((tech, index) => ({ id: `tech-${index}-${String(tech).toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, label: `Filter projects by ${tech}`, hint: "technology", keywords: `technology stack skill filter projects ${tech}`, icon: "code" as const, action: () => exploreTech(String(tech)) })),
     ...engineeringNotes.map(note => ({ id: `note-${note.slug}`, label: `Read note: ${note.title}`, hint: `${note.readingMinutes} min · ${note.tags[0]}`, keywords: `note article blog ${note.slug} ${note.summary} ${note.tags.join(" ")}`, icon: "about" as const, action: () => openNote(note.slug) })),
+    ...capabilities.map(capability => ({ id: `capability-${capability.id}`, label: `Capability: ${capability.title}`, hint: "What I can build", keywords: `capability services freelance ${capability.summary} ${capability.focus.join(" ")} ${capability.technologies.join(" ")}`, icon: "code" as const, action: () => goTo(sections[8]) })),
     ...caseStudies.map(study => ({ id: `case-study-${study.id}`, label: `Case study: ${study.title}`, hint: study.industry, keywords: `case study client freelance ${study.summary} ${study.stack.join(" ")} ${study.relatedSkills.join(" ")}`, icon: "experience" as const, action: () => openCaseStudy(study) })),
     ...skills.flatMap(([group, ...items]) => items.map((skill, index) => ({ id: `skill-${group}-${index}-${skill}`.toLowerCase().replace(/[^a-z0-9]+/g, "-"), label: `Skill: ${skill}`, hint: group, keywords: `skill technology stack ${group} ${skill}`, icon: "code" as const, action: () => exploreTech(skill) }))),
     ...roles.map((role, index) => ({ id: `role-${index}`, label: `${role.role} @ ${role.company}`, hint: role.years, keywords: `experience career role company ${role.company} ${role.role} ${role.detail}`, icon: "experience" as const, action: () => goTo(sections[3]) })),
@@ -1838,6 +1854,7 @@ export default function Home() {
         </nav>
         <div className="header-actions">
           <PwaInstallControl />
+          <button type="button" className="feature-icon-button universal-search-button" aria-label={t("universalSearch")} title={`${t("universalSearch")} (Ctrl/Cmd + Shift + P)`} onClick={openUniversalSearch}><Search size={16} aria-hidden="true" /></button>
           <AccessibilityControlButton />
           <AvailabilityBadge />
           <button className="menu-button" onClick={() => setMenuOpen(!menuOpen)} aria-label="Toggle menu">{menuOpen ? <X size={20} /> : <Menu size={20} />}</button>
@@ -1866,11 +1883,11 @@ export default function Home() {
           <button className={activeSectionPath === "/home" && !activeRepo && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/home" && !activeRepo && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => showHome()}><FileCode2 size={15} /> {code.file}</button>
           <button className={activeSectionPath === "/about" && !activeRepo && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/about" && !activeRepo && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => goTo(sections[1])}><Braces size={15} /> about.json</button>
           <button className={activeSectionPath === "/projects" && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/projects" && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => goTo(sections[2])}><FileCode2 size={15} /> {code.projects}</button>
+          <button className={activeSectionPath === "/case-studies" && !activeRepo && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/case-studies" && !activeRepo && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => goTo(sections[8])}><FileCode2 size={14} /> case-studies</button>
           <button className={activeSectionPath === "/experience" && !activeRepo && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/experience" && !activeRepo && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => goTo(sections[3])}><ChevronRight size={14} /> experience</button>
           <button className={activeSectionPath === "/now" && !activeRepo && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/now" && !activeRepo && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => goTo(sections[4])}><Zap size={14} /> now.md</button>
           <button className={activeSectionPath === "/changelog" && !activeRepo && !activeNoteSlug && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/changelog" && !activeRepo && !activeNoteSlug && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => goTo(sections[5])}><RefreshCw size={14} /> changelog.md</button>
           <button className={activeSectionPath === "/notes" && !activeRepo && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/notes" && !activeRepo && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => activeNoteSlug ? closeNote() : goTo(sections[7])}><Braces size={14} /> engineering-notes</button>
-          <button className={activeSectionPath === "/case-studies" && !activeRepo && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/case-studies" && !activeRepo && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => goTo(sections[8])}><FileCode2 size={14} /> case-studies</button>
           <button className={activeSectionPath === "/contact" && !activeRepo && !activeNoteSlug && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/contact" && !activeRepo && !activeNoteSlug && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => goTo(sections[6])}><Mail size={14} /> contact.md</button>
 
           <div className="explorer-plugins" aria-label="Portfolio tools">
@@ -2085,8 +2102,9 @@ export default function Home() {
           </div>}
           {!contextRepo && !contextMenu.imageUrl && !contextMenu.linkUrl && <div className="context-menu-group"><p>NAVIGATE</p>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => goTo(sections[0]))}><HomeIcon size={15} /><span>Home</span><small>/home</small></button>
-            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => goTo(sections[2]))}><Code2 size={15} /><span>Projects</span><small>/projects</small></button>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => goTo(sections[1]))}><Braces size={15} /><span>About</span><small>/about</small></button>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => goTo(sections[2]))}><Code2 size={15} /><span>Projects</span><small>/projects</small></button>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => goTo(sections[8]))}><FileCode2 size={15} /><span>Case Studies</span><small>/case-studies</small></button>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => goTo(sections[3]))}><FileCode2 size={15} /><span>Experience</span><small>/experience</small></button>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => goTo(sections[4]))}><Zap size={15} /><span>Now</span><small>/now</small></button>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => goTo(sections[5]))}><RefreshCw size={15} /><span>Changelog</span><small>/changelog</small></button>
@@ -2094,7 +2112,7 @@ export default function Home() {
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => goTo(sections[6]))}><Mail size={15} /><span>Contact</span><small>/contact</small></button>
           </div>}
           <div className="context-menu-group"><p>WORKSPACE</p>
-            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => { setCommandQuery(""); setCommandIndex(0); setCommandPaletteOpen(true); })}><Command size={15} /><span>Command Palette</span><kbd>⌘K</kbd></button>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(openUniversalSearch)}><Command size={15} /><span>Universal Search</span><kbd>⇧⌘P</kbd></button>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => openTerminal())}><Terminal size={15} /><span>Open Terminal</span><kbd>`</kbd></button>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => window.dispatchEvent(new Event("portfolio:resume")))}><FileCode2 size={15} /><span>Open Resume</span><small>PDF</small></button>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => setRecruiterModeOpen(true))}><Command size={15} /><span>Recruiter mode</span><small>tour</small></button>
@@ -2165,7 +2183,7 @@ export default function Home() {
           {panelTab === "outline" ? <div className="outline-panel">
             <div className="outline-tree">
               <p><ChevronDown size={13} /> OSAMEH-PORTFOLIO</p>
-              {sections.map(item => <button key={item.path} onClick={() => goTo(item)}><span>{item.path}</span><small>{item.label}</small></button>)}
+              {[sections[0], sections[1], sections[2], sections[8], sections[3], sections[4], sections[5], sections[7], sections[6]].map(item => <button key={item.path} onClick={() => goTo(item)}><span>{item.path}</span><small>{item.label}</small></button>)}
             </div>
             <div className="outline-projects">
               <p>PROJECT ROUTES</p>

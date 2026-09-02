@@ -31,6 +31,7 @@ for (const study of caseStudies) {
   if (caseIds.has(study.id)) fail(`Duplicate case study id: ${study.id}`);
   caseIds.add(study.id);
   if (!study.title || !study.summary || !Array.isArray(study.stack)) fail(`Incomplete case study metadata: ${study.id}`);
+  if (study.privacy === "public" && (!study.siteUrl || !/^https:\/\//.test(study.siteUrl))) fail(`Public case study is missing a safe live-site URL: ${study.id}`);
 }
 if (!failures.some(item => item.includes("case study"))) pass(`${caseStudies.length} case studies validated`);
 

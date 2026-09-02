@@ -34,11 +34,11 @@ $urls = [
     ['https://osameh.dev/', 'weekly', '1.0', ''],
     ['https://osameh.dev/about', 'monthly', '0.7', ''],
     ['https://osameh.dev/projects', 'weekly', '0.9', ''],
+    ['https://osameh.dev/case-studies', 'monthly', '0.8', ''],
     ['https://osameh.dev/experience', 'monthly', '0.7', ''],
     ['https://osameh.dev/now', 'monthly', '0.7', ''],
     ['https://osameh.dev/changelog', 'monthly', '0.6', ''],
     ['https://osameh.dev/notes', 'weekly', '0.8', ''],
-    ['https://osameh.dev/case-studies', 'monthly', '0.8', ''],
     ['https://osameh.dev/contact', 'monthly', '0.6', ''],
     ['https://osameh.dev/resume', 'monthly', '0.8', ''],
 ];

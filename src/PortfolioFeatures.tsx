@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
-import { Accessibility, ChevronRight, Globe2, Search, ShieldCheck, X } from "lucide-react";
-import { caseStudies, type CaseStudy } from "./caseStudiesData";
+import { Accessibility, ArrowUpRight, ChevronRight, Globe2, Search, ShieldCheck, X } from "lucide-react";
+import { capabilities, caseStudies, type CaseStudy } from "./caseStudiesData";
 
 export type AvailabilityStatus = "open-selective" | "freelance" | "limited" | "unavailable";
 export type AccessibilityPreferences = {
@@ -32,8 +32,12 @@ const dictionary = {
   accessibility: "Accessibility",
   accessibilityTitle: "Accessibility Control Center",
   caseStudies: "Case Studies",
-  caseStudiesTitle: "Engineering decisions in real-world work.",
-  caseStudiesIntro: "Privacy-safe case studies focused on constraints, architecture, decisions, and outcomes rather than marketing claims.",
+  caseStudiesTitle: "Freelance work, with the details that matter.",
+  caseStudiesIntro: "Public client work is shown only when it can be verified. Additional case studies can be added here as more projects become publishable.",
+  capabilitiesEyebrow: "WHAT I CAN BUILD",
+  capabilitiesTitle: "Capability areas backed by production experience.",
+  capabilitiesIntro: "These are not presented as named client case studies. They describe the kinds of systems I can design, build, modernize, and maintain.",
+  liveSite: "Visit live site",
   confidential: "Anonymized",
   problem: "Problem",
   constraints: "Constraints",
@@ -254,12 +258,26 @@ export function CaseStudiesSection({ onOpen }: { onOpen: (study: CaseStudy) => v
   return <section id="case-studies" className="case-studies section-pad" aria-labelledby="case-studies-title">
     <div className="section-heading"><span>03</span><div><p>CASE.STUDIES</p><h2 id="case-studies-title">{t("caseStudiesTitle")}</h2></div></div>
     <p className="case-studies-intro">{t("caseStudiesIntro")}</p>
-    <div className="case-study-grid">{caseStudies.map((study, index) => <article className="case-study-card" key={study.id}>
-      <header><span>{String(index + 1).padStart(2, "0")}</span><small>{study.privacy === "anonymized" ? t("confidential") : study.client}</small></header>
-      <p className="case-study-type">{study.industry} · {study.projectType}</p><h3>{study.title}</h3><p>{study.summary}</p>
-      <div className="case-study-stack">{study.stack.slice(0, 5).map(item => <span key={item}>{item}</span>)}</div>
-      <button type="button" onClick={() => onOpen(study)}>{t("openCaseStudy")} <ChevronRight size={14} /></button>
-    </article>)}</div>
+
+    <div className="published-case-studies">
+      <div className="published-case-studies-heading"><p>PUBLIC CLIENT WORK</p><h3>Published case studies.</h3></div>
+      <div className="case-study-grid">{caseStudies.map((study, index) => <article className="case-study-card" key={study.id}>
+        <header><span>{String(index + 1).padStart(2, "0")}</span><small>{study.privacy === "anonymized" ? t("confidential") : study.client}</small></header>
+        <p className="case-study-type">{study.industry} · {study.projectType}</p><h3>{study.title}</h3><p>{study.summary}</p>
+        <div className="case-study-stack">{study.stack.slice(0, 5).map(item => <span key={item}>{item}</span>)}</div>
+        <div className="case-study-actions"><button type="button" onClick={() => onOpen(study)}>{t("openCaseStudy")} <ChevronRight size={14} /></button>{study.siteUrl && <a href={study.siteUrl} target="_blank" rel="noreferrer">{t("liveSite")} <ArrowUpRight size={13} /></a>}</div>
+      </article>)}</div>
+    </div>
+
+    <div className="capabilities-block" aria-labelledby="capabilities-title">
+      <div className="capabilities-heading"><p>{t("capabilitiesEyebrow")}</p><h3 id="capabilities-title">{t("capabilitiesTitle")}</h3><span>{t("capabilitiesIntro")}</span></div>
+      <div className="capability-grid">{capabilities.map((capability, index) => <article className="capability-card" key={capability.id}>
+        <header><span>{String(index + 1).padStart(2, "0")}</span><small>CAPABILITY</small></header>
+        <h4>{capability.title}</h4><p>{capability.summary}</p>
+        <div className="capability-focus">{capability.focus.map(item => <span key={item}>{item}</span>)}</div>
+        <div className="capability-tech">{capability.technologies.slice(0, 7).map(item => <code key={item}>{item}</code>)}</div>
+      </article>)}</div>
+    </div>
   </section>;
 }
 
@@ -278,7 +296,7 @@ export function CaseStudyModal({ study, onClose }: { study: CaseStudy | null; on
     <section className="feature-modal case-study-modal" role="dialog" aria-modal="true" aria-labelledby="case-study-title" onKeyDown={trapDialogFocus} onMouseDown={event => event.stopPropagation()}>
       <header><span><Search size={16} /><b dir="ltr">case-study/{study.id}.md</b></span><button type="button" autoFocus onClick={onClose} aria-label={t("close")}><X size={17} /></button></header>
       <div className="feature-modal-body case-study-detail">
-        <div className="case-study-detail-hero"><p>{study.industry} · {study.projectType}</p><h2 id="case-study-title">{study.title}</h2><span>{study.client} · {study.role}</span></div>
+        <div className="case-study-detail-hero"><p>{study.industry} · {study.projectType}</p><h2 id="case-study-title">{study.title}</h2><span>{study.client} · {study.role}</span>{study.siteUrl && <a className="case-study-live-link" href={study.siteUrl} target="_blank" rel="noreferrer">{t("liveSite")} <ArrowUpRight size={14} /></a>}</div>
         <div className="case-study-facts"><span><b>{t("role")}</b>{study.role}</span><span><b>{t("timeline")}</b>{study.timeline}</span><span><b>{t("stack")}</b>{study.stack.join(" · ")}</span></div>
         <section><h3>{t("problem")}</h3><p>{study.problem}</p></section>
         <section><h3>{t("constraints")}</h3><ul>{study.constraints.map(item => <li key={item}>{item}</li>)}</ul></section>
@@ -291,4 +309,4 @@ export function CaseStudyModal({ study, onClose }: { study: CaseStudy | null; on
   </div>;
 }
 
-export { caseStudies };
+export { capabilities, caseStudies };

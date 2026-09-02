@@ -16,12 +16,12 @@ A production portfolio for **Osameh Irandoust**, designed as an IDE-inspired wor
 - Per-project architecture viewer and same-origin public source explorer
 - Live project metrics with language percentages, license, repository size, update signals, and latest release data
 - Metadata-driven project case studies, search, technology filters, sorting, and two-project comparison
-- Privacy-safe professional/client case studies with deep links and crawler metadata
+- Published freelance/client case studies with deep links and crawler metadata, plus a separate “What I can build” capability layer
 - Central availability status surfaced in the header and Terminal
 - Accessibility Control Center with persistent motion, contrast, text-size, and focus preferences
-- Ranked Universal Search integrated into the existing `Ctrl/Cmd + K` Command Palette
+- Ranked Universal Search integrated into the IDE command surface, with a visible header action and `Ctrl/Cmd + Shift + P` shortcut
 - English-only product interface with a fixed `lang="en"` / `dir="ltr"` document contract
-- Context-aware custom context menu and `Ctrl/Cmd + K` Command Palette
+- Context-aware custom context menu and IDE-style Universal Search palette
 - Interactive terminal with the backtick (`) shortcut, autofocus, resize/maximize support, and developer commands
 - Built-in resume viewer and packaged PDF CV
 - Installable PWA with offline shell and service worker
@@ -235,7 +235,7 @@ The terminal panel can be vertically resized by dragging its top handle, maximiz
 ## Keyboard navigation
 
 ```text
-Ctrl/Cmd + K   Command Palette
+Ctrl/Cmd + Shift + P   Universal Search
 `              Toggle terminal
 G then H       Home
 G then A       About
@@ -363,10 +363,10 @@ On tablet and mobile, the table of contents becomes a sticky horizontal navigati
 
 The v5 product layer resolves the remaining roadmap work with four shipped product features. The planned EN/FA localization item was intentionally dropped after product review; **osameh.dev is English-only** and keeps a fixed `lang="en"` / `dir="ltr"` contract.
 
-- **Freelance / Client Case Studies** — privacy-safe, data-driven professional stories with deep links, SEO metadata, sitemap entries, and no fabricated client metrics.
+- **Freelance / Client Case Studies** — public, verifiable client work is separated from capability cards. The first published case study is **Amorella Beauty** (`https://amorellabeauty.ir/`); three experience-backed capability areas describe the kinds of systems I can build without presenting them as named client projects.
 - **Availability Control** — one central availability configuration surfaced in the header, Terminal, and recruiter-facing workflow.
 - **Accessibility Control Center** — persistent reduced-motion, increased-contrast, larger-text, and enhanced-focus preferences with OS reduced-motion support.
-- **Universal Search** — the existing `Ctrl/Cmd + K` palette ranks navigation, projects, notes, case studies, skills, experience, and settings instead of relying on raw substring filtering.
+- **Universal Search** — the IDE palette opens from the header or `Ctrl/Cmd + Shift + P` and ranks navigation, projects, notes, case studies, skills, experience, and settings instead of relying on raw substring filtering. `Ctrl/Cmd + K` remains a best-effort alias where the browser does not reserve it.
 
 Accessibility preferences remain centralized in `FeaturePreferencesProvider`; legacy locale state is removed on startup.
 
@@ -456,7 +456,7 @@ The **six most recent releases** are summarized here. See **[CHANGELOG.md](CHANG
 
 ### v5.0.0 — Product roadmap milestone
 
-- adds professional case studies, centralized availability, Accessibility Control Center, and ranked Universal Search
+- adds the first published freelance case study (Amorella Beauty), a separate three-card capability layer, centralized availability, Accessibility Control Center, and ranked Universal Search
 - standardizes the product on English-only UI and removes the planned EN/FA locale switcher and legacy locale preference
 - hardens Engineering Notes Back/TOC behavior, mobile Gallery selection, and deterministic Universal Search keyboard execution
 - applies the v4.2 semantic light-theme palette to every new v5 surface and simplifies accessibility switches to visual state only

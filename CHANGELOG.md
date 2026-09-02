@@ -7,10 +7,10 @@ The project follows [Semantic Versioning](https://semver.org/). The early produc
 ## 5.0.0 - 2026-09-02
 
 ### Added
-- Privacy-safe Freelance / Client Case Studies with data-driven detail views, stable `/case-studies/<id>` deep links, crawler metadata, structured data, and sitemap coverage.
+- Freelance / Client Case Studies with a clear split between **published client work** and **capability areas**. Amorella Beauty is the first public case study, with a stable `/case-studies/amorella-beauty` deep link, crawler metadata, structured data, sitemap coverage, and a live-site link.
 - Central Availability Control surfaced through the header and Terminal, with a single editable configuration for opportunity types, work modes, timezone, and contact CTA.
 - Accessibility Control Center with persistent Reduce Motion, Increased Contrast, Larger Text, and Enhanced Focus preferences while respecting `prefers-reduced-motion`.
-- Universal Search on the existing `Ctrl/Cmd + K` command surface, ranked across projects, Engineering Notes, case studies, skills, experience, navigation, and portfolio settings.
+- Universal Search on the IDE command surface, ranked across projects, Engineering Notes, case studies, skills, experience, navigation, and portfolio settings; it is discoverable from the header and uses `Ctrl/Cmd + Shift + P` as the conflict-safe primary shortcut.
 - Terminal commands for case studies, availability, and accessibility.
 - E2E regression coverage for English-only document metadata, accessibility persistence, switch presentation, availability, case-study deep links and Back restoration, Explorer scroll-spy integration, keyboard focus containment, Universal Search, mobile Gallery selection, and v5 light-theme surfaces.
 
@@ -19,20 +19,24 @@ The project follows [Semantic Versioning](https://semver.org/). The early produc
 - `FeaturePreferencesProvider` now owns accessibility/modal preferences only; startup clears the legacy `portfolio-locale` key and enforces `lang="en"` / `dir="ltr"`.
 - Accessibility switches communicate state through the switch track/knob and `aria-checked`; redundant checkmark icons were removed.
 - All v5 feature surfaces now use the semantic v4.2 light-theme palette for backgrounds, borders, text, hover/focus states, switch tracks, dialogs, and case-study surfaces.
-- Case Studies are integrated into Explorer/navigation and recruiter-facing discovery without fabricating client names or private business metrics.
+- Case Studies now appear immediately after Projects in the Explorer to match the page sequence. Three experience-backed capability cards remain visible as “what I can build,” while only verifiable client work is labeled as a published case study.
 - Case-study close and browser Back restoration use the same post-render anchor strategy as Engineering Notes.
 - Availability labels, visual state, opportunity types, and work modes are derived from one status/config source instead of duplicated UI copy.
 - Feature dialogs contain keyboard focus while open and restore page scrolling on close.
 - README release history is explicitly capped at the six most recent releases; `CHANGELOG.md` remains the complete release history.
 
 ### Fixed
+- Explorer and Outline navigation now keep Case Studies immediately after Projects, matching the actual document order and scroll-spy sequence.
+- Mobile Engineering Notes TOC now remains visibly below the editor tab strip, with heading jumps and scroll-spy offsets accounting for the full sticky UI stack.
 - Engineering Notes TOC now selects the final heading reliably when manual scrolling reaches the document end.
 - Engineering Notes section restoration remains pinned to the intended sticky-header offset while asynchronous content above the section settles.
 - Mobile project quick access selects Gallery at the document end instead of leaving the previous section active.
 - Universal Search resets keyboard selection synchronously when the query changes, keeping Enter aligned with the top-ranked result.
+- Universal Search no longer relies on browser-reserved `Ctrl/Cmd + K` in automated or primary navigation; a visible header control and `Ctrl/Cmd + Shift + P` provide deterministic access while `Ctrl/Cmd + K` remains a best-effort alias.
+- Light-theme E2E coverage now validates the semantic near-white surface palette instead of requiring an exact `rgb(255, 255, 255)` value, preventing rendering-engine rounding from causing false CI failures.
 
 ### Security
-- Case studies expose only deliberately anonymized, high-level professional information; no private client names, secrets, deployment credentials, or internal metrics are published.
+- Case studies publish only client work that is safe to identify publicly. Capability cards are explicitly separated from client claims, and no private metrics, secrets, deployment credentials, or confidential implementation details are published.
 - Existing server-side GitHub token isolation, staging noindex behavior, CSP, API boundaries, and deployment-secret model remain unchanged.
 
 ## 4.2.2 - 2026-09-02

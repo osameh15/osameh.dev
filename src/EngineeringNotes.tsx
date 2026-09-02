@@ -119,7 +119,12 @@ export function EngineeringNoteView({ slug, onClose }: { slug: string; onClose: 
       frame = 0;
       const root = articleRef.current;
       if (!root) return;
-      const probe = Math.max(110, Math.min(window.innerHeight * .24, 190));
+      const tabsBottom = document.querySelector<HTMLElement>(".tabs-row")?.getBoundingClientRect().bottom ?? (window.innerWidth <= 720 ? 90 : 94);
+      const mobileTocHeight = window.innerWidth <= 1000 ? (tocRef.current?.getBoundingClientRect().height ?? 48) : 0;
+      const tocGap = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--note-toc-gap")) || 8;
+      const probe = window.innerWidth <= 1000
+        ? Math.ceil(tabsBottom + tocGap + mobileTocHeight + 12)
+        : Math.max(110, Math.min(window.innerHeight * .24, 190));
       const atDocumentEnd = window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 4;
       if (atDocumentEnd) {
         navigationTargetRef.current = "";
@@ -175,7 +180,10 @@ export function EngineeringNoteView({ slug, onClose }: { slug: string; onClose: 
     if (!heading) return;
     navigationTargetRef.current = id;
     setActiveTocId(id);
-    const stickyOffset = window.innerWidth <= 720 ? 72 : 102;
+    const tabsBottom = document.querySelector<HTMLElement>(".tabs-row")?.getBoundingClientRect().bottom ?? (window.innerWidth <= 720 ? 90 : 94);
+    const tocHeight = window.innerWidth <= 1000 ? (tocRef.current?.getBoundingClientRect().height ?? 48) : 0;
+    const tocGap = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--note-toc-gap")) || 8;
+    const stickyOffset = window.innerWidth <= 1000 ? Math.ceil(tabsBottom + tocGap + tocHeight + 12) : 116;
     const top = heading.getBoundingClientRect().top + window.scrollY - stickyOffset;
     window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
     if (navigationTimerRef.current) window.clearTimeout(navigationTimerRef.current);

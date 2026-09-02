@@ -310,7 +310,7 @@ export function ShortcutGuide() {
   const [open, setOpen] = useState(false);
   useEffect(() => { const listener = () => setOpen(true); window.addEventListener("portfolio:shortcuts", listener); return () => window.removeEventListener("portfolio:shortcuts", listener); }, []);
   if (!open) return null;
-  const rows = [["Ctrl/Cmd + K", "Command Palette"], ["`", "Toggle terminal"], ["Tab", "Terminal autocomplete"], ["Shift + Tab", "Previous autocomplete suggestion"], ["G then P", "Projects"], ["G then A", "About"], ["G then E", "Experience"], ["G then N", "Now"], ["G then C", "Contact"], ["/", "Focus project search"], ["?", "Keyboard shortcuts"], ["Esc", "Close active modal/tab"]];
+  const rows = [["Ctrl/Cmd + Shift + P", "Universal Search"], ["`", "Toggle terminal"], ["Tab", "Terminal autocomplete"], ["Shift + Tab", "Previous autocomplete suggestion"], ["G then P", "Projects"], ["G then A", "About"], ["G then E", "Experience"], ["G then N", "Now"], ["G then C", "Contact"], ["/", "Focus project search"], ["?", "Keyboard shortcuts"], ["Esc", "Close active modal/tab"]];
   return <div className="advanced-modal-backdrop" onMouseDown={() => setOpen(false)}><section className="advanced-modal shortcuts-modal" role="dialog" aria-modal="true" onMouseDown={e => e.stopPropagation()}><header><div><Keyboard size={17} /><span>keyboard-shortcuts.md</span></div><button onClick={() => setOpen(false)}><X size={17} /></button></header><div className="shortcut-grid">{rows.map(([keys, action]) => <div key={keys}><kbd>{keys}</kbd><span>{action}</span></div>)}</div></section></div>;
 }
 
