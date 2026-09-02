@@ -152,3 +152,71 @@ test("light theme keeps key interactive surfaces visible", async ({ page }) => {
   expect(contrastSignals.color).not.toBe(contrastSignals.background);
   expect(contrastSignals.border).not.toBe("rgba(0, 0, 0, 0)");
 });
+
+test("light theme meets contrast targets across primary surfaces", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("portfolio-theme", "light"));
+
+  const contrastRatio = async (selector: string) => page.locator(selector).first().evaluate(element => {
+    const parse = (value: string) => {
+      const values = value.match(/[\d.]+/g)?.map(Number) ?? [0, 0, 0];
+      return values.slice(0, 3).map(channel => {
+        const normalized = channel / 255;
+        return normalized <= .04045 ? normalized / 12.92 : ((normalized + .055) / 1.055) ** 2.4;
+      });
+    };
+    const luminance = (rgb: number[]) => .2126 * rgb[0] + .7152 * rgb[1] + .0722 * rgb[2];
+    const style = getComputedStyle(element);
+    const foreground = luminance(parse(style.color));
+    let current: Element | null = element;
+    let background = "rgba(0, 0, 0, 0)";
+    while (current) {
+      background = getComputedStyle(current).backgroundColor;
+      const channels = background.match(/[\d.]+/g)?.map(Number) ?? [];
+      const alpha = channels.length > 3 ? channels[3] : 1;
+      if (alpha > 0) break;
+      current = current.parentElement;
+    }
+    const backdrop = luminance(parse(background));
+    return (Math.max(foreground, backdrop) + .05) / (Math.min(foreground, backdrop) + .05);
+  });
+
+  await page.goto("/");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  for (const selector of [".hero .eyebrow", ".showcase-signal-list b", ".showcase-signal-list span", ".showcase-chip-cloud span"]) {
+    expect(await contrastRatio(selector), selector).toBeGreaterThanOrEqual(4.5);
+  }
+  await page.getByRole("button", { name: "Preview" }).click();
+  for (const selector of [".skill-card h3", ".skills-preview article>div button"]) {
+    expect(await contrastRatio(selector), selector).toBeGreaterThanOrEqual(4.5);
+  }
+
+  await page.goto("/projects/osameh.dev");
+  expect(await contrastRatio(".ide-project-view .eyebrow"), "project eyebrow").toBeGreaterThanOrEqual(4.5);
+  expect(await contrastRatio(".editor-tab.active"), "active project tab").toBeGreaterThanOrEqual(4.5);
+
+  await page.goto("/notes");
+  expect(await contrastRatio(".engineering-notes .eyebrow"), "notes eyebrow").toBeGreaterThanOrEqual(4.5);
+
+  await page.goto("/missing-light-theme-route");
+  expect(await contrastRatio(".not-found-view .eyebrow"), "404 eyebrow").toBeGreaterThanOrEqual(4.5);
+});
+
+test("light floating compare queue uses readable surfaces", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("portfolio-theme", "light"));
+  await page.goto("/projects");
+  await page.locator(".compare-chip").first().click();
+  const queue = page.locator(".compare-bar");
+  await expect(queue).toBeVisible();
+  const colors = await queue.evaluate(element => {
+    const queueStyle = getComputedStyle(element);
+    const actionStyle = getComputedStyle(element.querySelector(".compare-run")!);
+    return {
+      queueBackground: queueStyle.backgroundColor,
+      queueColor: queueStyle.color,
+      actionBackground: actionStyle.backgroundColor,
+      actionColor: actionStyle.color,
+    };
+  });
+  expect(colors.queueBackground).not.toBe(colors.queueColor);
+  expect(colors.actionBackground).not.toBe(colors.actionColor);
+});

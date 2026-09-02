@@ -436,6 +436,13 @@ The site also includes an in-app resume viewer and download/open controls.
 
 The most recent releases are summarized here. See **[CHANGELOG.md](CHANGELOG.md)** for the complete production history.
 
+### v4.2.0 — Cohesive light-theme redesign
+
+- Semantic light-theme tokens now govern canvases, surfaces, text, accents and borders.
+- Hero, Skills Preview, tabs, projects, Notes, Recruiter Mode, 404 and modal surfaces were redesigned as one coherent light system.
+- Compare controls and the floating queue now use explicit high-contrast selected and interactive states.
+- Browser coverage checks representative foreground/background pairs against WCAG contrast thresholds.
+
 ### v4.1.2 — Mobile toolbar finishing pass
 
 - centered the PWA download glyph through a dedicated square icon frame instead of font-size-based label hiding

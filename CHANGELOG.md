@@ -4,6 +4,18 @@ All notable changes to **osameh.dev** are documented here.
 
 The project follows [Semantic Versioning](https://semver.org/). The early production releases were shipped in rapid succession while the portfolio was moved from its hosted prototype to the current ParsPack/CDN deployment.
 
+## 4.2.0 - 2026-09-02
+
+### Changed
+- Rebuilt the light theme around semantic canvas, surface, text, accent and border tokens so new feature styles cannot silently restore dark surfaces.
+- Redesigned the Hero engineering showcase, including Primary lanes, metrics, terminal output and stack chips, for strong light-theme readability.
+- Converted Skills Preview and Skills Code into cohesive light workbench surfaces with clear hover and active states.
+- Unified light-theme styling across the IDE shell, tabs, project routes, Engineering Notes, Recruiter Mode, 404, command surfaces, modals and project navigation.
+- Reworked Compare, selected Compare chips and the floating compare queue to remove dark-on-dark controls.
+
+### Quality
+- Added contrast-ratio regression checks for the Hero, Skills Preview, Notes, project tabs, 404 and floating Compare UI.
+
 ## 4.1.2 - 2026-09-01
 
 ### Fixed
