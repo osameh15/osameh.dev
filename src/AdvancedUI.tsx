@@ -351,7 +351,10 @@ export function PwaInstallControl() {
     return () => { window.removeEventListener("beforeinstallprompt", before as EventListener); window.removeEventListener("appinstalled", appInstalled); window.removeEventListener("portfolio:install", install); };
   }, [prompt]);
   if (installed || !prompt) return null;
-  return <button className="pwa-install" onClick={() => window.dispatchEvent(new Event("portfolio:install"))}><Download size={14} /> Install app</button>;
+  return <button className="pwa-install" onClick={() => window.dispatchEvent(new Event("portfolio:install"))} aria-label="Install app">
+    <span className="pwa-install-icon" aria-hidden="true"><Download size={14} /></span>
+    <span className="pwa-install-label">Install app</span>
+  </button>;
 }
 
 export function ContactForm({ fileName = "send-message.ts" }: { fileName?: string }) {

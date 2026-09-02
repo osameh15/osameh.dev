@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
 import {
   AlertTriangle, ArrowUpRight, Braces, BriefcaseBusiness as Linkedin, Camera as Instagram,
   Check, ChevronDown, ChevronLeft, ChevronRight, Circle, Code2, Command, Copy, Download, ExternalLink, FileCode2,
@@ -483,6 +483,9 @@ export default function Home() {
   const readmeRequests = useRef<Map<string, Promise<string>>>(new Map());
   const galleryRequests = useRef<Map<string, Promise<RepoGalleryImage[]>>>(new Map());
   const readmeRenderRequests = useRef<Set<string>>(new Set());
+  const pendingSectionScrollRef = useRef<{ id: string; behavior: ScrollBehavior; exact: boolean; token: number } | null>(null);
+  const sectionScrollTokenRef = useRef(0);
+  const sectionScrollTimersRef = useRef<number[]>([]);
   const projectsSectionRef = useRef<HTMLElement>(null);
   const [projectsNearViewport, setProjectsNearViewport] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
@@ -599,6 +602,12 @@ export default function Home() {
     setTerminalInput("");
     openTerminal();
   };
+
+  useEffect(() => {
+    const previousScrollRestoration = window.history.scrollRestoration;
+    window.history.scrollRestoration = "manual";
+    return () => { window.history.scrollRestoration = previousScrollRestoration; };
+  }, []);
 
   useEffect(() => {
     const path = window.location.pathname;
@@ -1188,15 +1197,42 @@ export default function Home() {
     if (scrollToTop) window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const scrollToSection = (id: string, behavior: ScrollBehavior = "smooth") => {
-    window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
-      const target = document.getElementById(id);
-      if (!target) return;
+  const applySectionScroll = (request: { id: string; behavior: ScrollBehavior; exact: boolean; token: number }) => {
+    if (request.token !== sectionScrollTokenRef.current) return false;
+    const target = document.getElementById(request.id);
+    if (!target) return false;
+
+    const move = (behavior: ScrollBehavior) => {
+      if (request.token !== sectionScrollTokenRef.current) return;
       const stickyOffset = window.innerWidth <= 720 ? 72 : 96;
       const top = target.getBoundingClientRect().top + window.scrollY - stickyOffset;
       window.scrollTo({ top: Math.max(0, top), behavior });
-    }));
+    };
+
+    move(request.exact ? "auto" : request.behavior);
+    if (request.exact) {
+      sectionScrollTimersRef.current.forEach(timer => window.clearTimeout(timer));
+      sectionScrollTimersRef.current = [60, 220].map(delay => window.setTimeout(() => move("auto"), delay));
+    }
+    if (pendingSectionScrollRef.current?.token === request.token) pendingSectionScrollRef.current = null;
+    return true;
   };
+
+  const scrollToSection = (id: string, behavior: ScrollBehavior = "smooth", exact = false) => {
+    const request = { id, behavior, exact, token: ++sectionScrollTokenRef.current };
+    pendingSectionScrollRef.current = request;
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => { applySectionScroll(request); }));
+  };
+
+  useLayoutEffect(() => {
+    const request = pendingSectionScrollRef.current;
+    if (!request || activeRepo || activeNoteSlug || notFoundPath) return;
+    applySectionScroll(request);
+  }, [activeRepo, activeNoteSlug, notFoundPath]);
+
+  useEffect(() => () => {
+    sectionScrollTimersRef.current.forEach(timer => window.clearTimeout(timer));
+  }, []);
 
   const openNote = (slug: string, updateHistory = true) => {
     const note = engineeringNotes.find(item => item.slug === slug);
@@ -1221,7 +1257,7 @@ export default function Home() {
     if (returnToNotes) {
       setActiveSectionPath("/notes");
       if (window.location.pathname !== "/notes") window.history.pushState({}, "", "/notes");
-      scrollToSection("notes");
+      scrollToSection("notes", "auto", true);
     } else {
       setActiveSectionPath("/home");
       if (window.location.pathname !== "/") window.history.pushState({}, "", "/");
@@ -1283,7 +1319,7 @@ export default function Home() {
         showHome(false, false);
         setActiveSectionPath(section.path);
         const target = section.path === "/projects" ? "work" : section.path === "/home" ? "home" : section.path.slice(1);
-        scrollToSection(target, "auto");
+        scrollToSection(target, "auto", section.path === "/notes");
         return;
       }
       if (path === "/") { showHome(false); return; }
