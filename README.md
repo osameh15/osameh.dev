@@ -436,6 +436,11 @@ The site also includes an in-app resume viewer and download/open controls.
 
 The most recent releases are summarized here. See **[CHANGELOG.md](CHANGELOG.md)** for the complete production history.
 
+### v4.2.2 — Contrast-test reliability patch
+
+- Corrected the Engineering Notes contrast selector to match the real Notes index markup.
+- Added fail-fast visibility assertions for every contrast target so CI reports the missing surface directly instead of timing out after 30 seconds.
+
 ### v4.2.1 — Release-test & navigation polish
 
 - Fixed the Playwright strict-mode collision between Skills Preview and the Resume Viewer preview plugin.

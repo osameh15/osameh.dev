@@ -4,6 +4,12 @@ All notable changes to **osameh.dev** are documented here.
 
 The project follows [Semantic Versioning](https://semver.org/). The early production releases were shipped in rapid succession while the portfolio was moved from its hosted prototype to the current ParsPack/CDN deployment.
 
+## 4.2.2 - 2026-09-02
+
+### Fixed
+- Updated the Engineering Notes light-theme contrast regression to target the section label that is actually rendered by the Notes index instead of the article-only eyebrow selector.
+- Contrast targets now assert visibility with a focused five-second failure message before evaluating computed colors, avoiding opaque full-test timeouts when markup changes.
+
 ## 4.2.1 - 2026-09-02
 
 ### Fixed

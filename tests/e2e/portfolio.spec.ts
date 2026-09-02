@@ -162,7 +162,10 @@ test("light theme keeps key interactive surfaces visible", async ({ page }) => {
 test("light theme meets contrast targets across primary surfaces", async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem("portfolio-theme", "light"));
 
-  const contrastRatio = async (selector: string) => page.locator(selector).first().evaluate(element => {
+  const contrastRatio = async (selector: string) => {
+    const target = page.locator(selector).first();
+    await expect(target, `Expected contrast target ${selector} on ${page.url()}`).toBeVisible({ timeout: 5_000 });
+    return target.evaluate(element => {
     const parse = (value: string) => {
       const values = value.match(/[\d.]+/g)?.map(Number) ?? [0, 0, 0];
       return values.slice(0, 3).map(channel => {
@@ -183,8 +186,9 @@ test("light theme meets contrast targets across primary surfaces", async ({ page
       current = current.parentElement;
     }
     const backdrop = luminance(parse(background));
-    return (Math.max(foreground, backdrop) + .05) / (Math.min(foreground, backdrop) + .05);
-  });
+      return (Math.max(foreground, backdrop) + .05) / (Math.min(foreground, backdrop) + .05);
+    });
+  };
 
   await page.goto("/");
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
@@ -201,7 +205,7 @@ test("light theme meets contrast targets across primary surfaces", async ({ page
   expect(await contrastRatio(".editor-tab.active"), "active project tab").toBeGreaterThanOrEqual(4.5);
 
   await page.goto("/notes");
-  expect(await contrastRatio(".engineering-notes .eyebrow"), "notes eyebrow").toBeGreaterThanOrEqual(4.5);
+  expect(await contrastRatio(".engineering-notes .section-heading > div > p"), "notes section label").toBeGreaterThanOrEqual(4.5);
 
   await page.goto("/missing-light-theme-route");
   expect(await contrastRatio(".not-found-view .eyebrow"), "404 eyebrow").toBeGreaterThanOrEqual(4.5);
