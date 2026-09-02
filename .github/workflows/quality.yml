@@ -38,12 +38,24 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          playwright_version="$(node -p "require('./package.json').devDependencies['@playwright/test'] || ''")"
+          lock_playwright_version=""
           if [[ -f package-lock.json ]]; then
-            npm ci --no-audit --no-fund
-          else
-            echo "::warning::package-lock.json is missing; using npm install. Commit the lockfile for reproducible CI."
-            npm install --no-audit --no-fund
+            lock_playwright_version="$(node -e "const l=require('./package-lock.json'); process.stdout.write(l.packages?.['node_modules/@playwright/test']?.version || '')")"
           fi
+
+          if [[ -f package-lock.json && -n "$playwright_version" && "$lock_playwright_version" == "$playwright_version" ]]; then
+            npm ci --include=dev --no-audit --no-fund
+          else
+            if [[ -f package-lock.json ]]; then
+              echo "::warning::package-lock.json does not contain @playwright/test ${playwright_version}; using npm install so CI can reconcile the stale lockfile. Commit the regenerated lockfile after the next local install."
+            else
+              echo "::warning::package-lock.json is missing; using npm install. Commit the lockfile for reproducible CI."
+            fi
+            npm install --include=dev --no-audit --no-fund
+          fi
+
+          npm ls --depth=0 "@playwright/test@${playwright_version}"
 
       - name: Repository quality gates
         run: npm run quality
@@ -76,10 +88,10 @@ jobs:
         run: npm run verify:dist
 
       - name: Install Playwright browser
-        run: npx playwright install --with-deps chromium
+        run: npm run test:e2e:install
 
       - name: Browser E2E and accessibility smoke
-        run: npx playwright test
+        run: npm run test:e2e
 
       - name: Lighthouse quality report
         shell: bash

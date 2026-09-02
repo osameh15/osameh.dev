@@ -412,13 +412,13 @@ npm run mood -- focused
 
 The reusable `.github/workflows/quality.yml` runs the release-critical sequence in one job so ordering is unambiguous:
 
-1. dependency install (`npm ci` when a lockfile is committed)
+1. dependency install (`npm ci` when the lockfile contains the pinned Playwright dependency; otherwise `npm install` reconciles a stale/missing lockfile)
 2. repository quality contracts
 3. TypeScript
 4. PHP lint
 5. staging or production build
 6. deployment bundle/local-link verification
-7. Playwright Chromium E2E/accessibility regressions
+7. pinned project `@playwright/test` Chromium E2E/accessibility regressions
 8. Lighthouse accessibility / best-practices / SEO thresholds
 9. upload tested `dist/` artifact for the calling deploy workflow
 

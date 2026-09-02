@@ -95,6 +95,14 @@ const sectionPositions = requiredSectionSequence.map(token => appSource.indexOf(
 if (sectionPositions.some(position => position < 0) || sectionPositions.some((position, index) => index > 0 && position <= sectionPositions[index - 1])) fail("Main section registry is out of document order");
 else pass("Main section registry matches Projects → Case Studies → Experience → GitHub Activity → Now");
 
+
+const packageManifest = JSON.parse(readFileSync(resolve("package.json"), "utf8"));
+const playwrightVersion = packageManifest?.devDependencies?.["@playwright/test"];
+if (playwrightVersion !== "1.62.1") fail("@playwright/test must be pinned to 1.62.1 for deterministic browser E2E");
+else pass("Playwright Test is an exact project devDependency");
+if (packageManifest?.scripts?.["test:e2e"] !== "playwright test" || packageManifest?.scripts?.["test:e2e:install"] !== "playwright install --with-deps chromium") fail("Playwright project scripts are missing or inconsistent");
+else pass("Playwright browser install/test commands are project-owned scripts");
+
 const stagingWorkflow = readFileSync(resolve(".github/workflows/staging.yml"), "utf8");
 const productionWorkflow = readFileSync(resolve(".github/workflows/deploy.yml"), "utf8");
 const qualityWorkflow = readFileSync(resolve(".github/workflows/quality.yml"), "utf8");
@@ -108,6 +116,8 @@ if (!/needs:\s*quality/.test(productionWorkflow) || !/needs\.quality\.result == 
 else pass("Production deploy waits for quality and uses all five production-only secrets");
 if (!/--env-password/.test(stagingWorkflow) || !/--env-password/.test(productionWorkflow) || !/LFTP_PASSWORD/.test(stagingWorkflow) || !/LFTP_PASSWORD/.test(productionWorkflow)) fail("FTPS workflows do not use lftp environment-password authentication");
 else pass("FTPS passwords stay out of lftp command arguments");
+if (!qualityWorkflow.includes("npm run test:e2e:install") || !qualityWorkflow.includes("npm run test:e2e") || /npx playwright/.test(qualityWorkflow)) fail("Quality workflow still relies on ephemeral npx Playwright instead of the project dependency");
+else pass("Quality workflow uses the pinned project Playwright dependency");
 if (!readFileSync(resolve(".github/workflows/availability.yml"), "utf8").includes("name: Set portfolio mood") || !readFileSync(resolve(".github/workflows/availability.yml"), "utf8").includes("npm run mood")) fail("Portfolio mood workflow contract is missing");
 else pass("Portfolio mood workflow updates develop through the central config");
 const e2ePosition = qualityWorkflow.indexOf("Browser E2E and accessibility smoke");

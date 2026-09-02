@@ -332,6 +332,15 @@ Create the production build:
 npm run build
 ```
 
+Run the browser regression suite locally:
+
+```bash
+npm run test:e2e:install   # one-time Chromium + OS dependencies
+npm run test:e2e
+```
+
+Playwright Test is pinned as a project devDependency, so local and CI runs use the same test-runner version instead of downloading an ephemeral `npx playwright` CLI.
+
 The build pipeline:
 
 1. generates the current build ID and timestamp
