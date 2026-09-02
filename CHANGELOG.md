@@ -8,21 +8,28 @@ The project follows [Semantic Versioning](https://semver.org/). The early produc
 
 ### Added
 - Privacy-safe Freelance / Client Case Studies with data-driven detail views, stable `/case-studies/<id>` deep links, crawler metadata, structured data, and sitemap coverage.
-- Central Availability Control surfaced through the header, File/Terminal workflows, with a single editable configuration for opportunity types, work modes, timezone, and contact CTA.
-- English/Persian internationalization foundation with persistent locale preference, `lang`/`dir` synchronization, RTL-aware layout isolation for technical content, and localized core portfolio/feature copy.
+- Central Availability Control surfaced through the header and Terminal, with a single editable configuration for opportunity types, work modes, timezone, and contact CTA.
 - Accessibility Control Center with persistent Reduce Motion, Increased Contrast, Larger Text, and Enhanced Focus preferences while respecting `prefers-reduced-motion`.
 - Universal Search on the existing `Ctrl/Cmd + K` command surface, ranked across projects, Engineering Notes, case studies, skills, experience, navigation, and portfolio settings.
-- Terminal commands for case studies, availability, accessibility, and language switching.
-- E2E regression coverage for locale persistence/RTL, accessibility persistence, availability, case-study deep links and Back restoration, Explorer scroll-spy integration, keyboard focus containment, Universal Search, and mobile modal constraints.
+- Terminal commands for case studies, availability, and accessibility.
+- E2E regression coverage for English-only document metadata, accessibility persistence, switch presentation, availability, case-study deep links and Back restoration, Explorer scroll-spy integration, keyboard focus containment, Universal Search, mobile Gallery selection, and v5 light-theme surfaces.
 
 ### Changed
-- Portfolio preferences now share one feature-settings layer instead of introducing separate state systems for language, accessibility, and availability.
-- Core home/navigation copy is locale-aware while technical identifiers, source code, repository names, package names, and programming terms remain isolated from RTL translation.
+- Product language is intentionally English-only. The planned EN/FA locale switcher, Persian UI copy, RTL product-state logic, and persisted locale preference were removed after product review.
+- `FeaturePreferencesProvider` now owns accessibility/modal preferences only; startup clears the legacy `portfolio-locale` key and enforces `lang="en"` / `dir="ltr"`.
+- Accessibility switches communicate state through the switch track/knob and `aria-checked`; redundant checkmark icons were removed.
+- All v5 feature surfaces now use the semantic v4.2 light-theme palette for backgrounds, borders, text, hover/focus states, switch tracks, dialogs, and case-study surfaces.
 - Case Studies are integrated into Explorer/navigation and recruiter-facing discovery without fabricating client names or private business metrics.
-- Case-study close and browser Back restoration now use the same post-render anchor strategy as Engineering Notes, preventing mixed-section landing positions.
+- Case-study close and browser Back restoration use the same post-render anchor strategy as Engineering Notes.
 - Availability labels, visual state, opportunity types, and work modes are derived from one status/config source instead of duplicated UI copy.
 - Feature dialogs contain keyboard focus while open and restore page scrolling on close.
-- Repository metadata now advertises the completed 15/15 product roadmap capabilities.
+- README release history is explicitly capped at the six most recent releases; `CHANGELOG.md` remains the complete release history.
+
+### Fixed
+- Engineering Notes TOC now selects the final heading reliably when manual scrolling reaches the document end.
+- Engineering Notes section restoration remains pinned to the intended sticky-header offset while asynchronous content above the section settles.
+- Mobile project quick access selects Gallery at the document end instead of leaving the previous section active.
+- Universal Search resets keyboard selection synchronously when the query changes, keeping Enter aligned with the top-ranked result.
 
 ### Security
 - Case studies expose only deliberately anonymized, high-level professional information; no private client names, secrets, deployment credentials, or internal metrics are published.

@@ -120,6 +120,13 @@ export function EngineeringNoteView({ slug, onClose }: { slug: string; onClose: 
       const root = articleRef.current;
       if (!root) return;
       const probe = Math.max(110, Math.min(window.innerHeight * .24, 190));
+      const atDocumentEnd = window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 4;
+      if (atDocumentEnd) {
+        navigationTargetRef.current = "";
+        const last = toc[toc.length - 1]?.id || "";
+        setActiveTocId(value => value === last ? value : last);
+        return;
+      }
       const navigationTarget = navigationTargetRef.current ? headingFor(navigationTargetRef.current) : null;
       if (navigationTarget && navigationTarget.getBoundingClientRect().top > probe + 8) return;
       navigationTargetRef.current = "";

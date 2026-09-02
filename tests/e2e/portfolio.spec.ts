@@ -155,15 +155,14 @@ test("feature dialogs keep keyboard focus contained", async ({ page }) => {
   expect(await dialog.evaluate(element => element.contains(document.activeElement))).toBe(true);
 });
 
-test("language preference switches document direction and persists", async ({ page }) => {
+test("site remains English-only and clears legacy locale preference", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("portfolio-locale", "fa"));
   await page.goto("/");
-  await page.getByRole("button", { name: /Language: English/i }).click();
-  await expect(page.locator("html")).toHaveAttribute("lang", "fa");
-  await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
-  await expect(page.getByRole("heading", { name: /نرم‌افزاری می‌سازم/ })).toBeVisible();
-  expect(await page.evaluate(() => localStorage.getItem("portfolio-locale"))).toBe("fa");
-  await page.reload();
-  await expect(page.locator("html")).toHaveAttribute("lang", "fa");
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  await expect(page.locator("html")).toHaveAttribute("dir", "ltr");
+  await expect(page.getByRole("heading", { name: /I build software/i })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Language:/i })).toHaveCount(0);
+  expect(await page.evaluate(() => localStorage.getItem("portfolio-locale"))).toBeNull();
 });
 
 test("accessibility control center persists preferences", async ({ page }) => {
@@ -171,6 +170,7 @@ test("accessibility control center persists preferences", async ({ page }) => {
   await page.getByRole("button", { name: "Accessibility" }).click();
   const dialog = page.getByRole("dialog", { name: /Accessibility Control Center/i });
   await expect(dialog).toBeVisible();
+  await expect(dialog.locator(".accessibility-toggle > i svg")).toHaveCount(0);
   await dialog.getByRole("switch", { name: /Reduce motion/i }).click();
   await dialog.getByRole("switch", { name: /Enhanced focus indicators/i }).click();
   await expect(page.locator("html")).toHaveAttribute("data-reduce-motion", "true");
@@ -225,6 +225,29 @@ test("mobile project toolbar selects Gallery at the document end", async ({ page
     if (!navBox || !galleryBox) return false;
     return galleryBox.x >= navBox.x - 1 && galleryBox.x + galleryBox.width <= navBox.x + navBox.width + 1;
   }).toBe(true);
+});
+
+test("v5 feature surfaces use the redesigned light-theme palette", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("portfolio-theme", "light"));
+  await page.goto("/case-studies");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  const cardBackground = await page.locator(".case-study-card").first().evaluate(element => getComputedStyle(element).backgroundColor);
+  expect(cardBackground).toBe("rgb(255, 255, 255)");
+  await page.getByRole("button", { name: /Open case study/i }).first().click();
+  const caseModalBackground = await page.locator(".case-study-modal").evaluate(element => getComputedStyle(element).backgroundColor);
+  expect(caseModalBackground).not.toBe("rgb(15, 20, 16)");
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Accessibility" }).click();
+  const toggleBackground = await page.getByRole("switch", { name: /Reduce motion/i }).evaluate(element => getComputedStyle(element).backgroundColor);
+  expect(toggleBackground).toBe("rgb(255, 255, 255)");
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: /Availability: Open to selected opportunities/i }).click();
+  const availabilitySurface = await page.locator(".availability-details > div").first().evaluate(element => getComputedStyle(element).backgroundColor);
+  expect(availabilitySurface).toBe("rgb(255, 255, 255)");
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("Control+K");
+  const searchSurface = await page.getByRole("dialog", { name: "Universal Search" }).evaluate(element => getComputedStyle(element).backgroundColor);
+  expect(searchSurface).not.toBe("rgb(15, 20, 16)");
 });
 
 test("light theme meets contrast targets across primary surfaces", async ({ page }) => {

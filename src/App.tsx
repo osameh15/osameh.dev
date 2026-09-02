@@ -15,7 +15,7 @@ import { FeaturedProjects, ProjectArchitecture, ProjectCaseStudyV3, ProjectMetad
 import { fetchPortfolioMetadata, type PortfolioMetadata } from "./projectMetadata";
 import { EngineeringNotesSection, EngineeringNoteView } from "./EngineeringNotes";
 import { engineeringNotes } from "./notesData";
-import { AccessibilityControlButton, AvailabilityBadge, CaseStudiesSection, CaseStudyModal, LanguageControl, PortfolioFeatureModals, caseStudies, usePortfolioFeatures } from "./PortfolioFeatures";
+import { AccessibilityControlButton, AvailabilityBadge, CaseStudiesSection, CaseStudyModal, PortfolioFeatureModals, caseStudies, usePortfolioFeatures } from "./PortfolioFeatures";
 import type { CaseStudy } from "./caseStudiesData";
 
 type ThemePreference = "dark" | "light" | "system";
@@ -107,15 +107,23 @@ function universalSearchScore(query: string, item: Pick<PaletteCommand, "label" 
   if (!q) return 1;
   const label = item.label.toLowerCase();
   const haystack = `${item.label} ${item.hint} ${item.keywords}`.toLowerCase();
+  const compact = (value: string) => value.replace(/[^a-z0-9]+/g, "");
+  const compactQuery = compact(q);
+  const compactLabel = compact(label);
+  const compactHaystack = compact(haystack);
   if (label === q) return 1000;
   if (label.startsWith(q)) return 800;
   if (label.includes(q)) return 650;
+  // Treat punctuation and separators as search-neutral so queries such as
+  // "realtime communications" rank "real-time communications" naturally.
+  if (compactQuery && compactLabel.includes(compactQuery)) return 625;
   if (haystack.includes(q)) return 500;
+  if (compactQuery && compactHaystack.includes(compactQuery)) return 475;
   const tokens = q.split(/\s+/).filter(Boolean);
-  if (tokens.every(token => haystack.includes(token))) return 350 + tokens.length * 10;
+  if (tokens.every(token => haystack.includes(token) || compactHaystack.includes(compact(token)))) return 350 + tokens.length * 10;
   let cursor = 0;
-  for (const char of q.replace(/\s+/g, "")) {
-    cursor = haystack.indexOf(char, cursor);
+  for (const char of compactQuery) {
+    cursor = compactHaystack.indexOf(char, cursor);
     if (cursor < 0) return -1;
     cursor += 1;
   }
@@ -478,7 +486,7 @@ function HeroShowcase({ codeLanguage, repoCount }: { codeLanguage: CodeLanguage;
 }
 
 export default function Home() {
-  const { locale, setLocale, t, setAccessibilityOpen, setAvailabilityOpen } = usePortfolioFeatures();
+  const { t, setAccessibilityOpen, setAvailabilityOpen } = usePortfolioFeatures();
   const [menuOpen, setMenuOpen] = useState(false);
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
   const [activeSectionPath, setActiveSectionPath] = useState<string>("/home");
@@ -543,7 +551,9 @@ export default function Home() {
   const panelResizeRef = useRef<{ startY: number; startHeight: number } | null>(null);
   const keyboardChordRef = useRef<{ key: string; at: number } | null>(null);
   const actionToastTimerRef = useRef<number | null>(null);
-  const pendingSectionRestoreRef = useRef<{ id: string; behavior: ScrollBehavior } | null>(null);
+  const pendingSectionScrollRef = useRef<{ id: string; behavior: ScrollBehavior; exact: boolean; token: number } | null>(null);
+  const sectionScrollTokenRef = useRef(0);
+  const sectionScrollTimersRef = useRef<number[]>([]);
   useEffect(() => {
     const previous = window.history.scrollRestoration;
     window.history.scrollRestoration = "manual";
@@ -1226,27 +1236,56 @@ export default function Home() {
     if (scrollToTop) window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const scrollToSection = (id: string, behavior: ScrollBehavior = "smooth") => {
-    window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
-      const target = document.getElementById(id);
-      if (!target) return;
+  const applySectionScroll = (request: { id: string; behavior: ScrollBehavior; exact: boolean; token: number }) => {
+    if (request.token !== sectionScrollTokenRef.current) return false;
+    const target = document.getElementById(request.id);
+    if (!target) return false;
+
+    const move = (behavior: ScrollBehavior) => {
+      if (request.token !== sectionScrollTokenRef.current) return;
+      const currentTarget = document.getElementById(request.id);
+      if (!currentTarget) return;
       const stickyOffset = window.innerWidth <= 720 ? 72 : 96;
-      const top = target.getBoundingClientRect().top + window.scrollY - stickyOffset;
-      window.scrollTo({ top: Math.max(0, top), behavior });
-    }));
+      const top = currentTarget.getBoundingClientRect().top + window.scrollY - stickyOffset;
+      const destination = Math.max(0, top);
+      if (request.exact) {
+        const root = document.documentElement;
+        const previousScrollBehavior = root.style.scrollBehavior;
+        root.style.scrollBehavior = "auto";
+        window.scrollTo(0, destination);
+        root.style.scrollBehavior = previousScrollBehavior;
+        return;
+      }
+      window.scrollTo({ top: destination, behavior });
+    };
+
+    move(request.exact ? "auto" : request.behavior);
+    if (request.exact) {
+      sectionScrollTimersRef.current.forEach(timer => window.clearTimeout(timer));
+      // Re-apply after async content/layout settles. 4.2.x used the first two
+      // passes; the later passes protect Notes/Case Studies from v5 content
+      // above the target changing height after Browser Back.
+      sectionScrollTimersRef.current = [60, 220, 500, 900].map(delay => window.setTimeout(() => move("auto"), delay));
+    }
+    if (pendingSectionScrollRef.current?.token === request.token) pendingSectionScrollRef.current = null;
+    return true;
+  };
+
+  const scrollToSection = (id: string, behavior: ScrollBehavior = "smooth", exact = false) => {
+    const request = { id, behavior, exact, token: ++sectionScrollTokenRef.current };
+    pendingSectionScrollRef.current = request;
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => { applySectionScroll(request); }));
   };
 
   useLayoutEffect(() => {
-    const pending = pendingSectionRestoreRef.current;
-    if (!pending || activeNoteSlug !== null || activeRepo !== null || activeCaseStudy !== null || notFoundPath !== null || resumeOpen) return;
-    const target = document.getElementById(pending.id);
-    if (!target) return;
+    const request = pendingSectionScrollRef.current;
+    if (!request || activeRepo || activeNoteSlug || activeCaseStudy || notFoundPath || resumeOpen) return;
+    applySectionScroll(request);
+  }, [activeRepo, activeNoteSlug, activeCaseStudy, notFoundPath, resumeOpen]);
 
-    pendingSectionRestoreRef.current = null;
-    const stickyOffset = window.innerWidth <= 720 ? 72 : 96;
-    const top = target.getBoundingClientRect().top + window.scrollY - stickyOffset;
-    window.scrollTo({ top: Math.max(0, top), behavior: pending.behavior });
-  }, [activeNoteSlug, activeRepo, activeCaseStudy, notFoundPath, resumeOpen]);
+  useEffect(() => () => {
+    sectionScrollTimersRef.current.forEach(timer => window.clearTimeout(timer));
+  }, []);
 
   const openNote = (slug: string, updateHistory = true) => {
     const note = engineeringNotes.find(item => item.slug === slug);
@@ -1267,14 +1306,13 @@ export default function Home() {
   };
 
   const closeNote = (returnToNotes = true) => {
-    if (returnToNotes) pendingSectionRestoreRef.current = { id: "notes", behavior: "auto" };
     setActiveNoteSlug(null);
     document.title = "Osameh Irandoust — Software Engineer";
     if (returnToNotes) {
       setActiveSectionPath("/notes");
       if (window.location.pathname !== "/notes") window.history.pushState({}, "", "/notes");
+      scrollToSection("notes", "auto", true);
     } else {
-      pendingSectionRestoreRef.current = null;
       setActiveSectionPath("/home");
       if (window.location.pathname !== "/") window.history.pushState({}, "", "/");
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -1296,14 +1334,12 @@ export default function Home() {
   };
 
   const closeCaseStudy = (returnToSection = true) => {
-    if (returnToSection) pendingSectionRestoreRef.current = { id: "case-studies", behavior: "auto" };
     setActiveCaseStudy(null);
     document.title = "Osameh Irandoust — Software Engineer";
     if (returnToSection) {
       setActiveSectionPath("/case-studies");
       if (window.location.pathname !== "/case-studies") window.history.pushState({}, "", "/case-studies");
-    } else {
-      pendingSectionRestoreRef.current = null;
+      scrollToSection("case-studies", "auto", true);
     }
   };
 
@@ -1363,12 +1399,11 @@ export default function Home() {
       }
       const section = sections.find(item => item.path === path);
       if (section) {
-        const target = section.path === "/projects" ? "work" : section.path === "/home" ? "home" : section.path.slice(1);
-        const returningFromDetail = activeNoteSlug !== null || activeRepo !== null || activeCaseStudy !== null || notFoundPath !== null;
-        if (returningFromDetail) pendingSectionRestoreRef.current = { id: target, behavior: "auto" };
         showHome(false, false);
         setActiveSectionPath(section.path);
-        if (!returningFromDetail) scrollToSection(target, "auto");
+        const target = section.path === "/projects" ? "work" : section.path === "/home" ? "home" : section.path.slice(1);
+        const exact = section.path === "/notes" || section.path === "/case-studies";
+        scrollToSection(target, "auto", exact);
         return;
       }
       if (path === "/") { showHome(false); return; }
@@ -1376,7 +1411,7 @@ export default function Home() {
     };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, [repos, activeNoteSlug, activeRepo, activeCaseStudy, notFoundPath]);
+  }, [repos]);
 
   const projectSearchText = (repo: GithubRepo) => {
     const meta = repoMetadata[repo.name];
@@ -1397,7 +1432,7 @@ export default function Home() {
 
   const terminalBaseCommands = [
     "help", "whoami", "ls", "exp", "skills", "projects", "contact", "version", "build", "neofetch",
-    "resume", "recruiter", "now", "changelog", "notes", "case-studies", "availability", "accessibility", "language", "health", "status", "diagnostics", "install", "shortcuts", "theme",
+    "resume", "recruiter", "now", "changelog", "notes", "case-studies", "availability", "accessibility", "health", "status", "diagnostics", "install", "shortcuts", "theme",
     "clear", "sudo hire osameh", "sudo su", "cat welcome.txt",
     ...sections.map(item => item.path),
   ];
@@ -1484,7 +1519,6 @@ export default function Home() {
         "case-studies  professional case studies",
         "availability  current collaboration status",
         "accessibility open accessibility controls",
-        "language      toggle English / Persian",
         "health        live origin and GitHub health center",
         "status        local diagnostics",
         "install       install the PWA when available",
@@ -1550,7 +1584,6 @@ export default function Home() {
     if (command === "case-studies" || command === "cases") { setTerminalLines(lines => [...lines, "› " + raw, "opening /case-studies…"]); setSearchResults([]); goTo(sections[8]); return; }
     if (command === "availability") { setTerminalLines(lines => [...lines, "› " + raw, t("availability")]); setSearchResults([]); setAvailabilityOpen(true); return; }
     if (command === "accessibility" || command === "a11y") { setTerminalLines(lines => [...lines, "› " + raw, "opening accessibility controls…"]); setSearchResults([]); setAccessibilityOpen(true); return; }
-    if (command === "language" || command === "lang") { const nextLocale = locale === "en" ? "fa" : "en"; setLocale(nextLocale); setTerminalLines(lines => [...lines, "› " + raw, `language → ${nextLocale}`]); setSearchResults([]); return; }
     if (command === "health" || command === "status-server") { setTerminalLines(lines => [...lines, "› " + raw, "opening live system health…"]); setSearchResults([]); window.dispatchEvent(new Event("portfolio:diagnostics")); return; }
     if (command.startsWith("cat note ")) { const slug = raw.slice(9).trim().toLowerCase(); const note = engineeringNotes.find(item => item.slug === slug); if (note) { setTerminalLines(lines => [...lines, "› " + raw, `opening ${slug}.md…`]); setSearchResults([]); openNote(note.slug); } else { setTerminalLines(lines => [...lines, "› " + raw, `note not found: ${slug}`]); } return; }
     if (command.startsWith("notes ")) { const noteQuery = raw.slice(6).trim().toLowerCase(); const matches = engineeringNotes.filter(note => `${note.title} ${note.summary} ${note.tags.join(" ")} ${note.slug}`.toLowerCase().includes(noteQuery)); setTerminalLines(lines => [...lines, "› " + raw, matches.length ? `Found ${matches.length} engineering note${matches.length === 1 ? "" : "s"}.` : `No notes match “${noteQuery}”.`]); setSearchResults(matches.map(note => ({ label: note.title, path: `/notes/${note.slug}`, kind: "section" as const }))); return; }
@@ -1698,8 +1731,6 @@ export default function Home() {
     { id: "case-studies", label: "Open Case Studies", hint: "/case-studies", keywords: "case studies freelance client work outcomes architecture consulting", icon: "experience", action: () => goTo(sections[8]) },
     { id: "availability", label: t("availabilityTitle"), hint: t("availabilityShort"), keywords: "availability hiring freelance opportunities work recruiter", icon: "hire", action: () => setAvailabilityOpen(true) },
     { id: "accessibility", label: t("accessibilityTitle"), hint: "preferences", keywords: "accessibility contrast motion focus larger text wcag", icon: "theme", action: () => setAccessibilityOpen(true) },
-    { id: "language-en", label: "Language: English", hint: locale === "en" ? "current" : "switch", keywords: "language english en ltr", icon: "about", action: () => setLocale("en") },
-    { id: "language-fa", label: "زبان: فارسی", hint: locale === "fa" ? "current" : "switch", keywords: "language persian farsi fa rtl فارسی زبان", icon: "about", action: () => setLocale("fa") },
     { id: "resume", label: "Open Resume", hint: "resume.pdf", keywords: "resume cv download career", icon: "experience", action: () => window.dispatchEvent(new Event("portfolio:resume")) },
     { id: "recruiter", label: "Start Recruiter Mode", hint: "guided tour", keywords: "recruiter tour featured hiring shortlist", icon: "hire", action: () => setRecruiterModeOpen(true) },
     { id: "diagnostics", label: "System Health Center", hint: "/status", keywords: "status health diagnostics latency system pwa api build github", icon: "build", action: () => window.dispatchEvent(new Event("portfolio:diagnostics")) },
@@ -1796,10 +1827,6 @@ export default function Home() {
             <div className="menu-group"><p><Code2 size={13} /> Programming language</p>
               {(Object.entries(codeProfiles) as [CodeLanguage, typeof code][]).map(([id, profile]) => <button key={id} onClick={() => setCodeLanguage(id)}><span><i className="language-dot" />{profile.label}</span>{codeLanguage === id && <Check size={14} />}</button>)}
             </div>
-            <div className="menu-group"><p>🌐 {t("language")}</p>
-              <button onClick={() => setLocale("en")}><span>English</span>{locale === "en" && <Check size={14} />}</button>
-              <button onClick={() => setLocale("fa")}><span>فارسی</span>{locale === "fa" && <Check size={14} />}</button>
-            </div>
             <div className="menu-group"><p>♿ {t("accessibility")}</p>
               <button onClick={() => { setFileMenuOpen(false); setAccessibilityOpen(true); }}><span>{t("accessibilityTitle")}</span><ChevronRight size={14} /></button>
             </div>
@@ -1811,7 +1838,6 @@ export default function Home() {
         </nav>
         <div className="header-actions">
           <PwaInstallControl />
-          <LanguageControl />
           <AccessibilityControlButton />
           <AvailabilityBadge />
           <button className="menu-button" onClick={() => setMenuOpen(!menuOpen)} aria-label="Toggle menu">{menuOpen ? <X size={20} /> : <Menu size={20} />}</button>
@@ -2084,7 +2110,7 @@ export default function Home() {
         </div>}
         {commandPaletteOpen && <div className="command-palette-backdrop" role="presentation" onMouseDown={() => setCommandPaletteOpen(false)}>
           <section className="command-palette" role="dialog" aria-modal="true" aria-label={t("universalSearch")} onMouseDown={event => event.stopPropagation()}>
-            <div className="command-palette-search"><Search size={17} /><input ref={commandPaletteInputRef} value={commandQuery} onChange={event => setCommandQuery(event.target.value)} onKeyDown={event => {
+            <div className="command-palette-search"><Search size={17} /><input ref={commandPaletteInputRef} value={commandQuery} onChange={event => { setCommandQuery(event.target.value); setCommandIndex(0); }} onKeyDown={event => {
               if (event.key === "Escape") { event.preventDefault(); setCommandPaletteOpen(false); return; }
               if (event.key === "ArrowDown") { event.preventDefault(); if (filteredPaletteCommands.length) setCommandIndex(index => (Math.min(index, filteredPaletteCommands.length - 1) + 1) % filteredPaletteCommands.length); return; }
               if (event.key === "ArrowUp") { event.preventDefault(); if (filteredPaletteCommands.length) setCommandIndex(index => (Math.min(index, filteredPaletteCommands.length - 1) - 1 + filteredPaletteCommands.length) % filteredPaletteCommands.length); return; }

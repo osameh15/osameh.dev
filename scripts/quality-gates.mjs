@@ -48,6 +48,21 @@ for (const php of ["public/project.php", "public/note.php", "public/case-study.p
   if (existsSync(resolve(php))) pass(`${php} present`); else fail(`${php} missing`);
 }
 
+const readme = readFileSync(resolve("README.md"), "utf8");
+const releaseSection = readme.split("## Release history")[1]?.split("## License")[0] || "";
+const readmeReleaseCount = (releaseSection.match(/^### v\d+/gm) || []).length;
+if (readmeReleaseCount <= 6) pass(`README release summary capped at ${readmeReleaseCount}/6 releases`);
+else fail(`README release summary contains ${readmeReleaseCount} releases; maximum is 6`);
+if (!/English-only/i.test(readme) || /English \/ Persian i18n|EN\/FA i18n/i.test(readme)) fail("README language contract is not consistently English-only");
+else pass("README English-only product contract");
+
+const appSource = readFileSync(resolve("src/App.tsx"), "utf8");
+const featureSource = readFileSync(resolve("src/PortfolioFeatures.tsx"), "utf8");
+if (/LanguageControl|setLocale\(|portfolio-locale/.test(appSource)) fail("App still contains locale-switching UI/state");
+else pass("App contains no locale switcher");
+if (/type Locale =|setLocale\(|data-locale=/.test(featureSource)) fail("Feature preferences still contain locale switching");
+else pass("Feature preferences are English-only");
+
 if (failures.length) {
   console.error(`\nQuality gates failed (${failures.length}).`);
   process.exit(1);

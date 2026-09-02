@@ -16,6 +16,11 @@ A production portfolio for **Osameh Irandoust**, designed as an IDE-inspired wor
 - Per-project architecture viewer and same-origin public source explorer
 - Live project metrics with language percentages, license, repository size, update signals, and latest release data
 - Metadata-driven project case studies, search, technology filters, sorting, and two-project comparison
+- Privacy-safe professional/client case studies with deep links and crawler metadata
+- Central availability status surfaced in the header and Terminal
+- Accessibility Control Center with persistent motion, contrast, text-size, and focus preferences
+- Ranked Universal Search integrated into the existing `Ctrl/Cmd + K` Command Palette
+- English-only product interface with a fixed `lang="en"` / `dir="ltr"` document contract
 - Context-aware custom context menu and `Ctrl/Cmd + K` Command Palette
 - Interactive terminal with the backtick (`) shortcut, autofocus, resize/maximize support, and developer commands
 - Built-in resume viewer and packaged PDF CV
@@ -356,15 +361,14 @@ On tablet and mobile, the table of contents becomes a sticky horizontal navigati
 
 ## v5 product layer
 
-The original 15-feature roadmap is now complete. The final product layer adds:
+The v5 product layer resolves the remaining roadmap work with four shipped product features. The planned EN/FA localization item was intentionally dropped after product review; **osameh.dev is English-only** and keeps a fixed `lang="en"` / `dir="ltr"` contract.
 
 - **Freelance / Client Case Studies** — privacy-safe, data-driven professional stories with deep links, SEO metadata, sitemap entries, and no fabricated client metrics.
 - **Availability Control** — one central availability configuration surfaced in the header, Terminal, and recruiter-facing workflow.
-- **English / Persian i18n** — persistent locale selection, `lang`/`dir` synchronization, localized core copy, RTL-aware layout behavior, and LTR isolation for code/repository identifiers.
 - **Accessibility Control Center** — persistent reduced-motion, increased-contrast, larger-text, and enhanced-focus preferences with OS reduced-motion support.
-- **Universal Search** — the existing `Ctrl/Cmd + K` palette now ranks navigation, projects, notes, case studies, skills, experience, and settings instead of relying on raw substring filtering.
+- **Universal Search** — the existing `Ctrl/Cmd + K` palette ranks navigation, projects, notes, case studies, skills, experience, and settings instead of relying on raw substring filtering.
 
-These preferences share a single `FeaturePreferencesProvider` rather than separate global state systems.
+Accessibility preferences remain centralized in `FeaturePreferencesProvider`; legacy locale state is removed on startup.
 
 ## Deployment
 
@@ -448,59 +452,43 @@ The site also includes an in-app resume viewer and download/open controls.
 
 ## Release history
 
-The most recent releases are summarized here. See **[CHANGELOG.md](CHANGELOG.md)** for the complete production history.
+The **six most recent releases** are summarized here. See **[CHANGELOG.md](CHANGELOG.md)** for the complete production history. This section is intentionally capped at six releases.
 
-### v5.0.0 — Roadmap complete
+### v5.0.0 — Product roadmap milestone
 
-- completes all 15 major roadmap features with professional case studies, availability, EN/FA i18n, accessibility controls, and Universal Search
-- adds case-study deep links plus server-side crawler metadata and sitemap discovery
-- adds persistent language/accessibility preferences without duplicating the existing theme architecture
-- upgrades `Ctrl/Cmd + K` into ranked site-wide discovery and extends Terminal integration
+- adds professional case studies, centralized availability, Accessibility Control Center, and ranked Universal Search
+- standardizes the product on English-only UI and removes the planned EN/FA locale switcher and legacy locale preference
+- hardens Engineering Notes Back/TOC behavior, mobile Gallery selection, and deterministic Universal Search keyboard execution
+- applies the v4.2 semantic light-theme palette to every new v5 surface and simplifies accessibility switches to visual state only
 
 ### v4.2.2 — Light-theme regression hardening
 
 - keeps the 4.2 semantic light-theme redesign protected by stricter Engineering Notes and primary-surface contrast regressions
 - follows the 4.2.1 mobile gallery/notes restoration fixes and the 4.2.0 cross-shell light-theme redesign
 
+### v4.2.1 — Light-theme and mobile regressions
+
+- tightened light-theme Skills Preview contrast checks
+- kept the mobile project Gallery quick-access item visible when active at the end of the document
+- made Engineering Notes restoration deterministic by bypassing smooth scrolling on return
+
+### v4.2.0 — Semantic light-theme redesign
+
+- moved light-theme behavior into a dedicated semantic override layer loaded after the base styles
+- aligned IDE shell, project intelligence, Notes, modals, compare surfaces, and interactive states with the redesigned palette
+- expanded browser contrast coverage for the light-theme system
+
 ### v4.1.1 — Notes navigation stability
 
 - restores Engineering Notes at the exact section anchor after note close and browser Back
 - keeps the article TOC selected reliably across repeated clicks, smooth scrolling, and manual scrolling
 - vertically centers the PWA download/install action across desktop, tablet, and mobile header layouts
-- adds focused Playwright regressions for the remaining 4.1.0 navigation issues
 
 ### v4.1.0 — Responsive polish & notes navigation
 
 - strengthened light-theme contrast across activity, Notes, Source Explorer, Health Center, Changelog, and modal surfaces
-- Engineering Notes render six at a time and article TOC selection now follows scrolling/clicks reliably
-- fixed note-return scroll position, Health Center incomplete-row background, and release-node selection behavior
-- modals are capped to a scrollable 75vh and project quick access becomes a mobile bottom navigation rail
-
-### v4.0.0 — Production engineering layer
-
-- added dynamic project/note structured data and a runtime sitemap covering public repositories and engineering notes
-- added `develop` → `staging.osameh.dev` delivery with explicit noindex protection
-- added CI quality gates, Playwright browser smoke, accessibility checks, bundle/link validation, and Lighthouse thresholds
-- upgraded System Diagnostics into a live privacy-safe Health Center backed by `/api/health`
-- added Markdown Engineering Notes with deep links, TOC, code copy, share, Terminal search, and Command Palette access
-
-### v3.1.1 — Alignment & source status polish
-
-- aligned the changelog intro label with its adjacent explanatory copy
-- fixed Source Explorer footer clipping and vertically centered language, file size, and line count
-- added subtle status separators with dark/light theme support
-
-### v3.1.0 — Interactive hero & source polish
-
-- added subtle pointer parallax, animated counters, mini-terminal status, and language-aware Stack Surface content to the custom hero showcase
-- Source Explorer gives the repository tree its own visible scroll area and shows a dedicated loading state while file content is fetched
-- project quick-access rail is masked behind opaque icon pads so the vertical line never crosses through toolbar icons
-
-### v3.0.5 — Hero showcase redesign
-
-- replaced the generic orbit-style hero graphic with a custom engineering showcase
-- added workflow, impact, stack, and build-rhythm panels tailored to the portfolio’s engineering identity
-- introduced dedicated dark/light styling for the new first-screen experience
+- Engineering Notes render six at a time and article TOC selection follows scrolling/clicks reliably
+- capped large modals to a scrollable 75% viewport and added mobile project bottom navigation
 
 **Full history:** [CHANGELOG.md](CHANGELOG.md)
 

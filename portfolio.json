@@ -94,8 +94,7 @@
       "Engineering notes",
       "Client case studies",
       "Availability control",
-      "English / Persian i18n",
-      "RTL",
+      "English-only product interface",
       "Accessibility preferences",
       "Universal search"
     ]
@@ -122,7 +121,7 @@
       "Responsive mobile project navigation, viewport-capped modals, and scroll-synchronized Engineering Notes",
       "Privacy-safe professional client/freelance case studies with deep-link SEO metadata",
       "Central availability configuration integrated with header, Terminal and recruiter-facing flows",
-      "Persistent English/Persian localization with RTL-aware IDE shell behavior",
+      "English-only interface contract with fixed en/LTR document metadata and no locale-switching state",
       "Accessibility Control Center with reduced motion, contrast, text scale and enhanced focus preferences",
       "Universal Search across projects, notes, case studies, skills, experience and settings with ranked matching"
     ],
