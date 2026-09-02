@@ -17,7 +17,7 @@ A production portfolio for **Osameh Irandoust**, designed as an IDE-inspired wor
 - Live project metrics with language percentages, license, repository size, update signals, and latest release data
 - Metadata-driven project case studies, search, technology filters, sorting, and two-project comparison
 - Published freelance/client case studies with deep links and crawler metadata, plus a separate “What I can build” capability layer
-- Central availability status surfaced in the header and Terminal
+- Central availability status surfaced in the header and Terminal, driven by one config file with five preset states and an optional manual GitHub Actions updater
 - Accessibility Control Center with persistent motion, contrast, text-size, and focus preferences
 - Ranked Universal Search integrated into the IDE command surface, with a visible header action and `Ctrl/Cmd + Shift + P` shortcut
 - English-only product interface with a fixed `lang="en"` / `dir="ltr"` document contract
@@ -208,6 +208,10 @@ ls
 exp
 skills
 projects
+case-studies
+activity
+availability
+accessibility
 cat <repo>
 contact
 open <service>
@@ -345,9 +349,19 @@ Project deep links are rendered through a small PHP metadata layer before React 
 
 ## Staging and quality gates
 
-Production remains tied to `main`. The `develop` branch has a dedicated `staging.yml` workflow for `staging.osameh.dev`; the staging bundle removes canonical/OG URL metadata from the base document and forces `noindex,nofollow,noarchive` through both HTML/robots and response headers.
+Production and staging are deliberately isolated deployment channels:
 
-Quality gates now cover repository metadata, PHP syntax, TypeScript, deployment-bundle verification, local-link checks, browser E2E smoke, baseline accessibility assertions, and Lighthouse accessibility/best-practices/SEO thresholds.
+```text
+feature/* → develop → quality/E2E/Lighthouse → staging.osameh.dev
+                                      ↓ approved promotion
+                                    main → quality/E2E/Lighthouse → osameh.dev
+```
+
+`develop` uses `.github/workflows/staging.yml` and **only** the five `STAGING_FTP_*` secrets. `main` uses `.github/workflows/deploy.yml` and **only** the five production `FTP_*` secrets. Both call the reusable `quality.yml` workflow first. The deploy job cannot start until that quality job passes, and it downloads the exact `dist/` artifact that already passed build verification, Playwright E2E, and Lighthouse. The five names are intentionally asymmetric and must stay exactly as configured: staging uses `STAGING_FTP_HOST`, `STAGING_FTP_PORT`, `STAGING_FTP_USERNAME`, `STAGING_FTP_PASSWORD`, `STAGING_FTP_CERT_FINGERPRINT`; production uses `FTP_HOST`, `FTP_PORT`, `FTP_USERNAME`, `FTP_PASSWORD`, `FTP_CERT_FINGERPRINT`.
+
+The staging bundle removes canonical/OG URL metadata from the base document and forces `noindex,nofollow,noarchive` through HTML, `robots.txt`, and response headers. Production remains indexable.
+
+Quality gates cover repository metadata, availability configuration, PHP syntax, TypeScript, deployment-bundle verification, local-link checks, browser E2E smoke, accessibility behavior, modal-scroll regressions, navigation ordering, and Lighthouse accessibility/best-practices/SEO thresholds.
 
 ## System Health Center
 
@@ -361,14 +375,42 @@ On tablet and mobile, the table of contents becomes a sticky horizontal navigati
 
 ## v5 product layer
 
-The v5 product layer resolves the remaining roadmap work with four shipped product features. The planned EN/FA localization item was intentionally dropped after product review; **osameh.dev is English-only** and keeps a fixed `lang="en"` / `dir="ltr"` contract.
+Version 5.0.0 expands the portfolio with four product-facing capabilities built on top of the 4.2.2 IDE shell and semantic theme system:
 
 - **Freelance / Client Case Studies** — public, verifiable client work is separated from capability cards. The first published case study is **Amorella Beauty** (`https://amorellabeauty.ir/`); three experience-backed capability areas describe the kinds of systems I can build without presenting them as named client projects.
-- **Availability Control** — one central availability configuration surfaced in the header, Terminal, and recruiter-facing workflow.
+- **Portfolio Mood / Availability Control** — one central availability configuration drives the header status, recruiter-facing availability details, Terminal/Search metadata, and contact CTA.
 - **Accessibility Control Center** — persistent reduced-motion, increased-contrast, larger-text, and enhanced-focus preferences with OS reduced-motion support.
 - **Universal Search** — the IDE palette opens from the header or `Ctrl/Cmd + Shift + P` and ranks navigation, projects, notes, case studies, skills, experience, and settings instead of relying on raw substring filtering. `Ctrl/Cmd + K` remains a best-effort alias where the browser does not reserve it.
 
-Accessibility preferences remain centralized in `FeaturePreferencesProvider`; legacy locale state is removed on startup.
+Accessibility preferences are centralized in `FeaturePreferencesProvider`, while availability is driven by the repository-owned mood configuration described below.
+
+### Changing Portfolio Mood
+
+Availability is intentionally data-driven. The UI does not need to be edited when your status changes. The single source of truth is:
+
+```text
+config/availability.json
+```
+
+The built-in profiles are:
+
+```text
+open            Open to opportunities
+selective       Open to selected opportunities
+freelance       Available for freelance work
+focused         Heads down — limited availability
+unavailable     Not currently available
+```
+
+Change it locally with:
+
+```bash
+npm run mood -- freelance
+```
+
+Or run **Actions → Set portfolio mood** and choose a preset. The workflow commits only `config/availability.json` to `develop`; the normal staging quality/deploy pipeline then verifies the change on `staging.osameh.dev`. Production still requires the normal `develop → main` promotion.
+
+The active profile controls the header badge, Availability modal, Terminal/Universal Search status, CTA visibility, description, opportunity types, work modes, and timezone from the same config. To see all presets locally, run `npm run mood:list`. Legacy commands `open-selective` and `limited` are accepted as aliases for `selective` and `focused`. Every generated `build-info.json` also exposes `availabilityMood`, so staging/production can be checked to confirm which mood is actually deployed.
 
 ## Deployment
 
@@ -454,12 +496,14 @@ The site also includes an in-app resume viewer and download/open controls.
 
 The **six most recent releases** are summarized here. See **[CHANGELOG.md](CHANGELOG.md)** for the complete production history. This section is intentionally capped at six releases.
 
-### v5.0.0 — Product roadmap milestone
+### v5.0.0 — Portfolio product layer
 
-- adds the first published freelance case study (Amorella Beauty), a separate three-card capability layer, centralized availability, Accessibility Control Center, and ranked Universal Search
-- standardizes the product on English-only UI and removes the planned EN/FA locale switcher and legacy locale preference
-- hardens Engineering Notes Back/TOC behavior, mobile Gallery selection, and deterministic Universal Search keyboard execution
-- applies the v4.2 semantic light-theme palette to every new v5 surface and simplifies accessibility switches to visual state only
+- adds published freelance/client Case Studies, beginning with Amorella Beauty, plus a separate **What I can build** capability layer
+- introduces a five-state **Portfolio Mood** system for availability, editable from `config/availability.json`, local npm commands, or the **Set portfolio mood** GitHub Action
+- adds an Accessibility Control Center with persistent Reduce Motion, Increased Contrast, Larger Text, and Enhanced Focus preferences
+- upgrades the IDE command surface into ranked Universal Search for projects, Engineering Notes, case studies, skills, experience, navigation, and settings
+- adds GitHub Activity to Explorer/Outline navigation in the same sequence as the document and extends the v4.2 semantic light-theme system across every new v5 surface
+- separates staging and production deployment credentials while requiring the reusable quality pipeline and tested artifact before either environment can deploy
 
 ### v4.2.2 — Light-theme regression hardening
 
@@ -498,8 +542,25 @@ Choose and add a license before publishing if you want to explicitly define reus
 
 ## Continuous deployment
 
-Production delivery is automated with GitHub Actions. A push to `main` runs the TypeScript/Vite production build, validates the deployment bundle, uploads `dist/` to a dedicated ParsPack `public_html` FTP account over FTPS, and checks the public `build-info.json` fingerprint after deployment.
+CI/CD uses three separate responsibilities instead of mixing build/test/deploy credentials:
 
-Deployment credentials are stored as GitHub Actions repository secrets and the hosting account is scoped only to the web root. Runtime secrets such as the GitHub API token remain server-side outside `public_html` and are never copied by CI.
+1. `.github/workflows/quality.yml` — reusable **secret-free** quality gate: repository validation → TypeScript/PHP → build → bundle verification → Playwright → Lighthouse → tested artifact.
+2. `.github/workflows/staging.yml` — runs only for `develop`, waits for the quality job, then deploys the tested staging artifact with staging-only credentials.
+3. `.github/workflows/deploy.yml` — runs only for `main`, waits for the quality job, then deploys the tested production artifact with production-only credentials.
 
-See [`DEPLOYMENT.md`](DEPLOYMENT.md) for the required secrets and rollout procedure.
+The ten deployment secrets stay separated:
+
+```text
+Production                         Staging
+FTP_HOST                           STAGING_FTP_HOST
+FTP_PORT                           STAGING_FTP_PORT
+FTP_USERNAME                       STAGING_FTP_USERNAME
+FTP_PASSWORD                       STAGING_FTP_PASSWORD
+FTP_CERT_FINGERPRINT               STAGING_FTP_CERT_FINGERPRINT
+```
+
+Neither deployment job falls back to credentials from the other environment. Both validate the FTPS certificate fingerprint and perform a dedicated login preflight before `mirror --reverse`. This makes a `530 Login incorrect` failure explicit: verify the username/password/host for that environment in GitHub Actions; a remote-directory mistake occurs only *after* authentication and does not produce 530.
+
+Runtime secrets such as the GitHub API token remain server-side outside `public_html` and are never copied by CI.
+
+See [`DEPLOYMENT.md`](DEPLOYMENT.md) for rollout, staging protection, secret setup, FTPS troubleshooting, and rollback.

@@ -1,0 +1,73 @@
+name: Set portfolio mood
+
+on:
+  workflow_dispatch:
+    inputs:
+      mood:
+        description: Header availability mood to publish through develop → staging
+        required: true
+        type: choice
+        default: selective
+        options:
+          - open
+          - selective
+          - freelance
+          - focused
+          - unavailable
+
+concurrency:
+  group: osameh-portfolio-mood
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    name: Update mood config on develop
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout develop
+        uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set portfolio mood
+        run: npm run mood -- "${{ inputs.mood }}"
+
+      - name: Validate configuration
+        run: npm run quality
+
+      - name: Commit mood change
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- config/availability.json; then
+            echo "Portfolio mood is already '${{ inputs.mood }}'."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add config/availability.json
+          git commit -m "chore: set portfolio mood to ${{ inputs.mood }}"
+          git push origin HEAD:develop
+
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "### Portfolio mood"
+            echo
+            echo "- Requested mood: \`${{ inputs.mood }}\`"
+            echo "- Source of truth: \`config/availability.json\`"
+            echo "- Target branch: \`develop\`"
+            echo "- Next: the staging pipeline runs quality → E2E → Lighthouse → deploy."
+            echo "- Production changes only after the normal \`develop → main\` promotion."
+          } >> "$GITHUB_STEP_SUMMARY"

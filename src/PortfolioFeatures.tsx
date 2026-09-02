@@ -1,8 +1,10 @@
 import { createContext, useContext, useEffect, useMemo, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
-import { Accessibility, ArrowUpRight, ChevronRight, Globe2, Search, ShieldCheck, X } from "lucide-react";
+import { Accessibility as AccessibilityIcon, ArrowUpRight, ChevronRight, RotateCcw, Search, ShieldCheck, X } from "lucide-react";
+import availabilityData from "../config/availability.json";
+import { useModalScrollLock } from "./modalScroll";
 import { capabilities, caseStudies, type CaseStudy } from "./caseStudiesData";
 
-export type AvailabilityStatus = "open-selective" | "freelance" | "limited" | "unavailable";
+export type AvailabilityStatus = "open" | "selective" | "freelance" | "focused" | "unavailable";
 export type AccessibilityPreferences = {
   reduceMotion: boolean;
   highContrast: boolean;
@@ -10,20 +12,24 @@ export type AccessibilityPreferences = {
   strongFocus: boolean;
 };
 
-const availabilityStatusLabels: Record<AvailabilityStatus, string> = {
-  "open-selective": "Open to selected opportunities",
-  freelance: "Available for selected freelance work",
-  limited: "Limited availability",
-  unavailable: "Not currently available",
+type AvailabilityProfile = {
+  label: string;
+  shortLabel: string;
+  description: string;
+  ctaEnabled: boolean;
+  tone: AvailabilityStatus;
+};
+type AvailabilityConfig = {
+  activeStatus: AvailabilityStatus;
+  timezone: string;
+  opportunityTypes: string[];
+  workModes: string[];
+  email: string;
+  profiles: Record<AvailabilityStatus, AvailabilityProfile>;
 };
 
-export const availabilityConfig = {
-  status: "open-selective" as AvailabilityStatus,
-  timezone: "Asia/Tehran (UTC+3:30)",
-  opportunityTypes: ["Senior software engineering", "Full-stack / backend", "Selected freelance projects"],
-  workModes: ["Remote", "Hybrid", "Relocation-ready opportunities"],
-  email: "osirandoust@gmail.com",
-};
+export const availabilityConfig = availabilityData as AvailabilityConfig;
+export const availabilityProfile = availabilityConfig.profiles[availabilityConfig.activeStatus];
 
 const dictionary = {
   availability: "Open to selected opportunities",
@@ -137,6 +143,7 @@ export function FeaturePreferencesProvider({ children }: { children: ReactNode }
     root.lang = "en";
     root.dir = "ltr";
     delete root.dataset.locale;
+    root.dataset.availabilityMood = availabilityConfig.activeStatus;
     try { localStorage.removeItem("portfolio-locale"); } catch { /* storage can be unavailable */ }
 
     const isDetailRoute = /^\/(?:projects|notes|case-studies)\/[^/]+\/?$/.test(window.location.pathname);
@@ -179,13 +186,14 @@ export function usePortfolioFeatures() {
 
 export function AccessibilityControlButton() {
   const { setAccessibilityOpen, t } = usePortfolioFeatures();
-  return <button type="button" className="feature-icon-button" aria-label={t("accessibility")} title={t("accessibility")} onClick={() => setAccessibilityOpen(true)}><Accessibility size={16} aria-hidden="true" /></button>;
+  return <button type="button" className="feature-icon-button" aria-label={t("accessibility")} title={t("accessibility")} onClick={() => setAccessibilityOpen(true)}><AccessibilityIcon size={16} aria-hidden="true" /></button>;
 }
 
 export function AvailabilityBadge() {
   const { setAvailabilityOpen, t } = usePortfolioFeatures();
-  const statusLabel = availabilityStatusLabels[availabilityConfig.status];
-  return <button type="button" className={`availability availability-button availability-${availabilityConfig.status}`} onClick={() => setAvailabilityOpen(true)} aria-label={`${t("availabilityTitle")}: ${statusLabel}`}><i aria-hidden="true" /> <span>{statusLabel}</span></button>;
+  const status = availabilityConfig.activeStatus;
+  const profile = availabilityConfig.profiles[status];
+  return <button type="button" className={`availability availability-button availability-${status}`} data-mood={status} title={profile.label} onClick={() => setAvailabilityOpen(true)} aria-label={`${t("availabilityTitle")}: ${profile.label}`}><i aria-hidden="true" /> <span>{profile.shortLabel}</span></button>;
 }
 
 
@@ -214,39 +222,46 @@ function Toggle({ checked, onChange, label, help }: { checked: boolean; onChange
 
 export function PortfolioFeatureModals() {
   const { accessibility, setAccessibility, accessibilityOpen, setAccessibilityOpen, availabilityOpen, setAvailabilityOpen, t } = usePortfolioFeatures();
-  const availabilityStatusLabel = availabilityStatusLabels[availabilityConfig.status];
+  const availabilityStatus = availabilityConfig.activeStatus;
+  const activeAvailability = availabilityConfig.profiles[availabilityStatus];
+  const activeAccessibilityCount = Object.values(accessibility).filter(Boolean).length;
+  const resetAccessibility = () => setAccessibility(defaultAccessibility);
+  useModalScrollLock(accessibilityOpen || availabilityOpen);
   useEffect(() => {
     if (!accessibilityOpen && !availabilityOpen) return;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       setAccessibilityOpen(false);
       setAvailabilityOpen(false);
     };
     document.addEventListener("keydown", onKeyDown);
-    return () => { document.body.style.overflow = previousOverflow; document.removeEventListener("keydown", onKeyDown); };
+    return () => document.removeEventListener("keydown", onKeyDown);
   }, [accessibilityOpen, availabilityOpen, setAccessibilityOpen, setAvailabilityOpen]);
   return <>
     {accessibilityOpen && <div className="feature-modal-backdrop" role="presentation" onMouseDown={() => setAccessibilityOpen(false)}>
       <section className="feature-modal accessibility-center" role="dialog" aria-modal="true" aria-labelledby="accessibility-title" onKeyDown={trapDialogFocus} onMouseDown={event => event.stopPropagation()}>
-        <header><span><Accessibility size={16} /> <b id="accessibility-title">{t("accessibilityTitle")}</b></span><button type="button" autoFocus onClick={() => setAccessibilityOpen(false)} aria-label={t("close")}><X size={17} /></button></header>
+        <header><span><AccessibilityIcon size={16} /> <b id="accessibility-title">{t("accessibilityTitle")}</b></span><button type="button" autoFocus onClick={() => setAccessibilityOpen(false)} aria-label={t("close")}><X size={17} /></button></header>
         <div className="feature-modal-body">
+          <div className="accessibility-summary"><div><small>LIVE ACCESSIBILITY PROFILE</small><strong>{activeAccessibilityCount ? `${activeAccessibilityCount} preference${activeAccessibilityCount === 1 ? "" : "s"} active` : "Default interface"}</strong><p>Every switch updates the portfolio immediately and persists on this device.</p></div>{activeAccessibilityCount > 0 && <button type="button" className="accessibility-reset" onClick={resetAccessibility}><RotateCcw size={13} /> Reset</button>}</div>
           <Toggle checked={accessibility.reduceMotion} onChange={() => setAccessibility(current => ({ ...current, reduceMotion: !current.reduceMotion }))} label={t("reducedMotion")} help={t("reducedMotionHelp")} />
           <Toggle checked={accessibility.highContrast} onChange={() => setAccessibility(current => ({ ...current, highContrast: !current.highContrast }))} label={t("highContrast")} help={t("highContrastHelp")} />
           <Toggle checked={accessibility.largeText} onChange={() => setAccessibility(current => ({ ...current, largeText: !current.largeText }))} label={t("largeText")} help={t("largeTextHelp")} />
           <Toggle checked={accessibility.strongFocus} onChange={() => setAccessibility(current => ({ ...current, strongFocus: !current.strongFocus }))} label={t("strongFocus")} help={t("strongFocusHelp")} />
+          <div className="accessibility-live-preview" aria-label="Accessibility live preview">
+            <span className="accessibility-preview-dot" aria-hidden="true" />
+            <div><small>LIVE PREVIEW</small><b>Readable interface sample</b><p>Text scale, contrast, focus and motion preferences apply immediately across the portfolio.</p><button type="button">Keyboard focus sample</button></div>
+          </div>
           <p className="feature-modal-note"><ShieldCheck size={14} /> {t("systemPreference")}</p>
         </div>
       </section>
     </div>}
     {availabilityOpen && <div className="feature-modal-backdrop" role="presentation" onMouseDown={() => setAvailabilityOpen(false)}>
       <section className="feature-modal availability-modal" role="dialog" aria-modal="true" aria-labelledby="availability-title" onKeyDown={trapDialogFocus} onMouseDown={event => event.stopPropagation()}>
-        <header><span><Globe2 size={16} /> <b id="availability-title">{t("availabilityTitle")}</b></span><button type="button" autoFocus onClick={() => setAvailabilityOpen(false)} aria-label={t("close")}><X size={17} /></button></header>
+        <header><span><ShieldCheck size={16} /> <b id="availability-title">{t("availabilityTitle")}</b></span><button type="button" autoFocus onClick={() => setAvailabilityOpen(false)} aria-label={t("close")}><X size={17} /></button></header>
         <div className="feature-modal-body">
-          <div className={`availability-status-card availability-${availabilityConfig.status}`}><i /><div><small>{t("currentAvailability")}</small><strong>{availabilityStatusLabel}</strong></div></div>
+          <div className={`availability-status-card availability-${availabilityStatus}`}><i /><div><small>PORTFOLIO MOOD · {availabilityStatus.toUpperCase()}</small><strong>{activeAvailability.label}</strong><p>{activeAvailability.description}</p></div></div>
           <dl className="availability-details"><div><dt>{t("opportunities")}</dt><dd>{availabilityConfig.opportunityTypes.join(" · ")}</dd></div><div><dt>{t("workModes")}</dt><dd>{availabilityConfig.workModes.join(" · ")}</dd></div><div><dt>{t("timezone")}</dt><dd dir="ltr">{availabilityConfig.timezone}</dd></div></dl>
-          <a href={`mailto:${availabilityConfig.email}`} className="primary-btn availability-cta">{t("contact")} <ChevronRight size={15} /></a>
+          {activeAvailability.ctaEnabled ? <a href={`mailto:${availabilityConfig.email}`} className="primary-btn availability-cta">{t("contact")} <ChevronRight size={15} /></a> : <p className="availability-unavailable-note">New opportunities are paused. You can still explore the work and reconnect later.</p>}
         </div>
       </section>
     </div>}
@@ -261,7 +276,7 @@ export function CaseStudiesSection({ onOpen }: { onOpen: (study: CaseStudy) => v
 
     <div className="published-case-studies">
       <div className="published-case-studies-heading"><p>PUBLIC CLIENT WORK</p><h3>Published case studies.</h3></div>
-      <div className="case-study-grid">{caseStudies.map((study, index) => <article className="case-study-card" key={study.id}>
+      <div className="client-case-study-grid">{caseStudies.map((study, index) => <article className="case-study-card" key={study.id}>
         <header><span>{String(index + 1).padStart(2, "0")}</span><small>{study.privacy === "anonymized" ? t("confidential") : study.client}</small></header>
         <p className="case-study-type">{study.industry} · {study.projectType}</p><h3>{study.title}</h3><p>{study.summary}</p>
         <div className="case-study-stack">{study.stack.slice(0, 5).map(item => <span key={item}>{item}</span>)}</div>
@@ -283,13 +298,12 @@ export function CaseStudiesSection({ onOpen }: { onOpen: (study: CaseStudy) => v
 
 export function CaseStudyModal({ study, onClose }: { study: CaseStudy | null; onClose: () => void }) {
   const { t } = usePortfolioFeatures();
+  useModalScrollLock(Boolean(study));
   useEffect(() => {
     if (!study) return;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
     const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
     document.addEventListener("keydown", onKeyDown);
-    return () => { document.body.style.overflow = previousOverflow; document.removeEventListener("keydown", onKeyDown); };
+    return () => document.removeEventListener("keydown", onKeyDown);
   }, [study, onClose]);
   if (!study) return null;
   return <div className="feature-modal-backdrop" role="presentation" onMouseDown={onClose}>

@@ -2,6 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const pkg = JSON.parse(readFileSync(resolve("package.json"), "utf8"));
+const availability = JSON.parse(readFileSync(resolve("config/availability.json"), "utf8"));
 const now = new Date();
 const iso = now.toISOString();
 const compact = iso.replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
@@ -18,6 +19,7 @@ const info = {
   buildId,
   builtAt: iso,
   environment,
+  availabilityMood: availability.activeStatus,
 };
 writeFileSync(resolve("public/build-info.json"), JSON.stringify(info, null, 2) + "\n");
 console.log(`Prepared ${buildId}`);

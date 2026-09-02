@@ -15,6 +15,7 @@ import {
   type SourceTreeFile,
   type SourceTreePayload,
 } from "./projectMetadata";
+import { useModalScrollLock } from "./modalScroll";
 
 type RepoMetadataMap = Record<string, PortfolioMetadata | undefined>;
 
@@ -444,6 +445,7 @@ export function FeaturedProjects({ repos, metadata, onOpen, onRecruiterMode }: {
 }
 
 export function RecruiterMode({ open, repos, metadata, onClose, onOpenProject }: { open: boolean; repos: RepoLike[]; metadata: RepoMetadataMap; onClose: () => void; onOpenProject: (repo: RepoLike) => void }) {
+  useModalScrollLock(open);
   const featured = useMemo(() => repos
     .map(repo => ({ repo, meta: metadata[repo.name] || fallbackPortfolioMetadata(repo) }))
     .filter(item => item.meta.project.featured)

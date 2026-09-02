@@ -18,7 +18,7 @@ export function EngineeringNotesSection({ onOpenNote }: { onOpenNote: (slug: str
 
   return <section id="notes" className="engineering-notes section-pad" aria-labelledby="engineering-notes-title">
     <div className="section-heading">
-      <span>07</span>
+      <span>08</span>
       <div><p>ENGINEERING.NOTES/</p><h2 id="engineering-notes-title">Notes from the workbench.</h2></div>
       <span className="notes-count">{engineeringNotes.length} notes</span>
     </div>

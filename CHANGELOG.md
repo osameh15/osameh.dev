@@ -7,37 +7,25 @@ The project follows [Semantic Versioning](https://semver.org/). The early produc
 ## 5.0.0 - 2026-09-02
 
 ### Added
-- Freelance / Client Case Studies with a clear split between **published client work** and **capability areas**. Amorella Beauty is the first public case study, with a stable `/case-studies/amorella-beauty` deep link, crawler metadata, structured data, sitemap coverage, and a live-site link.
-- Central Availability Control surfaced through the header and Terminal, with a single editable configuration for opportunity types, work modes, timezone, and contact CTA.
-- Accessibility Control Center with persistent Reduce Motion, Increased Contrast, Larger Text, and Enhanced Focus preferences while respecting `prefers-reduced-motion`.
-- Universal Search on the IDE command surface, ranked across projects, Engineering Notes, case studies, skills, experience, navigation, and portfolio settings; it is discoverable from the header and uses `Ctrl/Cmd + Shift + P` as the conflict-safe primary shortcut.
-- Terminal commands for case studies, availability, and accessibility.
-- E2E regression coverage for English-only document metadata, accessibility persistence, switch presentation, availability, case-study deep links and Back restoration, Explorer scroll-spy integration, keyboard focus containment, Universal Search, mobile Gallery selection, and v5 light-theme surfaces.
+- Published **Freelance / Client Case Studies** with stable deep links, crawler metadata, structured data, sitemap coverage, and live-site links. **Amorella Beauty** is the first public client case study.
+- A separate **What I can build** capability layer for real-time communications, business-platform modernization, and marketplace/mobile product delivery, without presenting capability examples as named client work.
+- A five-state **Portfolio Mood** system for availability: `open`, `selective`, `freelance`, `focused`, and `unavailable`. One repository-owned `config/availability.json` value drives the header status, Availability modal, Terminal/Search metadata, CTA behavior, opportunity types, work modes, and timezone.
+- Local mood commands (`npm run mood -- <preset>` and `npm run mood:list`) plus a manual **Set portfolio mood** GitHub Action that updates `develop` and follows the normal staging verification flow before production promotion.
+- `availabilityMood` in generated `build-info.json` so the deployed mood can be verified independently on staging and production.
+- **Accessibility Control Center** with persistent Reduce Motion, Increased Contrast, Larger Text, and Enhanced Focus preferences, including operating-system reduced-motion support and accessible switch semantics.
+- Ranked **Universal Search** across navigation, projects, Engineering Notes, published case studies, capabilities, skills, experience, and portfolio settings, available from a visible header action and the conflict-safe `Ctrl/Cmd + Shift + P` shortcut.
+- Terminal integration for case studies, GitHub Activity, availability/mood status, and accessibility controls.
 
 ### Changed
-- Product language is intentionally English-only. The planned EN/FA locale switcher, Persian UI copy, RTL product-state logic, and persisted locale preference were removed after product review.
-- `FeaturePreferencesProvider` now owns accessibility/modal preferences only; startup clears the legacy `portfolio-locale` key and enforces `lang="en"` / `dir="ltr"`.
-- Accessibility switches communicate state through the switch track/knob and `aria-checked`; redundant checkmark icons were removed.
-- All v5 feature surfaces now use the semantic v4.2 light-theme palette for backgrounds, borders, text, hover/focus states, switch tracks, dialogs, and case-study surfaces.
-- Case Studies now appear immediately after Projects in the Explorer to match the page sequence. Three experience-backed capability cards remain visible as “what I can build,” while only verifiable client work is labeled as a published case study.
-- Case-study close and browser Back restoration use the same post-render anchor strategy as Engineering Notes.
-- Availability labels, visual state, opportunity types, and work modes are derived from one status/config source instead of duplicated UI copy.
-- Feature dialogs contain keyboard focus while open and restore page scrolling on close.
-- README release history is explicitly capped at the six most recent releases; `CHANGELOG.md` remains the complete release history.
-
-### Fixed
-- Explorer and Outline navigation now keep Case Studies immediately after Projects, matching the actual document order and scroll-spy sequence.
-- Mobile Engineering Notes TOC now remains visibly below the editor tab strip, with heading jumps and scroll-spy offsets accounting for the full sticky UI stack.
-- Engineering Notes TOC now selects the final heading reliably when manual scrolling reaches the document end.
-- Engineering Notes section restoration remains pinned to the intended sticky-header offset while asynchronous content above the section settles.
-- Mobile project quick access selects Gallery at the document end instead of leaving the previous section active.
-- Universal Search resets keyboard selection synchronously when the query changes, keeping Enter aligned with the top-ranked result.
-- Universal Search no longer relies on browser-reserved `Ctrl/Cmd + K` in automated or primary navigation; a visible header control and `Ctrl/Cmd + Shift + P` provide deterministic access while `Ctrl/Cmd + K` remains a best-effort alias.
-- Light-theme E2E coverage now validates the semantic near-white surface palette instead of requiring an exact `rgb(255, 255, 255)` value, preventing rendering-engine rounding from causing false CI failures.
+- Extended the v4.2 semantic Light Theme system to all v5 surfaces, including Case Studies, capability cards, Portfolio Mood/Availability, Accessibility, Universal Search, dialogs, interactive states, and focus treatments.
+- Explorer and Outline navigation now follow the document sequence consistently: Projects → Case Studies → Experience → GitHub Activity → Now → Changelog → Engineering Notes.
+- GitHub Activity is now a first-class navigation destination in the left-side workspace navigation instead of being reachable only by scrolling the page.
+- Availability is managed as operational portfolio state rather than duplicated UI copy, so one mood change updates every relevant surface consistently.
+- Staging and production deployment remain fully isolated: `develop` uses only the five `STAGING_FTP_*` secrets, `main` uses only the five production `FTP_*` secrets, and both deploy only after the reusable quality workflow has passed and produced the tested artifact.
 
 ### Security
-- Case studies publish only client work that is safe to identify publicly. Capability cards are explicitly separated from client claims, and no private metrics, secrets, deployment credentials, or confidential implementation details are published.
-- Existing server-side GitHub token isolation, staging noindex behavior, CSP, API boundaries, and deployment-secret model remain unchanged.
+- Published case-study content is limited to client work that is safe to identify publicly. Capability cards are explicitly separated from client claims, and no private metrics, secrets, deployment credentials, or confidential implementation details are exposed.
+- The existing private GitHub API token boundary, staging `noindex` behavior, CSP, API protections, and environment-specific deployment-secret isolation remain intact.
 
 ## 4.2.2 - 2026-09-02
 

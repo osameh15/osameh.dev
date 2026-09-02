@@ -1,9 +1,8 @@
-name: Build and deploy osameh.dev
+name: Production pipeline
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
     paths-ignore:
       - "README.md"
       - "DEPLOYMENT.md"
@@ -19,54 +18,30 @@ permissions:
   contents: read
 
 jobs:
+  quality:
+    name: Quality gate for production
+    uses: ./.github/workflows/quality.yml
+    with:
+      build_mode: production
+      artifact_name: osameh-production-dist
+
   deploy:
-    name: Build → FTPS → verify
+    name: Deploy tested bundle → osameh.dev
+    needs: quality
+    if: ${{ needs.quality.result == 'success' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-
+    timeout-minutes: 15
+    environment:
+      name: production
+      url: https://osameh.dev
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Download tested production bundle
+        uses: actions/download-artifact@v4
         with:
-          node-version: 22
+          name: osameh-production-dist
+          path: dist
 
-      - name: Install dependencies
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ -f package-lock.json ]]; then
-            npm ci --no-audit --no-fund
-          else
-            echo "::warning::package-lock.json is missing; using npm install. Commit a lockfile for reproducible deployments."
-            npm install --no-audit --no-fund
-          fi
-
-      - name: Repository quality gates
-        run: npm run quality
-
-      - name: PHP lint
-        shell: bash
-        run: find public -name '*.php' -print0 | xargs -0 -n1 php -l
-
-      - name: Build production bundle
-        run: npm run build
-
-      - name: Verify deployment bundle and links
-        run: npm run verify:dist
-
-      - name: Install Playwright smoke runner without changing lockfile
-        run: npm install --no-save --no-package-lock @playwright/test@1.55.0
-
-      - name: Install Chromium for release smoke
-        run: npx playwright install --with-deps chromium
-
-      - name: Browser release smoke
-        run: npx playwright test
-
-      - name: Validate deployment bundle
+      - name: Validate production bundle
         shell: bash
         run: |
           set -euo pipefail
@@ -76,91 +51,75 @@ jobs:
           test -f dist/api/github.php
           test -f dist/api/contact.php
           test -f dist/api/health.php
-          test -f dist/note.php
           test -f dist/case-study.php
           test -f dist/case-studies-index.json
           test -f dist/sitemap.php
-          test -f dist/notes-index.json
-          test -f dist/sw.js
           jq . dist/build-info.json
 
       - name: Install deployment client
         run: sudo apt-get update -qq && sudo apt-get install -y -qq lftp
 
-      - name: Verify FTPS certificate fingerprint
-        id: ftps_cert
+      - name: Verify production FTPS certificate fingerprint
         shell: bash
         env:
-          FTP_HOST: ${{ secrets.FTP_HOST }}
-          FTP_PORT: ${{ secrets.FTP_PORT }}
-          FTP_CERT_FINGERPRINT: ${{ secrets.FTP_CERT_FINGERPRINT }}
+          PRODUCTION_FTP_HOST: ${{ secrets.FTP_HOST }}
+          PRODUCTION_FTP_PORT: ${{ secrets.FTP_PORT }}
+          PRODUCTION_FTP_CERT_FINGERPRINT: ${{ secrets.FTP_CERT_FINGERPRINT }}
         run: |
           set -euo pipefail
-
-          : "${FTP_HOST:?Missing repository secret FTP_HOST}"
-          FTP_PORT="${FTP_PORT:-21}"
-
-          cert_file="$(mktemp)"
-          trap 'rm -f "$cert_file"' EXIT
-
-          timeout 25 openssl s_client \
-            -connect "${FTP_HOST}:${FTP_PORT}" \
-            -starttls ftp \
-            -showcerts </dev/null 2>/dev/null \
-            | awk '/-----BEGIN CERTIFICATE-----/{flag=1} flag{print} /-----END CERTIFICATE-----/{exit}' \
-            > "$cert_file"
-
-          test -s "$cert_file" || { echo "::error::Could not read the FTPS server certificate."; exit 1; }
-
+          : "${PRODUCTION_FTP_HOST:?Missing FTP_HOST}"
+          : "${PRODUCTION_FTP_CERT_FINGERPRINT:?Missing FTP_CERT_FINGERPRINT}"
+          PRODUCTION_FTP_PORT="${PRODUCTION_FTP_PORT:-21}"
+          cert_file="$(mktemp)"; trap 'rm -f "$cert_file"' EXIT
+          timeout 25 openssl s_client -connect "${PRODUCTION_FTP_HOST}:${PRODUCTION_FTP_PORT}" -starttls ftp -showcerts </dev/null 2>/dev/null \
+            | awk '/-----BEGIN CERTIFICATE-----/{flag=1} flag{print} /-----END CERTIFICATE-----/{exit}' > "$cert_file"
+          test -s "$cert_file" || { echo "::error::Could not read production FTPS certificate"; exit 1; }
           sha256="$(openssl x509 -in "$cert_file" -noout -fingerprint -sha256 | cut -d= -f2 | tr -d ':' | tr '[:lower:]' '[:upper:]')"
           sha1="$(openssl x509 -in "$cert_file" -noout -fingerprint -sha1 | cut -d= -f2 | tr -d ':' | tr '[:lower:]' '[:upper:]')"
-          expected="$(printf '%s' "${FTP_CERT_FINGERPRINT:-}" | tr -d ':[:space:]' | tr '[:lower:]' '[:upper:]')"
+          expected="$(printf '%s' "$PRODUCTION_FTP_CERT_FINGERPRINT" | tr -d ':[:space:]' | tr '[:lower:]' '[:upper:]')"
+          if [[ ${#expected} -eq 64 ]]; then actual="$sha256"; elif [[ ${#expected} -eq 40 ]]; then actual="$sha1"; else echo "::error::Invalid production fingerprint length"; exit 1; fi
+          [[ "$expected" == "$actual" ]] || { echo "::error::Production FTPS fingerprint mismatch"; exit 1; }
 
-          echo "Observed FTPS certificate SHA-256: ${sha256}"
-          echo "Observed FTPS certificate SHA-1:   ${sha1}"
-
-          if [[ -z "$expected" ]]; then
-            echo "::error::Missing repository secret FTP_CERT_FINGERPRINT. Add either the SHA-256 fingerprint above (recommended) or the SHA-1 fingerprint already shown by lftp, then re-run the workflow."
-            exit 1
-          fi
-
-          if [[ ${#expected} -eq 64 ]]; then
-            actual="$sha256"
-          elif [[ ${#expected} -eq 40 ]]; then
-            actual="$sha1"
-          else
-            echo "::error::FTP_CERT_FINGERPRINT must be a SHA-256 (64 hex chars) or SHA-1 (40 hex chars) certificate fingerprint."
-            exit 1
-          fi
-
-          if [[ "$expected" != "$actual" ]]; then
-            echo "::error::FTPS certificate fingerprint mismatch. Refusing deployment to protect credentials and files from a man-in-the-middle connection."
-            exit 1
-          fi
-
-          echo "FTPS certificate fingerprint verified."
-
-      - name: Deploy to ParsPack public_html
+      - name: Preflight production FTPS login
         shell: bash
         env:
-          FTP_HOST: ${{ secrets.FTP_HOST }}
-          FTP_PORT: ${{ secrets.FTP_PORT }}
-          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
-          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          PRODUCTION_FTP_HOST: ${{ secrets.FTP_HOST }}
+          PRODUCTION_FTP_PORT: ${{ secrets.FTP_PORT }}
+          PRODUCTION_FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          LFTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
         run: |
           set -euo pipefail
+          : "${PRODUCTION_FTP_HOST:?Missing FTP_HOST}"
+          : "${PRODUCTION_FTP_USERNAME:?Missing FTP_USERNAME}"
+          : "${LFTP_PASSWORD:?Missing FTP_PASSWORD}"
+          PRODUCTION_FTP_PORT="${PRODUCTION_FTP_PORT:-21}"
+          if ! lftp --norc --env-password --user "${PRODUCTION_FTP_USERNAME}" -p "${PRODUCTION_FTP_PORT}" "${PRODUCTION_FTP_HOST}" <<'LFTP'
+          set cmd:fail-exit true
+          set net:max-retries 1
+          set net:timeout 20
+          set ftp:passive-mode true
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate false
+          cls -1 /
+          bye
+          LFTP
+          then
+            echo "::error::Production FTPS login failed. Verify only FTP_HOST, FTP_PORT, FTP_USERNAME and FTP_PASSWORD. Staging FTP secrets are never used by this job."
+            exit 1
+          fi
 
-          : "${FTP_HOST:?Missing repository secret FTP_HOST}"
-          : "${FTP_USERNAME:?Missing repository secret FTP_USERNAME}"
-          : "${FTP_PASSWORD:?Missing repository secret FTP_PASSWORD}"
-          FTP_PORT="${FTP_PORT:-21}"
-
-          # ParsPack's FTPS endpoint currently presents a certificate chain that
-          # GitHub's Ubuntu CA bundle does not trust. The previous step pins and
-          # verifies the exact server certificate fingerprint before credentials
-          # are used. Certificate verification is therefore disabled in lftp only
-          # after that explicit pin check succeeds.
-          lftp <<LFTP
+      - name: Deploy production with production-only credentials
+        shell: bash
+        env:
+          PRODUCTION_FTP_HOST: ${{ secrets.FTP_HOST }}
+          PRODUCTION_FTP_PORT: ${{ secrets.FTP_PORT }}
+          PRODUCTION_FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          LFTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          set -euo pipefail
+          PRODUCTION_FTP_PORT="${PRODUCTION_FTP_PORT:-21}"
+          lftp --norc --env-password --user "${PRODUCTION_FTP_USERNAME}" -p "${PRODUCTION_FTP_PORT}" "${PRODUCTION_FTP_HOST}" <<'LFTP'
           set cmd:fail-exit true
           set net:max-retries 2
           set net:timeout 25
@@ -169,8 +128,6 @@ jobs:
           set ftp:ssl-force true
           set ftp:ssl-protect-data true
           set ssl:verify-certificate false
-          open -p ${FTP_PORT} ${FTP_HOST}
-          user ${FTP_USERNAME} ${FTP_PASSWORD}
           mirror --reverse --delete --verbose --parallel=4 \
             --exclude-glob .well-known \
             --exclude-glob '.well-known/**' \
@@ -180,45 +137,17 @@ jobs:
           bye
           LFTP
 
-      - name: Verify live build
+      - name: Verify live production build
         shell: bash
         run: |
           set -euo pipefail
           expected="$(jq -r '.buildId' dist/build-info.json)"
-          echo "Expected build: ${expected}"
-
           matched=0
           for attempt in {1..10}; do
-            stamp="${GITHUB_SHA}-${attempt}-$(date +%s)"
-            body="$(curl -fsS --connect-timeout 10 --max-time 20 \
-              -H 'Cache-Control: no-cache' \
-              "https://osameh.dev/build-info.json?ci=${stamp}" || true)"
-            live="$(printf '%s' "$body" | jq -r '.buildId // empty' 2>/dev/null || true)"
-            echo "Attempt ${attempt}: live=${live:-unavailable}"
-            if [[ "$live" == "$expected" ]]; then
-              matched=1
-              break
-            fi
+            live="$(curl -fsS --connect-timeout 10 --max-time 20 -H 'Cache-Control: no-cache' "https://osameh.dev/build-info.json?ci=${GITHUB_SHA}-${attempt}" | jq -r '.buildId // empty' 2>/dev/null || true)"
+            [[ "$live" == "$expected" ]] && { matched=1; break; }
             sleep 12
           done
-
-          if [[ "$matched" -eq 1 ]]; then
-            echo "Deployment verified: ${expected}"
-          else
-            echo "::warning::Files were uploaded, but the public CDN still reports a different build. ParsPack CDN propagation/cache may still be catching up."
+          if [[ "$matched" -ne 1 ]]; then
+            echo "::warning::Files uploaded successfully, but ParsPack CDN still reports an older build."
           fi
-
-      - name: Deployment summary
-        if: always()
-        shell: bash
-        run: |
-          {
-            echo "### osameh.dev deployment"
-            echo
-            echo "- Commit: \`${GITHUB_SHA}\`"
-            if [[ -f dist/build-info.json ]]; then
-              echo "- Build: \`$(jq -r '.buildId' dist/build-info.json)\`"
-            fi
-            echo "- Target: ParsPack shared hosting / public_html"
-            echo "- URL: https://osameh.dev"
-          } >> "$GITHUB_STEP_SUMMARY"

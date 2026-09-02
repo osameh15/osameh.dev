@@ -1,4 +1,4 @@
-name: Deploy staging.osameh.dev
+name: Staging pipeline
 
 on:
   push:
@@ -13,89 +13,131 @@ permissions:
   contents: read
 
 jobs:
-  staging:
-    name: Quality → staging build → FTPS
+  quality:
+    name: Quality gate for staging
+    uses: ./.github/workflows/quality.yml
+    with:
+      build_mode: staging
+      artifact_name: osameh-staging-dist
+
+  deploy:
+    name: Deploy tested bundle → staging.osameh.dev
+    needs: quality
+    if: ${{ needs.quality.result == 'success' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 15
+    environment:
+      name: staging
+      url: https://staging.osameh.dev
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Download tested staging bundle
+        uses: actions/download-artifact@v4
         with:
-          node-version: 22
-      - name: Install dependencies
+          name: osameh-staging-dist
+          path: dist
+
+      - name: Validate staging bundle
         shell: bash
         run: |
           set -euo pipefail
-          if [[ -f package-lock.json ]]; then
-            npm ci --no-audit --no-fund
-          else
-            echo "::notice::package-lock.json is unavailable in this source bundle; using npm install."
-            npm install --no-audit --no-fund
-          fi
-      - name: Quality gates
-        run: |
-          npm run quality
-          npm run typecheck
-          find public -name '*.php' -print0 | xargs -0 -n1 php -l
-      - name: Build staging bundle
-        run: npm run build:staging
-      - name: Verify staging bundle
-        run: npm run verify:dist
-      - name: Install Playwright smoke runner without changing lockfile
-        run: npm install --no-save --no-package-lock @playwright/test@1.55.0
-      - name: Install Chromium for staging smoke
-        run: npx playwright install --with-deps chromium
-      - name: Browser staging-bundle smoke
-        run: npx playwright test
+          test -f dist/index.html
+          test -f dist/.htaccess
+          test -f dist/build-info.json
+          test -f dist/robots.txt
+          grep -q 'Disallow: /' dist/robots.txt
+          jq . dist/build-info.json
+
       - name: Install deployment client
         run: sudo apt-get update -qq && sudo apt-get install -y -qq lftp
+
       - name: Verify staging FTPS certificate fingerprint
         shell: bash
         env:
-          FTP_HOST: ${{ secrets.STAGING_FTP_HOST }}
-          FTP_PORT: ${{ secrets.STAGING_FTP_PORT }}
-          FTP_CERT_FINGERPRINT: ${{ secrets.STAGING_FTP_CERT_FINGERPRINT }}
+          STAGING_FTP_HOST: ${{ secrets.STAGING_FTP_HOST }}
+          STAGING_FTP_PORT: ${{ secrets.STAGING_FTP_PORT }}
+          STAGING_FTP_CERT_FINGERPRINT: ${{ secrets.STAGING_FTP_CERT_FINGERPRINT }}
         run: |
           set -euo pipefail
-          : "${FTP_HOST:?Missing STAGING_FTP_HOST}"
-          FTP_PORT="${FTP_PORT:-21}"
+          : "${STAGING_FTP_HOST:?Missing STAGING_FTP_HOST}"
+          : "${STAGING_FTP_CERT_FINGERPRINT:?Missing STAGING_FTP_CERT_FINGERPRINT}"
+          STAGING_FTP_PORT="${STAGING_FTP_PORT:-21}"
           cert_file="$(mktemp)"; trap 'rm -f "$cert_file"' EXIT
-          timeout 25 openssl s_client -connect "${FTP_HOST}:${FTP_PORT}" -starttls ftp -showcerts </dev/null 2>/dev/null \
+          timeout 25 openssl s_client -connect "${STAGING_FTP_HOST}:${STAGING_FTP_PORT}" -starttls ftp -showcerts </dev/null 2>/dev/null \
             | awk '/-----BEGIN CERTIFICATE-----/{flag=1} flag{print} /-----END CERTIFICATE-----/{exit}' > "$cert_file"
-          test -s "$cert_file"
+          test -s "$cert_file" || { echo "::error::Could not read staging FTPS certificate"; exit 1; }
           sha256="$(openssl x509 -in "$cert_file" -noout -fingerprint -sha256 | cut -d= -f2 | tr -d ':' | tr '[:lower:]' '[:upper:]')"
           sha1="$(openssl x509 -in "$cert_file" -noout -fingerprint -sha1 | cut -d= -f2 | tr -d ':' | tr '[:lower:]' '[:upper:]')"
-          expected="$(printf '%s' "${FTP_CERT_FINGERPRINT:-}" | tr -d ':[:space:]' | tr '[:lower:]' '[:upper:]')"
-          [[ ${#expected} -eq 64 ]] && actual="$sha256" || actual="$sha1"
-          [[ -n "$expected" && "$expected" == "$actual" ]] || { echo '::error::Staging FTPS fingerprint mismatch'; exit 1; }
-      - name: Deploy staging
+          expected="$(printf '%s' "$STAGING_FTP_CERT_FINGERPRINT" | tr -d ':[:space:]' | tr '[:lower:]' '[:upper:]')"
+          if [[ ${#expected} -eq 64 ]]; then actual="$sha256"; elif [[ ${#expected} -eq 40 ]]; then actual="$sha1"; else echo "::error::Invalid staging fingerprint length"; exit 1; fi
+          [[ "$expected" == "$actual" ]] || { echo "::error::Staging FTPS fingerprint mismatch"; exit 1; }
+
+      - name: Preflight staging FTPS login
         shell: bash
         env:
-          FTP_HOST: ${{ secrets.STAGING_FTP_HOST }}
-          FTP_PORT: ${{ secrets.STAGING_FTP_PORT }}
-          FTP_USERNAME: ${{ secrets.STAGING_FTP_USERNAME }}
-          FTP_PASSWORD: ${{ secrets.STAGING_FTP_PASSWORD }}
+          STAGING_FTP_HOST: ${{ secrets.STAGING_FTP_HOST }}
+          STAGING_FTP_PORT: ${{ secrets.STAGING_FTP_PORT }}
+          STAGING_FTP_USERNAME: ${{ secrets.STAGING_FTP_USERNAME }}
+          LFTP_PASSWORD: ${{ secrets.STAGING_FTP_PASSWORD }}
         run: |
           set -euo pipefail
-          : "${FTP_HOST:?}"; : "${FTP_USERNAME:?}"; : "${FTP_PASSWORD:?}"; FTP_PORT="${FTP_PORT:-21}"
-          lftp <<LFTP
+          : "${STAGING_FTP_HOST:?Missing STAGING_FTP_HOST}"
+          : "${STAGING_FTP_USERNAME:?Missing STAGING_FTP_USERNAME}"
+          : "${LFTP_PASSWORD:?Missing STAGING_FTP_PASSWORD}"
+          STAGING_FTP_PORT="${STAGING_FTP_PORT:-21}"
+          if ! lftp --norc --env-password --user "${STAGING_FTP_USERNAME}" -p "${STAGING_FTP_PORT}" "${STAGING_FTP_HOST}" <<'LFTP'
           set cmd:fail-exit true
-          set net:max-retries 2
-          set net:timeout 25
+          set net:max-retries 1
+          set net:timeout 20
           set ftp:passive-mode true
           set ftp:ssl-force true
           set ftp:ssl-protect-data true
           set ssl:verify-certificate false
-          open -p ${FTP_PORT} ${FTP_HOST}
-          user ${FTP_USERNAME} ${FTP_PASSWORD}
-          mirror --reverse --delete --parallel=4 --exclude-glob .well-known --exclude-glob '.well-known/**' --exclude-glob cgi-bin --exclude-glob 'cgi-bin/**' dist/ /
+          cls -1 /
           bye
           LFTP
+          then
+            echo "::error::Staging FTPS login failed. Verify only STAGING_FTP_HOST, STAGING_FTP_PORT, STAGING_FTP_USERNAME and STAGING_FTP_PASSWORD. Production FTP secrets are never used by this job."
+            exit 1
+          fi
+
+      - name: Deploy staging with staging-only credentials
+        shell: bash
+        env:
+          STAGING_FTP_HOST: ${{ secrets.STAGING_FTP_HOST }}
+          STAGING_FTP_PORT: ${{ secrets.STAGING_FTP_PORT }}
+          STAGING_FTP_USERNAME: ${{ secrets.STAGING_FTP_USERNAME }}
+          LFTP_PASSWORD: ${{ secrets.STAGING_FTP_PASSWORD }}
+        run: |
+          set -euo pipefail
+          STAGING_FTP_PORT="${STAGING_FTP_PORT:-21}"
+          lftp --norc --env-password --user "${STAGING_FTP_USERNAME}" -p "${STAGING_FTP_PORT}" "${STAGING_FTP_HOST}" <<'LFTP'
+          set cmd:fail-exit true
+          set net:max-retries 2
+          set net:timeout 25
+          set net:reconnect-interval-base 5
+          set ftp:passive-mode true
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate false
+          mirror --reverse --delete --verbose --parallel=4 \
+            --exclude-glob .well-known \
+            --exclude-glob '.well-known/**' \
+            --exclude-glob cgi-bin \
+            --exclude-glob 'cgi-bin/**' \
+            dist/ /
+          bye
+          LFTP
+
       - name: Verify staging noindex and build
         shell: bash
         run: |
           set -euo pipefail
           curl -fsS https://staging.osameh.dev/robots.txt | grep -q 'Disallow: /'
           expected="$(jq -r '.buildId' dist/build-info.json)"
-          live="$(curl -fsS -H 'Cache-Control: no-cache' "https://staging.osameh.dev/build-info.json?ci=${GITHUB_SHA}" | jq -r '.buildId')"
-          [[ "$live" == "$expected" ]]
+          matched=0
+          for attempt in {1..8}; do
+            live="$(curl -fsS -H 'Cache-Control: no-cache' "https://staging.osameh.dev/build-info.json?ci=${GITHUB_SHA}-${attempt}" | jq -r '.buildId // empty' 2>/dev/null || true)"
+            [[ "$live" == "$expected" ]] && { matched=1; break; }
+            sleep 8
+          done
+          [[ "$matched" -eq 1 ]] || { echo "::error::Staging build verification failed"; exit 1; }

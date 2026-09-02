@@ -1,0 +1,52 @@
+{
+  "activeStatus": "selective",
+  "timezone": "Asia/Tehran (UTC+3:30)",
+  "opportunityTypes": [
+    "Senior software engineering",
+    "Full-stack / backend",
+    "Selected freelance projects"
+  ],
+  "workModes": [
+    "Remote",
+    "Hybrid",
+    "Relocation-ready opportunities"
+  ],
+  "email": "osirandoust@gmail.com",
+  "profiles": {
+    "open": {
+      "label": "Open to opportunities",
+      "shortLabel": "Open",
+      "description": "Actively open to relevant engineering roles, product teams, and serious collaboration.",
+      "ctaEnabled": true,
+      "tone": "open"
+    },
+    "selective": {
+      "label": "Open to selected opportunities",
+      "shortLabel": "Open to",
+      "description": "Open to thoughtful engineering roles, ambitious products, and high-leverage collaboration.",
+      "ctaEnabled": true,
+      "tone": "selective"
+    },
+    "freelance": {
+      "label": "Available for freelance work",
+      "shortLabel": "Freelance",
+      "description": "Available for a limited number of well-scoped freelance and consulting engagements.",
+      "ctaEnabled": true,
+      "tone": "freelance"
+    },
+    "focused": {
+      "label": "Heads down — limited availability",
+      "shortLabel": "Focused",
+      "description": "Focused on current work. Exceptional opportunities are still welcome, but capacity is intentionally limited.",
+      "ctaEnabled": true,
+      "tone": "focused"
+    },
+    "unavailable": {
+      "label": "Not currently available",
+      "shortLabel": "Unavailable",
+      "description": "Not taking on new work right now. The portfolio remains available for future conversations.",
+      "ctaEnabled": false,
+      "tone": "unavailable"
+    }
+  }
+}

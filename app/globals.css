@@ -590,3 +590,9 @@ html[data-theme="light"] .changelog-node.preview{background:#edf4ee}html[data-th
 }
 .command-palette{max-height:75vh}.command-palette-list{max-height:calc(75vh - 102px)}
 @media(max-width:720px){.command-palette-backdrop{padding:12.5vh 10px}.command-palette{width:92vw;max-height:75svh}.command-palette-list{max-height:calc(75svh - 102px)}}
+
+/* Modal scroll isolation: prevent wheel/touch chaining into the fixed workspace. */
+.advanced-modal-backdrop,.command-palette-backdrop,.gallery-lightbox{overscroll-behavior:contain}
+.advanced-modal,.recruiter-mode,.command-palette,.command-palette-list,.gallery-lightbox{overscroll-behavior:contain}
+.advanced-modal,.recruiter-mode,.command-palette-list{scrollbar-gutter:stable}
+html[data-modal-open="true"],html[data-modal-open="true"] body{overscroll-behavior:none}

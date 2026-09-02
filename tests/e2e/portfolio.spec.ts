@@ -1,4 +1,8 @@
 import { test, expect, type Locator } from "@playwright/test";
+import { readFileSync } from "node:fs";
+
+const availabilityFixture = JSON.parse(readFileSync(new URL("../../config/availability.json", import.meta.url), "utf8"));
+const activeAvailability = availabilityFixture.profiles[availabilityFixture.activeStatus];
 
 test("home shell and engineering notes are reachable", async ({ page }) => {
   await page.goto("/");
@@ -80,6 +84,7 @@ test("large diagnostics modal stays viewport-capped and scrollable", async ({ pa
   await page.evaluate(() => window.dispatchEvent(new Event("portfolio:diagnostics")));
   const modal = page.locator(".health-center-modal");
   await expect(modal).toBeVisible();
+  await expect.poll(() => page.evaluate(() => document.body.style.position)).toBe("fixed");
   const box = await modal.boundingBox();
   const viewport = page.viewportSize();
   expect(box).not.toBeNull();
@@ -181,13 +186,23 @@ test("accessibility control center persists preferences", async ({ page }) => {
   await expect(page.locator("html")).toHaveAttribute("data-strong-focus", "true");
 });
 
-test("availability is centrally exposed from the header", async ({ page }) => {
+test("availability mood is centrally exposed from the header", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: /Availability: Open to selected opportunities/i }).click();
+  const moodButton = page.getByRole("button", { name: `Availability: ${activeAvailability.label}` });
+  await expect(moodButton).toHaveAttribute("data-mood", availabilityFixture.activeStatus);
+  await expect(page.locator("html")).toHaveAttribute("data-availability-mood", availabilityFixture.activeStatus);
+  await moodButton.click();
   const dialog = page.getByRole("dialog", { name: "Availability" });
   await expect(dialog).toBeVisible();
-  await expect(dialog).toContainText("Asia/Tehran");
-  await expect(dialog.getByRole("link", { name: /Start a conversation/i })).toHaveAttribute("href", "mailto:osirandoust@gmail.com");
+  await expect(dialog).toContainText(activeAvailability.label);
+  await expect(dialog).toContainText(`PORTFOLIO MOOD · ${String(availabilityFixture.activeStatus).toUpperCase()}`);
+  await expect(dialog).toContainText(availabilityFixture.timezone);
+  if (activeAvailability.ctaEnabled) {
+    await expect(dialog.getByRole("link", { name: /Start a conversation/i })).toHaveAttribute("href", `mailto:${availabilityFixture.email}`);
+  } else {
+    await expect(dialog.getByRole("link", { name: /Start a conversation/i })).toHaveCount(0);
+    await expect(dialog).toContainText(/New opportunities are paused/i);
+  }
 });
 
 test("case studies distinguish capabilities from published client work", async ({ page }) => {
@@ -205,6 +220,92 @@ test("explorer keeps case studies immediately after projects", async ({ page }) 
   const caseStudiesIndex = explorerLabels.findIndex(label => /case-studies/i.test(label));
   expect(projectsIndex).toBeGreaterThanOrEqual(0);
   expect(caseStudiesIndex).toBe(projectsIndex + 1);
+});
+
+test("Explorer follows the page sequence through GitHub Activity", async ({ page }) => {
+  await page.goto("/");
+  const labels = (await page.locator(".explorer > .file").allTextContents()).map(label => label.trim().toLowerCase());
+  const projects = labels.findIndex(label => label.includes("projects"));
+  const caseStudies = labels.findIndex(label => label.includes("case-studies"));
+  const experience = labels.findIndex(label => label.includes("experience"));
+  const activity = labels.findIndex(label => label.includes("github-activity"));
+  const now = labels.findIndex(label => label === "now" || label.includes("now.md"));
+  expect([projects, caseStudies, experience, activity, now].every(index => index >= 0)).toBe(true);
+  expect(caseStudies).toBe(projects + 1);
+  expect(experience).toBe(caseStudies + 1);
+  expect(activity).toBe(experience + 1);
+  expect(now).toBe(activity + 1);
+  await page.locator("#activity").scrollIntoViewIfNeeded();
+  await expect(page.locator("#activity .section-heading")).toContainText("05");
+  await expect(page.locator("#activity .section-heading")).toContainText("GITHUB.ACTIVITY");
+});
+
+test("published case-study grid has no gray backing layer", async ({ page }) => {
+  await page.goto("/case-studies");
+  const grid = page.locator(".published-case-studies .client-case-study-grid");
+  await expect(grid).toBeVisible();
+  const style = await grid.evaluate(element => {
+    const computed = getComputedStyle(element);
+    return { background: computed.backgroundColor, borderTopWidth: computed.borderTopWidth };
+  });
+  expect(style.background).toBe("rgba(0, 0, 0, 0)");
+  expect(style.borderTopWidth).toBe("0px");
+});
+
+test("case-study modal keeps its own scroll position and freezes the workspace", async ({ page }) => {
+  await page.goto("/case-studies");
+  await page.evaluate(() => window.scrollTo({ top: 420, behavior: "auto" }));
+  const workspaceScroll = await page.evaluate(() => window.scrollY);
+  await page.getByRole("button", { name: /Open case study/i }).first().click();
+  const modal = page.getByRole("dialog");
+  const body = modal.locator(".feature-modal-body");
+  await expect(modal).toBeVisible();
+  await expect.poll(() => page.evaluate(() => document.body.style.position)).toBe("fixed");
+  const target = await body.evaluate(element => {
+    const top = Math.min(320, Math.max(0, element.scrollHeight - element.clientHeight - 20));
+    element.scrollTo({ top, behavior: "auto" });
+    return top;
+  });
+  expect(target).toBeGreaterThan(0);
+  await page.waitForTimeout(700);
+  const settled = await body.evaluate(element => element.scrollTop);
+  expect(Math.abs(settled - target)).toBeLessThanOrEqual(2);
+  await page.keyboard.press("Escape");
+  await expect.poll(() => page.evaluate(() => document.body.style.position)).not.toBe("fixed");
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(workspaceScroll);
+});
+
+test("accessibility controls create immediately visible effects", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Accessibility" }).click();
+  const dialog = page.getByRole("dialog", { name: /Accessibility Control Center/i });
+  const preview = dialog.locator(".accessibility-live-preview");
+  const previewText = preview.locator("p");
+  const previewDot = preview.locator(".accessibility-preview-dot");
+
+  const baseFont = Number.parseFloat(await previewText.evaluate(element => getComputedStyle(element).fontSize));
+  await dialog.getByRole("switch", { name: /Larger interface text/i }).click();
+  const largerFont = Number.parseFloat(await previewText.evaluate(element => getComputedStyle(element).fontSize));
+  expect(largerFont).toBeGreaterThan(baseFont + 1);
+
+  const baseBorder = await preview.evaluate(element => getComputedStyle(element).borderColor);
+  await dialog.getByRole("switch", { name: /Increase contrast/i }).click();
+  await expect.poll(() => preview.evaluate(element => getComputedStyle(element).borderColor)).not.toBe(baseBorder);
+
+  await dialog.getByRole("switch", { name: /Reduce motion/i }).click();
+  await expect(previewDot).toHaveCSS("animation-name", "none");
+
+  await dialog.getByRole("switch", { name: /Enhanced focus indicators/i }).click();
+  const sample = preview.getByRole("button", { name: /Keyboard focus sample/i });
+  await sample.focus();
+  expect(Number.parseFloat(await sample.evaluate(element => getComputedStyle(element).outlineWidth))).toBeGreaterThanOrEqual(2);
+
+  await expect(dialog).toContainText(/4 preferences active/i);
+  await dialog.getByRole("button", { name: /Reset/i }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-large-text", "false");
+  await expect(page.locator("html")).toHaveAttribute("data-high-contrast", "false");
+  await expect(page.locator("html")).toHaveAttribute("data-reduce-motion", "false");
+  await expect(page.locator("html")).toHaveAttribute("data-strong-focus", "false");
 });
 
 test("universal search ranks and opens case studies", async ({ page }) => {
@@ -286,7 +387,7 @@ test("v5 feature surfaces use the redesigned light-theme palette", async ({ page
   await page.getByRole("button", { name: "Accessibility" }).click();
   await expectLightSurface(page.getByRole("switch", { name: /Reduce motion/i }));
   await page.keyboard.press("Escape");
-  await page.getByRole("button", { name: /Availability: Open to selected opportunities/i }).click();
+  await page.getByRole("button", { name: `Availability: ${activeAvailability.label}` }).click();
   await expectLightSurface(page.locator(".availability-details > div").first());
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Universal Search" }).click();

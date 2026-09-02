@@ -3,23 +3,37 @@ name: Quality gates
 on:
   pull_request:
     branches: [main, develop]
-  push:
-    branches: [develop]
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      build_mode:
+        description: Bundle mode to validate (production or staging)
+        required: false
+        type: string
+        default: production
+      artifact_name:
+        description: Optional name for the tested dist artifact
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: read
 
 jobs:
   quality:
-    name: Static checks → build → browser smoke
+    name: Static checks → build → E2E → Lighthouse
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 22
+
       - name: Install dependencies
         shell: bash
         run: |
@@ -27,28 +41,46 @@ jobs:
           if [[ -f package-lock.json ]]; then
             npm ci --no-audit --no-fund
           else
-            echo "::notice::package-lock.json is unavailable in this source bundle; using npm install."
+            echo "::warning::package-lock.json is missing; using npm install. Commit the lockfile for reproducible CI."
             npm install --no-audit --no-fund
           fi
+
       - name: Repository quality gates
         run: npm run quality
+
       - name: TypeScript
         run: npm run typecheck
+
       - name: PHP lint
         shell: bash
         run: |
           set -euo pipefail
           find public -name '*.php' -print0 | xargs -0 -n1 php -l
-      - name: Production build
-        run: npm run build
+
+      - name: Build tested bundle
+        shell: bash
+        env:
+          BUILD_MODE: ${{ inputs.build_mode || 'production' }}
+        run: |
+          set -euo pipefail
+          if [[ "$BUILD_MODE" == "staging" ]]; then
+            npm run build:staging
+          elif [[ "$BUILD_MODE" == "production" ]]; then
+            npm run build
+          else
+            echo "::error::Unsupported build_mode: $BUILD_MODE"
+            exit 1
+          fi
+
       - name: Verify deployment bundle and local links
         run: npm run verify:dist
-      - name: Install Playwright test runner without changing lockfile
-        run: npm install --no-save --no-package-lock @playwright/test@1.55.0
-      - name: Install Chromium
+
+      - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
+
       - name: Browser E2E and accessibility smoke
         run: npx playwright test
+
       - name: Lighthouse quality report
         shell: bash
         run: |
@@ -84,3 +116,12 @@ jobs:
             if(score<v) process.exitCode=1;
           }
           NODE
+
+      - name: Upload tested deployment bundle
+        if: ${{ inputs.artifact_name != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact_name }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 3

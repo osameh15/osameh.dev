@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Activity, ArrowUpRight, Check, ChevronDown, ChevronUp, Code2, Download, ExternalLink, FileText, GitBranch, HardDrive, Keyboard, Laptop, LoaderCircle, Mail, MonitorCheck, PackageCheck, RefreshCw, Send, Share2, ShieldCheck, Sparkles, Terminal, Wifi, WifiOff, X } from "lucide-react";
 import { BUILD_ID, BUILD_TIME, BUILD_VERSION } from "./generated/build";
 import { notify } from "./toast";
+import { useModalScrollLock } from "./modalScroll";
 import { caseStudyFor, changelog, nowItems, resumeSummary, type RepoLike } from "./portfolioData";
 
 export function trackEvent(event: string, label = "") {
@@ -45,7 +46,7 @@ export function GithubActivity() {
     return () => { live = false; };
   }, []);
   return <section id="activity" className="activity-feed section-pad">
-    <div className="section-heading"><span>04</span><div><p>GITHUB.ACTIVITY</p><h2>Recent repository activity.</h2></div><a href="https://github.com/osameh15" target="_blank" rel="noreferrer" className="section-link">Open GitHub <ArrowUpRight size={15} /></a></div>
+    <div className="section-heading"><span>05</span><div><p>GITHUB.ACTIVITY</p><h2>Recent repository activity.</h2></div><a href="https://github.com/osameh15" target="_blank" rel="noreferrer" className="section-link">Open GitHub <ArrowUpRight size={15} /></a></div>
     {state === "loading" ? <div className="repo-status"><LoaderCircle className="spin" size={18} /> Reading public activity…</div> : state === "error" ? <div className="muted-card"><GitBranch size={18} /> Recent activity is temporarily unavailable.</div> : <div className="activity-timeline">
       {items.length ? items.map(item => <a key={item.id} href={item.url} target="_blank" rel="noreferrer"><span className="activity-node"><GitBranch size={14} /></span><div><b>{item.repo}</b><p>{item.message}</p><small>{new Date(item.created_at).toLocaleString("en", { month: "short", day: "numeric", year: "numeric" })}</small></div><ExternalLink size={14} /></a>) : <p className="muted-card">No public repository activity in the last 30 days.</p>}
     </div>}
@@ -54,7 +55,7 @@ export function GithubActivity() {
 
 export function NowSection() {
   return <section id="now" className="now-section section-pad">
-    <div className="section-heading"><span>05</span><div><p>NOW.MD</p><h2>What I’m focused on now.</h2></div></div>
+    <div className="section-heading"><span>06</span><div><p>NOW.MD</p><h2>What I’m focused on now.</h2></div></div>
     <div className="now-grid">{nowItems.map((item, index) => <article key={item.label}><span>{String(index + 1).padStart(2, "0")}</span><small>{item.label}</small><p>{item.value}</p></article>)}</div>
   </section>;
 }
@@ -76,7 +77,7 @@ export function ChangelogSection() {
   const selectedIndex = selected ? changelog.findIndex(item => item.version === selected.version) : 0;
 
   return <section id="changelog" className="changelog-section section-pad">
-    <div className="section-heading"><span>06</span><div><p>CHANGELOG.MD</p><h2>This portfolio ships like software.</h2></div></div>
+    <div className="section-heading"><span>07</span><div><p>CHANGELOG.MD</p><h2>This portfolio ships like software.</h2></div></div>
     <div className="changelog-graph-shell">
       <div className="changelog-graph-intro">
         <div>
@@ -149,6 +150,7 @@ export function ChangelogSection() {
 export function ResumeViewer({ onOpenChange }: { onOpenChange?: (open: boolean) => void } = {}) {
   const [open, setOpen] = useState(false);
   const changeOpen = (next: boolean) => { setOpen(next); onOpenChange?.(next); };
+  useModalScrollLock(open);
   useEffect(() => {
     const listener = () => { changeOpen(true); trackEvent("resume_open"); };
     window.addEventListener("portfolio:resume", listener);
@@ -171,6 +173,7 @@ export function ResumeViewer({ onOpenChange }: { onOpenChange?: (open: boolean) 
 export function BuildInfoModal() {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  useModalScrollLock(open);
 
   useEffect(() => {
     const listener = () => {
@@ -234,6 +237,7 @@ type HealthPayload = { status: "operational" | "degraded"; generatedAt: string; 
 
 export function SystemDiagnostics() {
   const [open, setOpen] = useState(false);
+  useModalScrollLock(open);
   const [state, setState] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [health, setHealth] = useState<HealthPayload | null>(null);
   const [sw, setSw] = useState("Not registered");
@@ -308,6 +312,7 @@ export function SystemDiagnostics() {
 
 export function ShortcutGuide() {
   const [open, setOpen] = useState(false);
+  useModalScrollLock(open);
   useEffect(() => { const listener = () => setOpen(true); window.addEventListener("portfolio:shortcuts", listener); return () => window.removeEventListener("portfolio:shortcuts", listener); }, []);
   if (!open) return null;
   const rows = [["Ctrl/Cmd + Shift + P", "Universal Search"], ["`", "Toggle terminal"], ["Tab", "Terminal autocomplete"], ["Shift + Tab", "Previous autocomplete suggestion"], ["G then P", "Projects"], ["G then A", "About"], ["G then E", "Experience"], ["G then N", "Now"], ["G then C", "Contact"], ["/", "Focus project search"], ["?", "Keyboard shortcuts"], ["Esc", "Close active modal/tab"]];
@@ -453,6 +458,7 @@ export function ContactForm({ fileName = "send-message.ts" }: { fileName?: strin
 }
 
 export function ProjectCompare({ repos, onClose }: { repos: RepoLike[]; onClose: () => void }) {
+  useModalScrollLock(repos.length === 2);
   if (repos.length !== 2) return null;
   return <div className="advanced-modal-backdrop" onMouseDown={onClose}><section className="advanced-modal compare-modal" role="dialog" aria-modal="true" onMouseDown={e => e.stopPropagation()}><header><div><Code2 size={17} /><span>compare-projects.diff</span></div><button onClick={onClose}><X size={17} /></button></header><div className="compare-grid"><div className="compare-labels"><span>Project</span><span>Language</span><span>Stars</span><span>Forks</span><span>Last update</span><span>Topics</span><span>Summary</span></div>{repos.map(repo => <article key={repo.id}><h3>{repo.name}</h3><b>{repo.language || "Mixed"}</b><b>{repo.stargazers_count}</b><b>{repo.forks_count}</b><b>{new Date(repo.updated_at).toLocaleDateString()}</b><div className="compare-tags">{repo.topics.slice(0, 5).map(topic => <span key={topic}>{topic}</span>)}</div><p>{repo.description || "No public description."}</p></article>)}</div></section></div>;
 }
