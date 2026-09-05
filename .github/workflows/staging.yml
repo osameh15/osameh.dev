@@ -17,7 +17,7 @@ jobs:
     name: Quality gate for staging
     uses: ./.github/workflows/quality.yml
     with:
-      build_mode: staging
+      deploy_env: staging
       artifact_name: osameh-staging-dist
 
   deploy:

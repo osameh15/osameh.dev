@@ -303,21 +303,47 @@ After deployment also verify:
 
 The repository deliberately separates quality, staging deployment, and production deployment. Deployment never runs in parallel with E2E: the deploy job has `needs: quality` and receives the exact tested build artifact from the reusable quality workflow.
 
+The application is built **once**, as a normal indexable production-like bundle. Every application-level check — repository gates, TypeScript, PHP lint, `verify:dist`, Playwright and Lighthouse — runs against that single `dist/`. Environment indexing policy is applied only afterwards, into a separate `dist-<env>/` directory, and each derived bundle is verified against its own contract before it can become a deploy artifact.
+
+This ordering is load-bearing. Applying the staging noindex transform before the audit makes Lighthouse grade a deliberately non-indexable document: the `is-crawlable` audit fails and the SEO category drops to 63 even though the application itself scores 100.
+
 ```text
 feature/*
    ↓
 develop
    ↓
-quality.yml: static → typecheck/PHP → build:staging → verify → Playwright → Lighthouse
+quality.yml
+   static gates → typecheck → PHP lint
+   → build (one indexable bundle)
+   → verify:dist → Playwright → Lighthouse (strict SEO on the indexable build)
+   → package:staging  → dist-staging/  → verify:staging
+   → upload verified staging artifact
    ↓
-staging.yml: staging FTPS preflight → deploy tested artifact → verify noindex/build
+staging.yml: staging FTPS preflight → deploy verified artifact → verify noindex/build
    ↓ approved develop → main
 main
    ↓
-quality.yml: static → typecheck/PHP → production build → verify → Playwright → Lighthouse
+quality.yml
+   static gates → typecheck → PHP lint
+   → build (one indexable bundle)
+   → verify:dist → Playwright → Lighthouse (strict SEO on the indexable build)
+   → package:production → dist-production/ → verify:production
+   → upload verified production artifact
    ↓
-deploy.yml: production FTPS preflight → deploy tested artifact → verify live build
+deploy.yml: production FTPS preflight → deploy verified artifact → verify live build
 ```
+
+### 12.0 Environment bundles
+
+| Command | Purpose |
+| --- | --- |
+| `npm run build` | The one tested, indexable application bundle in `dist/` |
+| `npm run package:staging` | Derives `dist-staging/` and applies the staging noindex policy |
+| `npm run verify:staging` | Fails if the staging bundle became indexable |
+| `npm run package:production` | Derives `dist-production/`, preserving indexability |
+| `npm run verify:production` | Fails if a staging transform leaked into production |
+
+`dist/` is never mutated in place by environment packaging, so the audited artifact and the deployed artifact are always distinguishable. Both derived directories are gitignored.
 
 ### 12.1 GitHub secrets — keep the two environments separate
 
@@ -418,13 +444,14 @@ The reusable `.github/workflows/quality.yml` runs the release-critical sequence 
 2. repository quality contracts
 3. TypeScript
 4. PHP lint
-5. staging or production build
+5. one indexable application build
 6. deployment bundle/local-link verification
 7. pinned project `@playwright/test` Chromium E2E/accessibility regressions
-8. Lighthouse accessibility / best-practices / SEO thresholds
-9. upload tested `dist/` artifact for the calling deploy workflow
+8. Lighthouse accessibility / best-practices / SEO thresholds, audited against the indexable build
+9. environment packaging into `dist-<env>/` plus that environment's indexing-policy verification
+10. upload the verified `dist-<env>/` artifact for the calling deploy workflow
 
-A failed Playwright or Lighthouse step prevents the artifact/deploy path from completing. Re-running only a deploy step cannot bypass a failed quality job.
+A failed Playwright or Lighthouse step prevents the artifact/deploy path from completing. A failed `verify:staging` or `verify:production` step blocks the artifact the same way, so a bundle whose indexing policy is wrong can never reach a deploy job. Re-running only a deploy step cannot bypass a failed quality job.
 
 ## 13. Release notes
 

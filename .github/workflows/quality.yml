@@ -6,11 +6,11 @@ on:
   workflow_dispatch:
   workflow_call:
     inputs:
-      build_mode:
-        description: Bundle mode to validate (production or staging)
+      deploy_env:
+        description: Environment bundle to package after validation (staging or production)
         required: false
         type: string
-        default: production
+        default: ""
       artifact_name:
         description: Optional name for the tested dist artifact
         required: false
@@ -69,20 +69,12 @@ jobs:
           set -euo pipefail
           find public -name '*.php' -print0 | xargs -0 -n1 php -l
 
-      - name: Build tested bundle
-        shell: bash
-        env:
-          BUILD_MODE: ${{ inputs.build_mode || 'production' }}
-        run: |
-          set -euo pipefail
-          if [[ "$BUILD_MODE" == "staging" ]]; then
-            npm run build:staging
-          elif [[ "$BUILD_MODE" == "production" ]]; then
-            npm run build
-          else
-            echo "::error::Unsupported build_mode: $BUILD_MODE"
-            exit 1
-          fi
+      # One build for every environment. It is a normal, indexable
+      # production-like bundle, which is what verify:dist, Playwright and the
+      # strict Lighthouse SEO audit below all run against. Environment indexing
+      # policy is applied afterwards, into a separate directory.
+      - name: Build tested application bundle
+        run: npm run build
 
       - name: Verify deployment bundle and local links
         run: npm run verify:dist
@@ -97,7 +89,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-diagnostics-${{ inputs.build_mode || 'production' }}
+          name: playwright-diagnostics-${{ inputs.deploy_env || 'application' }}
           path: |
             playwright-report/
             test-results/
@@ -126,25 +118,65 @@ jobs:
             cat /tmp/portfolio-preview.log
             exit 1
           fi
+          # Audited target: the indexable dist/ bundle served by vite preview.
+          # No staging indexing policy has been applied at this point, so the
+          # SEO category measures the real application rather than an
+          # artificially non-indexable document.
           npx --yes lighthouse@12.8.2 http://127.0.0.1:4173/ \
             --quiet --chrome-flags='--headless --no-sandbox' \
             --only-categories=accessibility,best-practices,seo \
-            --output=json --output-path=/tmp/lighthouse.json
+            --output=json --output=html \
+            --output-path=/tmp/lighthouse-report
           node - <<'NODE'
-          const r=require('/tmp/lighthouse.json');
+          const r=require('/tmp/lighthouse-report.report.json');
           const min={accessibility:.9,'best-practices':.9,seo:.9};
+          let failed=false;
           for(const [k,v] of Object.entries(min)){
             const score=r.categories[k].score;
-            console.log(`${k}: ${Math.round(score*100)}`);
-            if(score<v) process.exitCode=1;
+            console.log(`${k}: ${Math.round(score*100)} (min ${Math.round(v*100)})`);
+            if(score<v){
+              failed=true;
+              for(const ref of r.categories[k].auditRefs){
+                const a=r.audits[ref.id];
+                if(a.score===1||a.score===null) continue;
+                console.log(`::error::${k} audit failed: ${ref.id} - ${a.title}`);
+              }
+            }
           }
+          if(failed) process.exitCode=1;
           NODE
 
-      - name: Upload tested deployment bundle
-        if: ${{ inputs.artifact_name != '' }}
+      - name: Upload Lighthouse report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-report-${{ inputs.deploy_env || 'application' }}
+          path: |
+            /tmp/lighthouse-report.report.json
+            /tmp/lighthouse-report.report.html
+            /tmp/portfolio-preview.log
+          if-no-files-found: ignore
+          retention-days: 5
+
+      # Environment packaging runs only after every application-level check
+      # above has passed, so a failing audit can never produce a deploy bundle.
+      - name: Package staging bundle and verify it is not indexable
+        if: ${{ inputs.deploy_env == 'staging' }}
+        run: |
+          npm run package:staging
+          npm run verify:staging
+
+      - name: Package production bundle and verify it stays indexable
+        if: ${{ inputs.deploy_env == 'production' }}
+        run: |
+          npm run package:production
+          npm run verify:production
+
+      - name: Upload verified environment bundle
+        if: ${{ inputs.artifact_name != '' && inputs.deploy_env != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.artifact_name }}
-          path: dist/
+          path: dist-${{ inputs.deploy_env }}/
           if-no-files-found: error
           retention-days: 3

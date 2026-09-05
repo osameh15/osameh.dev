@@ -20,7 +20,7 @@ jobs:
     name: Quality gate for production
     uses: ./.github/workflows/quality.yml
     with:
-      build_mode: production
+      deploy_env: production
       artifact_name: osameh-production-dist
 
   deploy:

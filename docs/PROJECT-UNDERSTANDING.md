@@ -286,13 +286,14 @@ The GitHub API token is read only from environment or private server-side config
 
 A push to `develop` invokes the reusable quality workflow in staging mode. Deployment runs only after the quality job succeeds and downloads that job’s tested artifact.
 
-Staging preparation:
+Staging preparation runs `scripts/package-env.mjs staging` **after** all application validation, deriving `dist-staging/` from the tested `dist/` rather than mutating it:
 
 - injects `noindex,nofollow,noarchive`
-- installs a disallowing `robots.txt`
-- applies `X-Robots-Tag`
-- removes production canonical/social URL metadata where appropriate
-- verifies staging build metadata before upload
+- installs a disallowing `robots.txt` carrying no `Sitemap:` line
+- applies a global `X-Robots-Tag` to the first `mod_headers` block, leaving the `.md`-scoped rule intact
+- removes production canonical/`og:url` metadata
+- stamps `environment: staging` into `build-info.json`
+- `scripts/verify-env.mjs staging` (`npm run verify:staging`) then fails the pipeline if any of the above is missing, before an artifact exists
 
 Deployment targets `staging.osameh.dev` and uses only:
 
@@ -307,6 +308,8 @@ There is no production-secret fallback.
 ## 18. Production architecture
 
 A push to `main`, excluding documentation-only changes, or a manual dispatch invokes the production quality pipeline. Production deployment runs only after that quality job succeeds and consumes its tested artifact.
+
+Production packaging runs `scripts/package-env.mjs production`, which derives `dist-production/` from the same tested `dist/` and applies no indexing policy at all. `scripts/verify-env.mjs production` (`npm run verify:production`) then asserts the inverse contract — indexable robots meta, no site-wide `Disallow: /`, no inherited global `X-Robots-Tag` noindex, a production canonical and `og:url`, and a valid sitemap — so a staging transform leaking into production fails CI before deployment.
 
 Production remains indexable, targets `osameh.dev`, and uses only:
 
@@ -333,16 +336,20 @@ TypeScript
     ↓
 PHP lint
     ↓
-Build
+Build (one indexable application bundle)
     ↓
 Verify dist
     ↓
 Playwright
     ↓
-Lighthouse
+Lighthouse (strict SEO against the indexable build)
     ↓
-Upload tested artifact
+Package dist-<env>/ and verify its indexing policy
+    ↓
+Upload verified environment artifact
 ```
+
+The workflow takes a `deploy_env` input (`staging` or `production`) that selects only the packaging/verification phase. It no longer takes a build mode: the build itself is identical for every environment, which is what keeps the Lighthouse SEO category measuring the real application. Applying the staging noindex transform before the audit made `is-crawlable` fail and dropped the SEO category to 63 while the application itself scored 100.
 
 `.github/workflows/staging.yml` and `.github/workflows/deploy.yml` explicitly require successful quality jobs before deployment. `.github/workflows/availability.yml` updates Mood through `develop` and therefore the staging path.
 

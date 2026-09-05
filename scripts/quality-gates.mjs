@@ -167,10 +167,52 @@ if (!qualityWorkflow.includes("npm run test:e2e:install") || !qualityWorkflow.in
 else pass("Quality workflow uses the pinned project Playwright dependency");
 if (!readFileSync(resolve(".github/workflows/availability.yml"), "utf8").includes("name: Set portfolio mood") || !readFileSync(resolve(".github/workflows/availability.yml"), "utf8").includes("npm run mood")) fail("Portfolio mood workflow contract is missing");
 else pass("Portfolio mood workflow updates develop through the central config");
-const e2ePosition = qualityWorkflow.indexOf("Browser E2E and accessibility smoke");
-const artifactPosition = qualityWorkflow.indexOf("Upload tested deployment bundle");
-if (e2ePosition < 0 || artifactPosition < 0 || e2ePosition > artifactPosition) fail("Tested deploy artifact can be created before E2E completes");
+const stepPosition = name => qualityWorkflow.indexOf(`- name: ${name}`);
+const buildPosition = stepPosition("Build tested application bundle");
+const e2ePosition = stepPosition("Browser E2E and accessibility smoke");
+const lighthousePosition = stepPosition("Lighthouse quality report");
+const stagingPackagePosition = stepPosition("Package staging bundle and verify it is not indexable");
+const productionPackagePosition = stepPosition("Package production bundle and verify it stays indexable");
+const artifactPosition = stepPosition("Upload verified environment bundle");
+const orderedSteps = [buildPosition, e2ePosition, lighthousePosition, stagingPackagePosition, productionPackagePosition, artifactPosition];
+if (orderedSteps.some(position => position < 0) || orderedSteps.some((position, index) => index > 0 && position <= orderedSteps[index - 1])) fail("Quality workflow order must be build → E2E → Lighthouse → environment packaging → artifact upload");
 else pass("Deployment artifacts are produced only after E2E/Lighthouse quality work");
+
+// The SEO regression that produced Lighthouse seo=63 was an ordering defect:
+// the staging noindex transform ran before the audit, so Lighthouse graded a
+// deliberately non-indexable document. These gates keep the audit pointed at
+// the real indexable application.
+if (/npm run build:staging/.test(qualityWorkflow) || /build_mode/.test(qualityWorkflow)) fail("Quality workflow must build one indexable bundle instead of an environment-specific build mode");
+else if (!/- name: Build tested application bundle\s*\n\s*run: npm run build\s*\n/.test(qualityWorkflow)) fail("Quality workflow does not build the plain indexable application bundle");
+else pass("Lighthouse audits one indexable application build, not an environment bundle");
+if (existsSync(resolve("scripts/prepare-staging.mjs"))) fail("scripts/prepare-staging.mjs mutates dist/ in place and must not return alongside package-env.mjs");
+else pass("No build script rewrites the tested dist/ into a non-indexable bundle");
+
+const packageEnvSource = readFileSync(resolve("scripts/package-env.mjs"), "utf8");
+const verifyEnvSource = readFileSync(resolve("scripts/verify-env.mjs"), "utf8");
+if (!/dist-\$\{target\}/.test(packageEnvSource) || !/rmSync\(outDir/.test(packageEnvSource) || !/cpSync\(sourceDir, outDir/.test(packageEnvSource)) fail("Environment packaging must derive a separate dist-<env>/ bundle from the tested dist/");
+else pass("Staging and production bundles are derived directories, not one mutated dist/");
+if (!/noindex,nofollow,noarchive/.test(packageEnvSource) || !/Disallow: \//.test(packageEnvSource)) fail("Staging packaging must apply noindex and a site-wide robots Disallow");
+else pass("Staging packaging applies noindex and robots Disallow: /");
+if (/target === "production"[\s\S]{0,400}noindex/.test(packageEnvSource)) fail("Production packaging must never apply a noindex policy");
+else pass("Production packaging applies no noindex policy");
+for (const contract of ["Staging robots.txt does not contain a site-wide Disallow", "Production robots.txt contains a site-wide Disallow", "inherited a staging noindex", "advertises a sitemap"]) {
+  if (!verifyEnvSource.includes(contract)) fail(`Environment verification is missing an indexing contract: ${contract}`);
+}
+if (!failures.some(item => item.includes("indexing contract"))) pass("Environment verification covers staging noindex and production indexability");
+
+const packageScripts = packageManifest?.scripts || {};
+if (packageScripts["package:staging"] !== "node scripts/package-env.mjs staging" || packageScripts["package:production"] !== "node scripts/package-env.mjs production"
+  || packageScripts["verify:staging"] !== "node scripts/verify-env.mjs staging" || packageScripts["verify:production"] !== "node scripts/verify-env.mjs production") fail("Environment packaging/verification scripts are missing or inconsistent");
+else pass("Environment packaging and verification are project-owned scripts");
+if (packageScripts["build:staging"]) fail("build:staging produces a non-indexable dist/ before validation and must stay removed");
+
+if (!/npm run verify:staging/.test(qualityWorkflow) || !/npm run verify:production/.test(qualityWorkflow)) fail("Quality workflow does not verify environment indexing policy before uploading an artifact");
+else pass("Staging and production indexing policy are verified before artifact upload");
+if (!/path: dist-\$\{\{ inputs\.deploy_env \}\}\//.test(qualityWorkflow)) fail("Deploy artifact must be the verified environment bundle, not the raw dist/");
+else pass("Deploy artifact is the verified environment-specific bundle");
+if (!/name: Upload Lighthouse report on failure/.test(qualityWorkflow)) fail("Lighthouse failures do not upload a report artifact for debugging");
+else pass("Lighthouse failures upload the JSON/HTML report");
 
 if (failures.length) {
   console.error(`\nQuality gates failed (${failures.length}).`);

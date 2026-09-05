@@ -1,5 +1,8 @@
 node_modules/
 dist/
+# Environment deploy bundles derived from the tested dist/
+dist-staging/
+dist-production/
 .env
 .env.*
 !.env.example
