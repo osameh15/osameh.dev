@@ -17,7 +17,7 @@ import { EngineeringNotesSection, EngineeringNoteView } from "./EngineeringNotes
 import { engineeringNotes } from "./notesData";
 import { AccessibilityControlButton, AvailabilityBadge, CaseStudiesSection, CaseStudyModal, PortfolioFeatureModals, availabilityConfig, availabilityProfile, capabilities, caseStudies, usePortfolioFeatures } from "./PortfolioFeatures";
 import type { CaseStudy } from "./caseStudiesData";
-import { useModalDialog } from "./modalScroll";
+import { getWorkspaceScrollPosition, useModalDialog } from "./modalScroll";
 
 type ThemePreference = "dark" | "light" | "system";
 type FontPreference = "inter" | "mono" | "humanist" | "serif";
@@ -530,6 +530,9 @@ export default function Home() {
   const [terminalInput, setTerminalInput] = useState("");
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  // Destination chosen in the Command Palette, held until the palette has
+  // actually closed and released its share of the shared modal lock.
+  const pendingPaletteActionRef = useRef<(() => void) | null>(null);
   const [commandQuery, setCommandQuery] = useState("");
   const [commandIndex, setCommandIndex] = useState(0);
   const [actionToast, setActionToast] = useState<ToastState>(null);
@@ -741,10 +744,23 @@ export default function Home() {
 
   useEffect(() => {
     if (!commandPaletteOpen) return;
+    // Escape is owned by the shared modal stack in useModalDialog, which closes
+    // only the topmost dialog. A second listener here would close the palette
+    // out of stack order.
     const frame = window.requestAnimationFrame(() => commandPaletteInputRef.current?.focus({ preventScroll: true }));
-    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") { event.preventDefault(); setCommandPaletteOpen(false); } };
-    document.addEventListener("keydown", closeOnEscape);
-    return () => { window.cancelAnimationFrame(frame); document.removeEventListener("keydown", closeOnEscape); };
+    return () => window.cancelAnimationFrame(frame);
+  }, [commandPaletteOpen]);
+
+  // A palette destination runs only once the palette is gone. This is a passive
+  // effect, so React has already flushed the palette's layout-effect cleanup -
+  // its modal lock is released, the body is unfrozen and the workspace scroll
+  // is restored - before the destination takes over focus, history and scroll.
+  useEffect(() => {
+    if (commandPaletteOpen) return;
+    const action = pendingPaletteActionRef.current;
+    if (!action) return;
+    pendingPaletteActionRef.current = null;
+    action();
   }, [commandPaletteOpen]);
 
   useEffect(() => { setCommandIndex(0); }, [commandQuery]);
@@ -1409,11 +1425,15 @@ export default function Home() {
   const openCaseStudy = (study: CaseStudy, updateHistory = true) => {
     cancelSectionScroll();
     if (updateHistory) {
+      // Never read window.scrollY here. Opening from the Command Palette (or any
+      // other dialog) means the body is already frozen and window.scrollY is 0,
+      // which would make closing this Case Study jump to the top of the page.
+      const origin = getWorkspaceScrollPosition();
       caseStudyOriginRef.current = {
         path: window.location.pathname,
         sectionPath: activeSectionPath,
-        scrollX: window.scrollX,
-        scrollY: window.scrollY,
+        scrollX: origin.x,
+        scrollY: origin.y,
       };
     } else {
       caseStudyOriginRef.current = null;
@@ -1919,9 +1939,12 @@ export default function Home() {
     .map(entry => entry.item);
   const safeCommandIndex = filteredPaletteCommands.length ? Math.min(commandIndex, filteredPaletteCommands.length - 1) : 0;
   const runPaletteCommand = (item: PaletteCommand) => {
+    // Queue the destination rather than running it here. Behind a still-open
+    // palette a destination would read a frozen body, and its own scroll would
+    // then be overridden by the palette's restore on unlock.
+    pendingPaletteActionRef.current = item.action;
     setCommandPaletteOpen(false);
     setCommandQuery("");
-    item.action();
   };
   const paletteIcon = (icon: PaletteCommand["icon"]) => {
     if (icon === "home") return <HomeIcon size={16} />;

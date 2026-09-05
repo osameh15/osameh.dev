@@ -17,7 +17,10 @@ export default defineConfig({
   webServer: {
     command: "npm run preview -- --host 127.0.0.1 --port 4173",
     port: 4173,
-    reuseExistingServer: false,
+    // CI always builds and serves its own controlled preview. Locally, an
+    // already-running preview on the same port is reused instead of failing
+    // the entire run.
+    reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },
 });

@@ -45,12 +45,11 @@ type TocItem = { id: string; label: string; level: number };
 
 function prepareNoteHtml(markdown: string, namespace: string) {
   const raw = marked.parse(markdown, { gfm: true, breaks: false }) as string;
-  const clean = DOMPurify.sanitize(raw, {
-    USE_PROFILES: { html: true },
-    FORBID_TAGS: ["script", "style", "iframe", "object", "embed", "form", "input", "textarea", "select"],
-    FORBID_ATTR: ["style", "srcset", "onerror", "onclick"],
-  });
-  const doc = new DOMParser().parseFromString(`<article>${clean}</article>`, "text/html");
+  // Transform first, sanitize last. DOMParser produces an inert document, so
+  // nothing here executes; sanitizing before the parse/re-serialize round trip
+  // would instead let the parser reconstruct markup that DOMPurify had already
+  // inspected. DOMPurify must be the last thing the markup passes through.
+  const doc = new DOMParser().parseFromString(`<article>${raw}</article>`, "text/html");
   const toc: TocItem[] = [];
   doc.querySelectorAll("h2,h3").forEach((heading, index) => {
     const label = heading.textContent?.trim() || `Section ${index + 1}`;
@@ -63,6 +62,9 @@ function prepareNoteHtml(markdown: string, namespace: string) {
     const href = link.getAttribute("href") || "";
     if (/^https:\/\//i.test(href)) {
       link.setAttribute("target", "_blank");
+      // The final DOMPurify pass normalizes this to rel="noreferrer" on any
+      // target="_blank" link, which implies noopener. Set both anyway so the
+      // intent survives if the sanitizer configuration ever changes.
       link.setAttribute("rel", "noopener noreferrer");
     }
   });
@@ -75,7 +77,12 @@ function prepareNoteHtml(markdown: string, namespace: string) {
     button.textContent = "Copy";
     pre.insertBefore(button, pre.firstChild);
   });
-  return { html: doc.body.firstElementChild?.innerHTML || clean, toc };
+  const html = DOMPurify.sanitize(doc.body.firstElementChild?.innerHTML || "", {
+    USE_PROFILES: { html: true },
+    FORBID_TAGS: ["script", "style", "iframe", "object", "embed", "form", "input", "textarea", "select"],
+    FORBID_ATTR: ["style", "srcset", "onerror", "onclick"],
+  });
+  return { html, toc };
 }
 
 export function EngineeringNoteView({ slug, onClose }: { slug: string; onClose: () => void }) {

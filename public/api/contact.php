@@ -114,8 +114,6 @@ if ($payloadCsrf !== '' || $cookieCsrf !== '') {
 if (trim((string)($payload['website'] ?? '')) !== '') {
     jsonResponse(['success' => true, 'message' => 'Message accepted.', 'csrf' => issueCsrfToken(true)]);
 }
-if (!rateAllowed()) jsonResponse(['success' => false, 'message' => 'Too many messages from this connection. Please try again later.'], 429);
-
 $name = trim((string)($payload['name'] ?? ''));
 $email = trim((string)($payload['email'] ?? ''));
 $subject = trim((string)($payload['subject'] ?? ''));
@@ -125,6 +123,12 @@ if (mb_strlen($name) < 2 || mb_strlen($name) > 80) jsonResponse(['success' => fa
 if (!filter_var($email, FILTER_VALIDATE_EMAIL) || mb_strlen($email) > 160) jsonResponse(['success' => false, 'message' => 'Please enter a valid email address.'], 422);
 if (mb_strlen($subject) < 3 || mb_strlen($subject) > 120) jsonResponse(['success' => false, 'message' => 'Please enter a short subject.'], 422);
 if (mb_strlen($message) < 20 || mb_strlen($message) > 5000) jsonResponse(['success' => false, 'message' => 'Message must be between 20 and 5000 characters.'], 422);
+
+// Quota is consumed only by a submission that is actually about to be mailed.
+// Field validation above is in-process and free, so a visitor who mistypes an
+// email address no longer burns their hourly allowance. The abuse surface that
+// matters - handing messages to the mail service - stays rate limited.
+if (!rateAllowed()) jsonResponse(['success' => false, 'message' => 'Too many messages from this connection. Please try again later.'], 429);
 
 $clean = static fn(string $value): string => str_replace(["\r", "\n"], ' ', $value);
 $mailSubject = '[osameh.dev] ' . $clean($subject);

@@ -656,3 +656,181 @@ test("light floating compare queue uses readable surfaces", async ({ page }) => 
   expect(colors.queueBackground).not.toBe(colors.queueColor);
   expect(colors.actionBackground).not.toBe(colors.actionColor);
 });
+
+const openPaletteShortcut = () => window.dispatchEvent(new KeyboardEvent("keydown", { key: "p", code: "KeyP", ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true }));
+
+test("Escape closes only the topmost dialog on the modal stack", async ({ page }) => {
+  await page.goto("/case-studies");
+  await page.getByRole("button", { name: /Open case study/i }).first().click();
+  const caseStudy = page.locator('[role="dialog"].case-study-modal');
+  await expect(caseStudy).toBeVisible();
+  await expect(page).toHaveURL(/\/case-studies\/[a-z0-9-]+$/);
+
+  await page.evaluate(openPaletteShortcut);
+  const palette = page.getByRole("dialog", { name: "Command Palette" });
+  await expect(palette).toBeVisible();
+  await expect(caseStudy).toBeVisible();
+
+  // Every open dialog listens on window in the capture phase. Without an
+  // explicit stack the dialog that opened first consumes Escape and closes
+  // behind the palette the user is actually looking at.
+  await page.keyboard.press("Escape");
+  await expect(palette).toBeHidden();
+  await expect(caseStudy).toBeVisible();
+  await expect(page).toHaveURL(/\/case-studies\/[a-z0-9-]+$/);
+  // The last remaining dialog still owns the workspace lock.
+  await expect.poll(() => page.evaluate(() => document.body.style.position)).toBe("fixed");
+
+  await page.keyboard.press("Escape");
+  await expect(caseStudy).toBeHidden();
+  await expect.poll(() => page.evaluate(() => document.body.style.position)).not.toBe("fixed");
+  await expect(page).toHaveURL(/\/case-studies\/?$/);
+});
+
+test("case study opened from the Command Palette restores the deep workspace position", async ({ page }) => {
+  await page.goto("/case-studies");
+  await expect.poll(async () => {
+    const box = await page.locator("#case-studies").boundingBox();
+    return Math.abs((box?.y ?? 9999) - 96);
+  }).toBeLessThan(10);
+  await page.mouse.wheel(0, 600);
+  // Let any delayed section restoration settle so the baseline is the real
+  // workspace position rather than a value a later timer will overwrite.
+  await page.waitForTimeout(1_150);
+  const workspaceScroll = await page.evaluate(() => window.scrollY);
+  expect(workspaceScroll).toBeGreaterThan(300);
+
+  await page.getByRole("button", { name: "Command Palette" }).click();
+  const palette = page.getByRole("dialog", { name: "Command Palette" });
+  await expect(palette).toBeVisible();
+  // The palette freezes the body, so window.scrollY reads 0 from here on.
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+  await palette.getByRole("textbox").fill("amorella beauty");
+  await expect(palette.getByRole("option").first()).toContainText("Amorella Beauty");
+  await palette.getByRole("textbox").press("Enter");
+
+  const caseStudy = page.locator('[role="dialog"].case-study-modal');
+  await expect(caseStudy).toBeVisible();
+  await expect(palette).toBeHidden();
+  await expect(page).toHaveURL(/\/case-studies\/amorella-beauty$/);
+
+  await page.keyboard.press("Escape");
+  await expect(caseStudy).toBeHidden();
+  await expect.poll(() => page.evaluate(() => document.body.style.position)).not.toBe("fixed");
+  // The origin must be the frozen workspace position, never the 0 that
+  // window.scrollY reports while a dialog holds the body lock.
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(workspaceScroll);
+});
+
+test("stacking a dialog never releases and re-takes the shared body lock", async ({ page }) => {
+  await page.goto("/case-studies");
+  await page.mouse.wheel(0, 600);
+  await page.waitForTimeout(1_150);
+  await page.getByRole("button", { name: /Open case study/i }).first().click();
+  await expect(page.locator('[role="dialog"].case-study-modal')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => document.body.style.position)).toBe("fixed");
+  const frozenTop = await page.evaluate(() => document.body.style.top);
+  expect(frozenTop).not.toBe("");
+
+  // Record the shared lock state at every style mutation from here on. A lock
+  // that is released and re-acquired while a dialog stays open scrolls the
+  // page and flashes the workspace behind the modal.
+  await page.evaluate(() => {
+    const store = window as unknown as { __lockLog: string[] };
+    store.__lockLog = [];
+    new MutationObserver(() => {
+      store.__lockLog.push(`${document.documentElement.dataset.modalOpen ?? "-"}|${document.body.style.position || "-"}|${document.body.style.top || "-"}`);
+    }).observe(document.documentElement, { attributes: true, attributeFilter: ["style", "data-modal-open"], subtree: true });
+  });
+
+  await page.evaluate(openPaletteShortcut);
+  const palette = page.getByRole("dialog", { name: "Command Palette" });
+  await expect(palette).toBeVisible();
+  // Typing re-renders the shell, recreating the restore-position object passed
+  // to the dialog on every keystroke. That must not touch the lock lifecycle.
+  await palette.getByRole("textbox").fill("case study");
+  await palette.getByRole("textbox").fill("amorella");
+  await page.keyboard.press("Escape");
+  await expect(palette).toBeHidden();
+  await expect(page.locator('[role="dialog"].case-study-modal')).toBeVisible();
+
+  expect(await page.evaluate(() => document.body.style.top)).toBe(frozenTop);
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+  const log = await page.evaluate(() => (window as unknown as { __lockLog: string[] }).__lockLog);
+  expect(log.filter(entry => entry !== `true|fixed|${frozenTop}`)).toEqual([]);
+});
+
+test("a stacked dialog with no restore position cannot take over the underlying restore", async ({ page }) => {
+  await page.goto("/case-studies");
+  await expect.poll(async () => {
+    const box = await page.locator("#case-studies").boundingBox();
+    return Math.abs((box?.y ?? 9999) - 96);
+  }).toBeLessThan(10);
+  await page.mouse.wheel(0, 600);
+  await page.waitForTimeout(1_150);
+  const workspaceScroll = await page.evaluate(() => window.scrollY);
+  expect(workspaceScroll).toBeGreaterThan(300);
+
+  // The Case Study lock owns a restore position.
+  await page.getByRole("button", { name: /Open case study/i }).first().click();
+  const caseStudy = page.locator('[role="dialog"].case-study-modal');
+  await expect(caseStudy).toBeVisible();
+
+  // The palette stacks on top holding no restore position of its own, and must
+  // not become the owner of where the workspace lands.
+  await page.evaluate(openPaletteShortcut);
+  const palette = page.getByRole("dialog", { name: "Command Palette" });
+  await expect(palette).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(palette).toBeHidden();
+  await expect(caseStudy).toBeVisible();
+  expect(await page.evaluate(() => document.body.style.position)).toBe("fixed");
+
+  await page.keyboard.press("Escape");
+  await expect(caseStudy).toBeHidden();
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(workspaceScroll);
+});
+
+test("Command Palette destinations run only after the palette releases its lock", async ({ page }) => {
+  const palette = page.getByRole("dialog", { name: "Command Palette" });
+  const pick = async (query: string, option: RegExp) => {
+    await page.evaluate(openPaletteShortcut);
+    await expect(palette).toBeVisible();
+    await palette.getByRole("textbox").fill(query);
+    await expect(palette.getByRole("option").first()).toContainText(option);
+    await palette.getByRole("textbox").press("Enter");
+    await expect(palette).toBeHidden();
+  };
+  const scrollDeep = async (path: string) => {
+    await page.goto(path);
+    await page.mouse.wheel(0, 700);
+    await page.waitForTimeout(1_150);
+    const position = await page.evaluate(() => window.scrollY);
+    expect(position).toBeGreaterThan(300);
+    return position;
+  };
+
+  // Engineering Note. The destination resets the scroll itself, which only
+  // lands if the palette's lock released the frozen body first.
+  await scrollDeep("/");
+  await pick("repository-driven system", /Read note:/);
+  await expect(page).toHaveURL(/\/notes\/[a-z0-9-]+$/);
+  await expect.poll(() => page.evaluate(() => document.body.style.position)).not.toBe("fixed");
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+
+  // Project.
+  await scrollDeep("/");
+  await pick("open project", /Open project:/);
+  await expect(page).toHaveURL(/\/projects\/[^/]+$/);
+  await expect.poll(() => page.evaluate(() => document.body.style.position)).not.toBe("fixed");
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+
+  // Case Study. The lock passes straight to the dialog, so the origin it
+  // records must be the real workspace position rather than the frozen 0.
+  const workspaceScroll = await scrollDeep("/case-studies");
+  await pick("amorella beauty", /Case study:/);
+  await expect(page.locator('[role="dialog"].case-study-modal')).toBeVisible();
+  await expect(page).toHaveURL(/\/case-studies\/[a-z0-9-]+$/);
+  await page.keyboard.press("Escape");
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(workspaceScroll);
+});
