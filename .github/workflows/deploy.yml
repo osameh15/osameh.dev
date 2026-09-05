@@ -43,15 +43,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -f dist/index.html
-          test -f dist/.htaccess
-          test -f dist/build-info.json
-          test -f dist/api/github.php
-          test -f dist/api/contact.php
-          test -f dist/api/health.php
-          test -f dist/case-study.php
-          test -f dist/case-studies-index.json
-          test -f dist/sitemap.php
+          missing=0
+          for file in index.html .htaccess build-info.json api/github.php \
+                      api/contact.php api/health.php case-study.php \
+                      case-studies-index.json sitemap.php; do
+            if [[ ! -f "dist/$file" ]]; then
+              echo "::error::Downloaded production artifact is missing dist/$file"
+              missing=1
+            fi
+          done
+          [[ "$missing" -eq 0 ]] || exit 1
           jq . dist/build-info.json
 
       - name: Install deployment client

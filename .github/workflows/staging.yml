@@ -40,10 +40,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -f dist/index.html
-          test -f dist/.htaccess
-          test -f dist/build-info.json
-          test -f dist/robots.txt
+          missing=0
+          for file in index.html .htaccess build-info.json robots.txt; do
+            if [[ ! -f "dist/$file" ]]; then
+              echo "::error::Downloaded staging artifact is missing dist/$file"
+              missing=1
+            fi
+          done
+          [[ "$missing" -eq 0 ]] || exit 1
           grep -q 'Disallow: /' dist/robots.txt
           jq . dist/build-info.json
 

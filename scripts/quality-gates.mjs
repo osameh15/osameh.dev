@@ -214,6 +214,19 @@ else pass("Deploy artifact is the verified environment-specific bundle");
 if (!/name: Upload Lighthouse report on failure/.test(qualityWorkflow)) fail("Lighthouse failures do not upload a report artifact for debugging");
 else pass("Lighthouse failures upload the JSON/HTML report");
 
+// The deploy bundle ships .htaccess, and actions/upload-artifact excludes
+// hidden files unless told otherwise. Without this the artifact loses the
+// rewrite rules, security headers and the staging X-Robots-Tag, and a mirroring
+// deploy would delete the file from the server.
+const bundleUploadStep = qualityWorkflow.slice(qualityWorkflow.indexOf("- name: Upload verified environment bundle"));
+if (!/include-hidden-files:\s*true/.test(bundleUploadStep)) fail("Deploy artifact upload must set include-hidden-files so .htaccess survives");
+else pass("Deploy artifact upload preserves hidden files such as .htaccess");
+for (const [workflow, label] of [[stagingWorkflow, "Staging"], [productionWorkflow, "Production"]]) {
+  if (!workflow.includes("is missing dist/$file")) fail(`${label} deploy does not report which artifact file is missing`);
+  if (!/for file in [^\n]*\.htaccess/.test(workflow)) fail(`${label} deploy does not assert .htaccess survived the artifact round trip`);
+}
+if (!failures.some(item => item.includes("artifact file is missing") || item.includes("artifact round trip"))) pass("Deploy jobs verify .htaccess survived and name any missing bundle file");
+
 if (failures.length) {
   console.error(`\nQuality gates failed (${failures.length}).`);
   process.exit(1);

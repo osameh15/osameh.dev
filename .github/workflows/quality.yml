@@ -100,7 +100,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/portfolio-preview.log 2>&1 &
+          npm run preview -- --host 127.0.0.1 --port 4173 > portfolio-preview.log 2>&1 &
           server_pid=$!
           trap 'kill $server_pid 2>/dev/null || true' EXIT
           ready=0
@@ -108,14 +108,14 @@ jobs:
             if curl -fsS http://127.0.0.1:4173/ >/dev/null 2>&1; then ready=1; break; fi
             if ! kill -0 "$server_pid" 2>/dev/null; then
               echo "::error::Vite preview exited before Lighthouse could start."
-              cat /tmp/portfolio-preview.log
+              cat portfolio-preview.log
               exit 1
             fi
             sleep 1
           done
           if [[ "$ready" -ne 1 ]]; then
             echo "::error::Vite preview did not become ready on 127.0.0.1:4173."
-            cat /tmp/portfolio-preview.log
+            cat portfolio-preview.log
             exit 1
           fi
           # Audited target: the indexable dist/ bundle served by vite preview.
@@ -126,9 +126,9 @@ jobs:
             --quiet --chrome-flags='--headless --no-sandbox' \
             --only-categories=accessibility,best-practices,seo \
             --output=json --output=html \
-            --output-path=/tmp/lighthouse-report
+            --output-path=lighthouse-report
           node - <<'NODE'
-          const r=require('/tmp/lighthouse-report.report.json');
+          const r=require('./lighthouse-report.report.json');
           const min={accessibility:.9,'best-practices':.9,seo:.9};
           let failed=false;
           for(const [k,v] of Object.entries(min)){
@@ -152,9 +152,9 @@ jobs:
         with:
           name: lighthouse-report-${{ inputs.deploy_env || 'application' }}
           path: |
-            /tmp/lighthouse-report.report.json
-            /tmp/lighthouse-report.report.html
-            /tmp/portfolio-preview.log
+            lighthouse-report.report.json
+            lighthouse-report.report.html
+            portfolio-preview.log
           if-no-files-found: ignore
           retention-days: 5
 
@@ -178,5 +178,10 @@ jobs:
         with:
           name: ${{ inputs.artifact_name }}
           path: dist-${{ inputs.deploy_env }}/
+          # The bundle ships .htaccess, which carries the rewrite rules, security
+          # headers and the staging X-Robots-Tag. upload-artifact excludes hidden
+          # files by default, which would silently drop it from the artifact and
+          # let a deploy mirror delete it from the server.
+          include-hidden-files: true
           if-no-files-found: error
           retention-days: 3

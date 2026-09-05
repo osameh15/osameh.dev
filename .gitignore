@@ -15,6 +15,7 @@ public/build-info.json
 **/osameh-portfolio-secrets.php
 private/
 
-# Local Lighthouse runs. CI writes its own report to /tmp and reads the scores
-# from there, so these are throwaway local output.
+# Lighthouse output. CI writes its report into the workspace so a failing run
+# can upload it as an artifact; local runs produce the same throwaway files.
 *-lighthouse.json
+lighthouse-report.*
