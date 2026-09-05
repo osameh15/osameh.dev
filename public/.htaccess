@@ -32,7 +32,7 @@ RewriteRule ^api/github/meta/([A-Za-z0-9._-]+)/?$ api/github.php?meta=$1 [QSA,L]
 
   # First-class client routes. /resume must be handled explicitly because a
   # real public/resume directory also exists for the PDF asset.
-  RewriteRule ^(?:home|about|projects|experience|now|changelog|notes|case-studies|contact|resume|status)/?$ index.html [L]
+  RewriteRule ^(?:home|about|projects|experience|activity|now|changelog|notes|case-studies|contact|resume|status)/?$ index.html [L]
 
   # Existing files/directories are served normally. Unknown browser routes are
   # sent through not-found.php. It intentionally returns HTTP 200 + noindex because

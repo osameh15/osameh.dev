@@ -15,7 +15,7 @@ import {
   type SourceTreeFile,
   type SourceTreePayload,
 } from "./projectMetadata";
-import { useModalScrollLock } from "./modalScroll";
+import { useModalDialog } from "./modalScroll";
 
 type RepoMetadataMap = Record<string, PortfolioMetadata | undefined>;
 
@@ -333,10 +333,14 @@ export function ProjectQuickAccess({ repo }: { repo: RepoLike }) {
   const navRef = useRef<HTMLElement>(null);
   const manualTargetRef = useRef<string | null>(null);
   const manualTimerRef = useRef<number | null>(null);
+  const endPinnedRef = useRef(false);
+  const lastWindowScrollYRef = useRef(0);
 
   useEffect(() => {
     setActive(items[0]?.id || "");
     manualTargetRef.current = null;
+    endPinnedRef.current = false;
+    lastWindowScrollYRef.current = window.scrollY;
     if (manualTimerRef.current !== null) window.clearTimeout(manualTimerRef.current);
   }, [items]);
 
@@ -366,7 +370,16 @@ export function ProjectQuickAccess({ repo }: { repo: RepoLike }) {
       if (!elements.length) return;
       const pageBottom = window.scrollY + window.innerHeight;
       const documentBottom = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
-      if (documentBottom - pageBottom <= Math.max(8, window.innerHeight * .02)) {
+      const endDistance = Math.max(0, documentBottom - pageBottom);
+      const endThreshold = Math.max(72, window.innerHeight * .10);
+      const previousScrollY = lastWindowScrollYRef.current;
+      const userMovedUp = window.scrollY < previousScrollY - 18;
+      lastWindowScrollYRef.current = window.scrollY;
+      if (endDistance <= endThreshold) endPinnedRef.current = true;
+      // Once the user reaches document end, async gallery/image layout growth
+      // must not immediately unpin Gallery. Only an actual upward scroll does.
+      else if (userMovedUp) endPinnedRef.current = false;
+      if (endPinnedRef.current) {
         const last = elements[elements.length - 1];
         if (last?.id) setActive(last.id);
         return;
@@ -394,12 +407,17 @@ export function ProjectQuickAccess({ repo }: { repo: RepoLike }) {
       frame = window.requestAnimationFrame(syncActiveSection);
     };
     syncActiveSection();
+    const resizeObserver = typeof ResizeObserver !== "undefined" ? new ResizeObserver(schedule) : null;
+    resizeObserver?.observe(document.documentElement);
     window.addEventListener("scroll", schedule, { passive: true });
     window.addEventListener("resize", schedule);
+    window.visualViewport?.addEventListener("resize", schedule);
     return () => {
       if (frame) window.cancelAnimationFrame(frame);
+      resizeObserver?.disconnect();
       window.removeEventListener("scroll", schedule);
       window.removeEventListener("resize", schedule);
+      window.visualViewport?.removeEventListener("resize", schedule);
     };
   }, [items]);
 
@@ -445,7 +463,7 @@ export function FeaturedProjects({ repos, metadata, onOpen, onRecruiterMode }: {
 }
 
 export function RecruiterMode({ open, repos, metadata, onClose, onOpenProject }: { open: boolean; repos: RepoLike[]; metadata: RepoMetadataMap; onClose: () => void; onOpenProject: (repo: RepoLike) => void }) {
-  useModalScrollLock(open);
+  const dialogRef = useModalDialog<HTMLElement>(open, onClose);
   const featured = useMemo(() => repos
     .map(repo => ({ repo, meta: metadata[repo.name] || fallbackPortfolioMetadata(repo) }))
     .filter(item => item.meta.project.featured)
@@ -456,7 +474,6 @@ export function RecruiterMode({ open, repos, metadata, onClose, onOpenProject }:
   useEffect(() => {
     if (!open) return;
     const handler = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
       if (event.key === "ArrowRight") setStep(value => Math.min(featured.length + 1, value + 1));
       if (event.key === "ArrowLeft") setStep(value => Math.max(0, value - 1));
     };
@@ -468,10 +485,10 @@ export function RecruiterMode({ open, repos, metadata, onClose, onOpenProject }:
   const total = featured.length + 2;
   const projectIndex = step - 1;
   const current = projectIndex >= 0 && projectIndex < featured.length ? featured[projectIndex] : null;
-  return <div className="advanced-modal-backdrop recruiter-backdrop" onMouseDown={onClose}><section className="recruiter-mode" role="dialog" aria-modal="true" aria-label="Recruiter mode" onMouseDown={event => event.stopPropagation()}>
+  return <div className="advanced-modal-backdrop recruiter-backdrop" onMouseDown={onClose}><section ref={dialogRef} tabIndex={-1} className="recruiter-mode" role="dialog" aria-modal="true" aria-label="Recruiter mode" onMouseDown={event => event.stopPropagation()}>
     <header><div><BriefcaseBusiness size={17} /><span>recruiter-mode.tour</span><small>~90 second engineering tour</small></div><button onClick={onClose} aria-label="Close recruiter mode"><X size={18} /></button></header>
     <div className="recruiter-progress"><span style={{ width: `${((step + 1) / total) * 100}%` }} /></div>
-    <main>{step === 0 ? <div className="recruiter-intro"><p className="eyebrow">RECRUITER MODE / START</p><h2>Software engineering, without the scavenger hunt.</h2><p>This guided view surfaces the strongest evidence across backend, full-stack, desktop, product engineering, security, and delivery. Every project remains backed by its public repository and repository-owned <code>portfolio.json</code>.</p><div className="recruiter-facts"><span><Code2 size={16} /><b>{repos.length}</b> public repositories</span><span><GitBranch size={16} /><b>GitHub</b> live metadata</span><span><ShieldCheck size={16} /><b>CI/CD</b> production delivery</span></div></div> : current ? <div className="recruiter-project"><div className="recruiter-project-top"><span>{String(projectIndex + 1).padStart(2, "0")} / {String(featured.length).padStart(2, "0")}</span><small>{current.meta.project.type}</small></div><h2>{current.meta.project.name}</h2><p className="recruiter-headline">{current.meta.recruiter.headline}</p><div className="recruiter-skill-list">{current.meta.recruiter.skillsDemonstrated.map(skill => <span key={skill}>{skill}</span>)}</div><div className="recruiter-talking-points">{current.meta.recruiter.talkingPoints.map(point => <p key={point}><Circle size={14} />{point}</p>)}</div><div className="recruiter-role"><small>MY ROLE</small><b>{current.meta.ownership.role}</b><span>{current.meta.ownership.responsibilities.slice(0, 5).join(" · ")}</span></div><button className="primary-btn" onClick={() => { onClose(); onOpenProject(current.repo); }}>Open full project <ArrowUpRight size={15} /></button></div> : <div className="recruiter-outro"><p className="eyebrow">RECRUITER MODE / NEXT STEP</p><h2>Want the full picture?</h2><p>The resume covers professional history; individual project pages expose architecture, source, README, gallery, and case-study detail.</p><div><button className="primary-btn" onClick={() => { onClose(); window.dispatchEvent(new Event("portfolio:resume")); }}>Open resume</button><button className="secondary-btn" onClick={() => { onClose(); document.getElementById("contact")?.scrollIntoView({ behavior: "smooth" }); }}>Contact me</button></div></div>}</main>
+    <main className="modal-scroll-viewport"><div className="modal-content">{step === 0 ? <div className="recruiter-intro"><p className="eyebrow">RECRUITER MODE / START</p><h2>Software engineering, without the scavenger hunt.</h2><p>This guided view surfaces the strongest evidence across backend, full-stack, desktop, product engineering, security, and delivery. Every project remains backed by its public repository and repository-owned <code>portfolio.json</code>.</p><div className="recruiter-facts"><span><Code2 size={16} /><b>{repos.length}</b> public repositories</span><span><GitBranch size={16} /><b>GitHub</b> live metadata</span><span><ShieldCheck size={16} /><b>CI/CD</b> production delivery</span></div></div> : current ? <div className="recruiter-project"><div className="recruiter-project-top"><span>{String(projectIndex + 1).padStart(2, "0")} / {String(featured.length).padStart(2, "0")}</span><small>{current.meta.project.type}</small></div><h2>{current.meta.project.name}</h2><p className="recruiter-headline">{current.meta.recruiter.headline}</p><div className="recruiter-skill-list">{current.meta.recruiter.skillsDemonstrated.map(skill => <span key={skill}>{skill}</span>)}</div><div className="recruiter-talking-points">{current.meta.recruiter.talkingPoints.map(point => <p key={point}><Circle size={14} />{point}</p>)}</div><div className="recruiter-role"><small>MY ROLE</small><b>{current.meta.ownership.role}</b><span>{current.meta.ownership.responsibilities.slice(0, 5).join(" · ")}</span></div><button className="primary-btn" onClick={() => { onClose(); onOpenProject(current.repo); }}>Open full project <ArrowUpRight size={15} /></button></div> : <div className="recruiter-outro"><p className="eyebrow">RECRUITER MODE / NEXT STEP</p><h2>Want the full picture?</h2><p>The resume covers professional history; individual project pages expose architecture, source, README, gallery, and case-study detail.</p><div><button className="primary-btn" onClick={() => { onClose(); window.dispatchEvent(new Event("portfolio:resume")); }}>Open resume</button><button className="secondary-btn" onClick={() => { onClose(); document.getElementById("contact")?.scrollIntoView({ behavior: "smooth" }); }}>Contact me</button></div></div>}</div></main>
     <footer><button onClick={() => setStep(value => Math.max(0, value - 1))} disabled={step === 0}><ArrowLeft size={15} /> Previous</button><span>{step + 1} / {total}</span><button onClick={() => setStep(value => Math.min(total - 1, value + 1))} disabled={step >= total - 1}>Next <ArrowRight size={15} /></button></footer>
   </section></div>;
 }

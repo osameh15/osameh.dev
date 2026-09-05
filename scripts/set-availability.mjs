@@ -17,7 +17,9 @@ function list() {
   for (const key of allowed) {
     const profile = config.profiles[key];
     const marker = key === config.activeStatus ? "*" : " ";
-    console.log(`${marker} ${key.padEnd(11)} ${profile.label}`);
+    console.log(`${marker} Preset: ${key}`);
+    console.log(`    Short label: ${profile.shortLabel}`);
+    console.log(`    Public header label: ${profile.label}`);
   }
   console.log("\nChange mood with: npm run mood -- <preset>");
 }
@@ -35,14 +37,16 @@ if (!allowed.includes(requested)) {
 }
 
 if (config.activeStatus === requested) {
-  console.log(`Portfolio mood is already: ${requested}`);
-  console.log(`Header: ${config.profiles[requested].shortLabel}`);
+  const profile = config.profiles[requested];
+  console.log(`Preset: ${requested} (already active)`);
+  console.log(`Short label: ${profile.shortLabel}`);
+  console.log(`Public header label: ${profile.label}`);
   process.exit(0);
 }
 
 config.activeStatus = requested;
 fs.writeFileSync(file, `${JSON.stringify(config, null, 2)}\n`);
-console.log(`Portfolio mood changed to: ${requested}`);
-console.log(`Header: ${config.profiles[requested].shortLabel}`);
-console.log(`Status: ${config.profiles[requested].label}`);
+console.log(`Preset: ${requested} (changed)`);
+console.log(`Short label: ${config.profiles[requested].shortLabel}`);
+console.log(`Public header label: ${config.profiles[requested].label}`);
 console.log("Push to develop to verify on staging, or use the manual GitHub Action.");

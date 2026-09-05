@@ -12,15 +12,22 @@ The project follows [Semantic Versioning](https://semver.org/). The early produc
 
 ### Changed
 - Consolidated the site-wide ranked search experience into a single **Command Palette** surface with one `Ctrl/Cmd + Shift + P` shortcut; the redundant application-level `Ctrl/Cmd + K` alias was removed.
-- Standardized Header utility controls to one 34px control height, including **Install app**, Command Palette, Accessibility, and Portfolio Mood actions.
-- Portfolio Mood now exposes a distinct compact Header label for every preset: `Available`, `Selective`, `Freelance`, `Focused`, or `Unavailable`.
-- Modal scroll surfaces reserve symmetric inline scrollbar gutters so bordered rows and cards keep equal left/right spacing.
+- Standardized Header utility controls to one 34px control height, including **Install app**, Command Palette, Accessibility, and Portfolio Mood actions, with explicit icon/label vertical centering.
+- Portfolio Mood now shows the full active availability message in the Header (for example, `Open to selected opportunities`) instead of a shortened status word.
+- Portfolio Mood CLI output now distinguishes the preset key, short label, and full public Header label without duplicating availability configuration.
+- Documented the exact Vite 8 runtime floor: Node.js >=20.19.0 or >=22.12.0; CI remains on Node.js 22.
+- Scroll behavior is unified across the IDE: transparent tracks, low-opacity thumbs that become fully visible on hover, no permanent scrollbar gutters, and measured native-width compensation so modal cards keep equal visual left/right spacing.
 
 ### Fixed
 - Closing a Case Study now restores the exact covered workspace without scheduling a later section-03 scroll; delayed initial route timers were removed, the pre-modal position is restored explicitly, and real wheel/touch/pointer/keyboard navigation cancels stale section-restoration work.
-- Browser Back from an open Case Study restores the covered workspace state instead of forcing an exact Case Studies section jump.
-- Explicit semantic Light Theme surfaces now cover Case Study, capability, Accessibility, and Availability cards consistently with the 4.2 redesign.
-- Removed an accidental duplicate local declaration in project-tab close logic and expanded regression coverage around modal scroll restoration, header sizing, context menus, and modal gutter symmetry.
+- Browser Back from an open Case Study restores the canonical Case Studies index anchor, while Escape/close preserves the exact covered workspace position.
+- Added `/activity` to first-class Apache routing and both sitemap implementations so direct GitHub Activity navigation and SEO discovery match the SPA.
+- Allowed the exact staging origin to exercise the Contact API without weakening the production/staging allowlist or accepting arbitrary origins.
+- Project context-menu Gallery navigation now targets the rendered repository-name identifier instead of the unrelated numeric repository ID.
+- All dialog consumers now share Escape close, focus trapping, focus return, background locking, and deterministic scroll restoration behavior.
+- Modal chrome now stays edge-to-edge across feature, diagnostics, resume, compare, and Recruiter Mode dialogs; title dividers/progress lines no longer stop short because of a reserved right scrollbar gutter.
+- Explicit semantic Light Theme surfaces now cover Case Study, capability, Accessibility, Availability, and Command Palette surfaces consistently with the 4.2 redesign, without transient dark-to-light card interpolation.
+- Removed an accidental duplicate local declaration in project-tab close logic and expanded regression coverage around route-anchor restoration, modal scroll restoration, header sizing/centering, context menus, modal gutter symmetry, mobile Gallery pinning, and Light Theme stability.
 
 ## 5.0.0 - 2026-09-02
 
@@ -251,7 +258,7 @@ The project follows [Semantic Versioning](https://semver.org/). The early produc
 
 ### Changed
 - Finalized CI/CD documentation for the dedicated ParsPack deployment account.
-- Documentation-only changes, including `CHANGELOG.md`, no longer trigger a production deployment workflow.
+- Documentation-only changes, including `docs/CHANGELOG.md`, no longer trigger a production deployment workflow.
 
 ## 2.2.1 - 2026-08-31
 
@@ -394,4 +401,3 @@ The project follows [Semantic Versioning](https://semver.org/). The early produc
 ### Security
 - `GITHUB_TOKEN` stays outside the web root and is never included in browser bundles or Git history.
 - Browser GitHub access is proxied through same-origin PHP endpoints.
-

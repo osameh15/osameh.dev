@@ -37,7 +37,7 @@ function issueCsrfToken(bool $rotate = false): string {
 
 function requestIsSameOrigin(): bool {
     $origin = trim((string)($_SERVER['HTTP_ORIGIN'] ?? ''));
-    if ($origin !== '' && !in_array($origin, ['https://osameh.dev', 'https://www.osameh.dev'], true)) return false;
+    if ($origin !== '' && !in_array($origin, ['https://osameh.dev', 'https://www.osameh.dev', 'https://staging.osameh.dev'], true)) return false;
 
     $fetchSite = strtolower(trim((string)($_SERVER['HTTP_SEC_FETCH_SITE'] ?? '')));
     if ($fetchSite !== '' && !in_array($fetchSite, ['same-origin', 'same-site', 'none'], true)) return false;

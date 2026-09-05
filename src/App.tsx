@@ -17,7 +17,7 @@ import { EngineeringNotesSection, EngineeringNoteView } from "./EngineeringNotes
 import { engineeringNotes } from "./notesData";
 import { AccessibilityControlButton, AvailabilityBadge, CaseStudiesSection, CaseStudyModal, PortfolioFeatureModals, availabilityConfig, availabilityProfile, capabilities, caseStudies, usePortfolioFeatures } from "./PortfolioFeatures";
 import type { CaseStudy } from "./caseStudiesData";
-import { useModalScrollLock } from "./modalScroll";
+import { useModalDialog } from "./modalScroll";
 
 type ThemePreference = "dark" | "light" | "system";
 type FontPreference = "inter" | "mono" | "humanist" | "serif";
@@ -547,7 +547,8 @@ export default function Home() {
     "Type `help` for commands, or just scroll.",
   ]);
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
-  useModalScrollLock(commandPaletteOpen || Boolean(galleryLightbox));
+  const commandPaletteDialogRef = useModalDialog<HTMLElement>(commandPaletteOpen, () => setCommandPaletteOpen(false));
+  const galleryDialogRef = useModalDialog<HTMLDivElement>(Boolean(galleryLightbox), () => setGalleryLightbox(null));
   const terminalOutputRef = useRef<HTMLDivElement>(null);
   const terminalInputRef = useRef<HTMLInputElement>(null);
   const terminalCompletionRef = useRef<{ seed: string; matches: string[]; index: number; applied: string }>({ seed: "", matches: [], index: -1, applied: "" });
@@ -561,6 +562,13 @@ export default function Home() {
   const pendingSectionScrollRef = useRef<{ id: string; behavior: ScrollBehavior; exact: boolean; token: number } | null>(null);
   const sectionScrollTokenRef = useRef(0);
   const sectionScrollTimersRef = useRef<number[]>([]);
+
+  const cancelSectionScroll = useCallback(() => {
+    sectionScrollTokenRef.current += 1;
+    pendingSectionScrollRef.current = null;
+    sectionScrollTimersRef.current.forEach(timer => window.clearTimeout(timer));
+    sectionScrollTimersRef.current = [];
+  }, []);
   const caseStudyOriginRef = useRef<{ path: string; sectionPath: string; scrollX: number; scrollY: number } | null>(null);
   useEffect(() => {
     const previous = window.history.scrollRestoration;
@@ -649,7 +657,7 @@ export default function Home() {
     openTerminal();
   };
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const path = window.location.pathname;
     const knownPaths = ["/", "/home", "/about", "/projects", "/case-studies", "/experience", "/activity", "/now", "/changelog", "/notes", "/contact", "/resume", "/status"];
     const noteMatch = path.match(/^\/notes\/([a-z0-9-]+)\/?$/i);
@@ -672,7 +680,10 @@ export default function Home() {
       // can race with opening a modal and later snap the workspace back to the
       // section after the dialog closes. scrollToSection already waits for two
       // animation frames, which is enough for the portfolio DOM to commit.
-      if (document.documentElement.dataset.modalOpen !== "true") scrollToSection(target, "auto");
+      if (document.documentElement.dataset.modalOpen !== "true") {
+        const exact = path.toLowerCase() === "/notes" || path.toLowerCase() === "/case-studies";
+        scrollToSection(target, "auto", exact);
+      }
     } else if (!knownPaths.includes(path.toLowerCase()) && !/^\/projects\/[^/]+\/?$/i.test(path) && !/^\/notes\/[^/]+\/?$/i.test(path) && !/^\/case-studies\/[^/]+\/?$/i.test(path)) setNotFoundPath(path);
   }, []);
 
@@ -834,6 +845,10 @@ export default function Home() {
       if (!finePointer && !keyboardInvocation) return;
 
       event.preventDefault();
+      // A context menu is direct user intent. Cancel route stabilization before
+      // opening it so a later programmatic scroll cannot dismiss or replace the
+      // Note/Case Study specific menu while the user is reading it.
+      cancelSectionScroll();
       setFileMenuOpen(false);
       setCommandPaletteOpen(false);
 
@@ -878,7 +893,7 @@ export default function Home() {
       const target = event.target instanceof Element ? event.target : null;
       if (!target?.closest(".custom-context-menu")) setContextMenu(null);
     };
-    const closeOnScroll = (event: Event) => {
+    const closeOnScrollIntent = (event: Event) => {
       const target = event.target instanceof Element ? event.target : null;
       if (target?.closest(".custom-context-menu")) return;
       setContextMenu(null);
@@ -887,15 +902,17 @@ export default function Home() {
 
     document.addEventListener("contextmenu", handleContextMenu);
     document.addEventListener("pointerdown", closeOnPointer);
-    window.addEventListener("scroll", closeOnScroll, true);
+    window.addEventListener("wheel", closeOnScrollIntent, { passive: true });
+    window.addEventListener("touchstart", closeOnScrollIntent, { passive: true });
     window.addEventListener("resize", closeOnResize);
     return () => {
       document.removeEventListener("contextmenu", handleContextMenu);
       document.removeEventListener("pointerdown", closeOnPointer);
-      window.removeEventListener("scroll", closeOnScroll, true);
+      window.removeEventListener("wheel", closeOnScrollIntent);
+      window.removeEventListener("touchstart", closeOnScrollIntent);
       window.removeEventListener("resize", closeOnResize);
     };
-  }, [activeRepo, activeNoteSlug, activeCaseStudy, repoGalleries]);
+  }, [activeRepo, activeNoteSlug, activeCaseStudy, repoGalleries, cancelSectionScroll]);
 
   useEffect(() => {
     if (!contextMenu) return;
@@ -1267,13 +1284,6 @@ export default function Home() {
     if (scrollToTop) window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const cancelSectionScroll = useCallback(() => {
-    sectionScrollTokenRef.current += 1;
-    pendingSectionScrollRef.current = null;
-    sectionScrollTimersRef.current.forEach(timer => window.clearTimeout(timer));
-    sectionScrollTimersRef.current = [];
-  }, []);
-
   useEffect(() => {
     const cancelForModal = () => cancelSectionScroll();
     window.addEventListener("portfolio:modal-open", cancelForModal);
@@ -1302,6 +1312,9 @@ export default function Home() {
 
   const applySectionScroll = (request: { id: string; behavior: ScrollBehavior; exact: boolean; token: number }) => {
     if (request.token !== sectionScrollTokenRef.current) return false;
+    // Browser Back can fire while a modal is still in the layout-effect cleanup
+    // phase. Keep the request pending until the body scroll lock is released.
+    if (document.documentElement.dataset.modalOpen === "true") return false;
     const target = document.getElementById(request.id);
     if (!target) return false;
 
@@ -1316,7 +1329,13 @@ export default function Home() {
         const root = document.documentElement;
         const previousScrollBehavior = root.style.scrollBehavior;
         root.style.scrollBehavior = "auto";
-        window.scrollTo(0, destination);
+        // scrollIntoView establishes the element boundary using the browser's
+        // current layout, then a small deterministic correction exposes it
+        // below the fixed IDE chrome. This is more robust than a stale absolute
+        // document coordinate when content above the section is still settling.
+        currentTarget.scrollIntoView({ behavior: "auto", block: "start" });
+        const correction = currentTarget.getBoundingClientRect().top - stickyOffset;
+        if (Math.abs(correction) > 0.5) window.scrollBy(0, correction);
         root.style.scrollBehavior = previousScrollBehavior;
         return;
       }
@@ -1338,6 +1357,10 @@ export default function Home() {
   const scrollToSection = (id: string, behavior: ScrollBehavior = "smooth", exact = false) => {
     const request = { id, behavior, exact, token: ++sectionScrollTokenRef.current };
     pendingSectionScrollRef.current = request;
+    // Exact route restoration must establish the anchor before the user can
+    // interact with controls inside the section. Repeated passes still cover
+    // late layout changes, but the first move is synchronous/deterministic.
+    if (exact && behavior === "auto" && document.documentElement.dataset.modalOpen !== "true") applySectionScroll(request);
     window.requestAnimationFrame(() => window.requestAnimationFrame(() => { applySectionScroll(request); }));
   };
 
@@ -1424,7 +1447,7 @@ export default function Home() {
       if (window.location.pathname !== origin.path) {
         window.history.replaceState({ restoredFromCaseStudy: true }, "", origin.path);
       }
-      // useModalScrollLock restores the exact covered scroll position during
+      // useModalDialog restores the exact covered scroll position during
       // the same React commit. Do not schedule any section scroll here.
       return;
     }
@@ -1483,8 +1506,16 @@ export default function Home() {
         cancelSectionScroll();
         caseStudyOriginRef.current = null;
         setActiveCaseStudy(null);
-        setActiveSectionPath(coveredCaseStudyOrigin.sectionPath);
         document.title = "Osameh Irandoust — Software Engineer";
+        // Browser Back is navigation to the Case Studies index, so restore the
+        // canonical section anchor. Escape/close still restores the exact
+        // covered workspace position via useModalDialog.
+        if (coveredCaseStudyOrigin.path === "/case-studies") {
+          setActiveSectionPath("/case-studies");
+          scrollToSection("case-studies", "auto", true);
+        } else {
+          setActiveSectionPath(coveredCaseStudyOrigin.sectionPath);
+        }
         return;
       }
       const caseStudyMatch = path.match(/^\/case-studies\/([a-z0-9-]+)\/?$/i);
@@ -1702,7 +1733,7 @@ export default function Home() {
     if (command.startsWith("case ")) { const id = raw.slice(5).trim().toLowerCase(); const study = caseStudies.find(item => item.id === id); if (study) { setTerminalLines(lines => [...lines, "› " + raw, `opening case-study/${study.id}.md…`]); setSearchResults([]); openCaseStudy(study); } else { setTerminalLines(lines => [...lines, "› " + raw, `case study not found: ${id}`, "Run `case-studies` to list published work."]); } return; }
     if (command === "capabilities") { setTerminalLines(lines => [...lines, "› " + raw, `capabilities (${capabilities.length}):`, ...capabilities.map(item => `  ${item.title} — ${item.focus.slice(0, 2).join(" · ")}`)]); setSearchResults([]); return; }
     if (command === "palette" || command === "command-palette") { setTerminalLines(lines => [...lines, "› " + raw, "opening Command Palette…"]); setSearchResults([]); openUniversalSearch(); return; }
-    if (command === "mood:list") { const statuses = Object.entries(availabilityConfig.profiles).map(([id, profile]) => `${id.padEnd(11)} ${profile.label}`); setTerminalLines(lines => [...lines, "› " + raw, ...statuses]); setSearchResults([]); return; }
+    if (command === "mood:list") { const statuses = Object.entries(availabilityConfig.profiles).flatMap(([id, profile]) => [`Preset: ${id}`, `  Short label: ${profile.shortLabel}`, `  Public header label: ${profile.label}`]); setTerminalLines(lines => [...lines, "› " + raw, ...statuses]); setSearchResults([]); return; }
     if (command === "availability" || command === "mood") { setTerminalLines(lines => [...lines, "› " + raw, `mood: ${availabilityConfig.activeStatus}`, availabilityProfile.label]); setSearchResults([]); setAvailabilityOpen(true); return; }
     if (command === "accessibility" || command === "a11y") { setTerminalLines(lines => [...lines, "› " + raw, "opening accessibility controls…"]); setSearchResults([]); setAccessibilityOpen(true); return; }
     if (command === "health" || command === "status-server") { setTerminalLines(lines => [...lines, "› " + raw, "opening live system health…"]); setSearchResults([]); window.dispatchEvent(new Event("portfolio:diagnostics")); return; }
@@ -2212,7 +2243,7 @@ export default function Home() {
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => window.open(`https://github.com/${GITHUB_OWNER}/${contextRepo.name}`, "_blank", "noopener,noreferrer"))}><Github size={15} /><span>View on GitHub</span><small>Source</small></button>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => { void shareProject(contextRepo).then(ok => showActionToast(ok ? "Project shared" : "Share cancelled")); })}><Send size={15} /><span>Share project</span><small>Native share</small></button>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => { void copyText(projectShareUrl(contextRepo), "Project link copied"); })}><Link2 size={15} /><span>Copy project link</span></button>
-            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => { openProject(contextRepo); window.setTimeout(() => document.getElementById(`gallery-${contextRepo.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 120); })}><ImageIcon size={15} /><span>Open gallery</span><small>{repoGalleries[contextRepo.name]?.length || "Auto"}</small></button>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => { openProject(contextRepo); window.setTimeout(() => document.getElementById(`gallery-${contextRepo.name}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 120); })}><ImageIcon size={15} /><span>Open gallery</span><small>{repoGalleries[contextRepo.name]?.length || "Auto"}</small></button>
           </div>}
           {contextNote && <div className="context-menu-group"><p>ENGINEERING NOTE</p>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => openNote(contextNote.slug))}><Braces size={15} /><span>Open note</span><small>{contextNote.slug}.md</small></button>
@@ -2258,14 +2289,14 @@ export default function Home() {
           <div className="context-menu-foot"><span>{BUILD_DISPLAY}</span><span><kbd>↑↓</kbd> navigate · <kbd>Esc</kbd> close</span></div>
         </div>}
         {commandPaletteOpen && <div className="command-palette-backdrop" role="presentation" onMouseDown={() => setCommandPaletteOpen(false)}>
-          <section className="command-palette" role="dialog" aria-modal="true" aria-label={t("universalSearch")} onMouseDown={event => event.stopPropagation()}>
+          <section ref={commandPaletteDialogRef} tabIndex={-1} className="command-palette" role="dialog" aria-modal="true" aria-label={t("universalSearch")} onMouseDown={event => event.stopPropagation()}>
             <div className="command-palette-search"><Search size={17} /><input ref={commandPaletteInputRef} value={commandQuery} onChange={event => { setCommandQuery(event.target.value); setCommandIndex(0); }} onKeyDown={event => {
               if (event.key === "Escape") { event.preventDefault(); setCommandPaletteOpen(false); return; }
               if (event.key === "ArrowDown") { event.preventDefault(); if (filteredPaletteCommands.length) setCommandIndex(index => (Math.min(index, filteredPaletteCommands.length - 1) + 1) % filteredPaletteCommands.length); return; }
               if (event.key === "ArrowUp") { event.preventDefault(); if (filteredPaletteCommands.length) setCommandIndex(index => (Math.min(index, filteredPaletteCommands.length - 1) - 1 + filteredPaletteCommands.length) % filteredPaletteCommands.length); return; }
               if (event.key === "Enter" && filteredPaletteCommands[safeCommandIndex]) { event.preventDefault(); runPaletteCommand(filteredPaletteCommands[safeCommandIndex]); }
             }} placeholder={t("universalSearchPlaceholder")} aria-label={t("universalSearch")} autoComplete="off" /><kbd>ESC</kbd></div>
-            <div ref={commandPaletteListRef} className="command-palette-list" role="listbox" aria-label="Available commands">
+            <div ref={commandPaletteListRef} className="command-palette-list modal-scroll-viewport" role="listbox" aria-label="Available commands">
               {filteredPaletteCommands.length ? filteredPaletteCommands.map((item, index) => <button key={item.id} className={index === safeCommandIndex ? "active" : ""} role="option" aria-selected={index === safeCommandIndex} onMouseEnter={() => setCommandIndex(index)} onClick={() => runPaletteCommand(item)}><span className="command-palette-icon">{paletteIcon(item.icon)}</span><span><b>{item.label}</b><small>{item.hint}</small></span><CornerDownLeft size={13} /></button>) : <div className="command-palette-empty"><Search size={18} /><span>{t("noResults")} {commandQuery && <>“{commandQuery}”</>}</span></div>}
             </div>
             <div className="command-palette-foot"><span><kbd>↑</kbd><kbd>↓</kbd> navigate</span><span><kbd>↵</kbd> run</span><span><kbd>esc</kbd> close</span><code>{BUILD_VERSION}</code></div>
@@ -2293,7 +2324,7 @@ export default function Home() {
           const image = gallery[galleryLightbox.index];
           if (!image) return null;
           const move = (direction: number) => setGalleryLightbox(current => current ? { ...current, index: (current.index + direction + gallery.length) % gallery.length } : current);
-          return <div className="gallery-lightbox" role="dialog" aria-modal="true" aria-label={`${galleryLightbox.repo} image gallery`} onClick={() => setGalleryLightbox(null)}>
+          return <div ref={galleryDialogRef} tabIndex={-1} className="gallery-lightbox" role="dialog" aria-modal="true" aria-label={`${galleryLightbox.repo} image gallery`} onClick={() => setGalleryLightbox(null)}>
             <button type="button" className="gallery-lightbox-close" onClick={() => setGalleryLightbox(null)} aria-label="Close gallery"><X size={20} /></button>
             {gallery.length > 1 && <button type="button" className="gallery-lightbox-nav previous" onClick={event => { event.stopPropagation(); move(-1); }} aria-label="Previous image"><ChevronLeft size={24} /></button>}
             <figure onClick={event => event.stopPropagation()}>

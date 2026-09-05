@@ -331,7 +331,7 @@
       "public/api/",
       ".github/workflows/deploy.yml",
       "README.md",
-      "CHANGELOG.md",
+      "docs/CHANGELOG.md",
       "src/EngineeringNotes.tsx",
       "src/notesData.ts",
       "public/api/health.php",

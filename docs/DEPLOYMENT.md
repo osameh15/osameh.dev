@@ -2,6 +2,8 @@
 
 Target: ParsPack shared Linux hosting + ParsPack CDN + PHP 8+.
 
+Build runtime: Node.js >=20.19.0 or >=22.12.0 (CI uses Node.js 22).
+
 ## 1. Build locally
 
 ```bash
@@ -426,7 +428,7 @@ A failed Playwright or Lighthouse step prevents the artifact/deploy path from co
 
 ## 13. Release notes
 
-Repository release history is maintained in [`CHANGELOG.md`](CHANGELOG.md). README intentionally summarizes only the six latest releases. Documentation-only production commits remain excluded from automatic production deploys.
+Repository release history is maintained in [`CHANGELOG.md`](./CHANGELOG.md). README intentionally summarizes only the six latest releases. Documentation-only production commits remain excluded from automatic production deploys.
 
 ## 14. Health endpoint
 

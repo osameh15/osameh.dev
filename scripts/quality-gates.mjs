@@ -23,8 +23,11 @@ for (const status of requiredAvailabilityStates) {
   if (!profile?.label || !profile?.shortLabel || typeof profile?.ctaEnabled !== "boolean" || profile?.tone !== status) fail(`Availability profile is incomplete: ${status}`);
 }
 if (!failures.some(item => item.includes("Availability profile"))) pass(`${requiredAvailabilityStates.length} default availability profiles validated`);
-if (!existsSync(resolve("scripts/set-availability.mjs")) || !existsSync(resolve(".github/workflows/availability.yml"))) fail("Availability mood script/workflow is missing");
+const moodScriptSource = existsSync(resolve("scripts/set-availability.mjs")) ? readFileSync(resolve("scripts/set-availability.mjs"), "utf8") : "";
+if (!moodScriptSource || !existsSync(resolve(".github/workflows/availability.yml"))) fail("Availability mood script/workflow is missing");
 else pass("Availability supports one-file, CLI, and manual CI mood updates");
+if (!["Preset:", "Short label:", "Public header label:"].every(label => moodScriptSource.includes(label))) fail("Mood CLI does not distinguish the preset, short label, and public header label");
+else pass("Mood CLI labels preset, short, and public header values explicitly");
 const prepareBuildSource = readFileSync(resolve("scripts/prepare-build.mjs"), "utf8");
 if (!prepareBuildSource.includes("availabilityMood: availability.activeStatus")) fail("Build metadata does not expose the deployed portfolio mood");
 else pass("Build metadata exposes the deployed portfolio mood");
@@ -55,6 +58,16 @@ const htaccess = readFileSync(resolve("public/.htaccess"), "utf8");
 for (const route of ["api/health", "notes/", "case-studies/", "sitemap\\.xml", "projects/"]) {
   if (htaccess.includes(route)) pass(`route contract includes ${route}`); else fail(`Missing route contract: ${route}`);
 }
+const firstClassRouteRule = htaccess.split(/\r?\n/).find(line => line.includes("RewriteRule") && line.includes("index.html")) || "";
+const sitemapPhp = readFileSync(resolve("public/sitemap.php"), "utf8");
+const sitemapXml = readFileSync(resolve("public/sitemap.xml"), "utf8");
+if (!firstClassRouteRule.includes("activity") || !sitemapPhp.includes("https://osameh.dev/activity") || !sitemapXml.includes("https://osameh.dev/activity")) fail("GitHub Activity is missing from first-class routing or a sitemap implementation");
+else pass("GitHub Activity is first-class in Apache routing and both sitemaps");
+
+const contactSource = readFileSync(resolve("public/api/contact.php"), "utf8");
+const allowedContactOrigins = ["https://osameh.dev", "https://www.osameh.dev", "https://staging.osameh.dev"];
+if (!allowedContactOrigins.every(origin => contactSource.includes(`'${origin}'`)) || /Access-Control-Allow-Origin:\s*\*/i.test(contactSource)) fail("Contact origin policy must allow only the explicit production and staging origins");
+else pass("Contact origin policy explicitly supports production and staging smoke tests");
 
 const index = readFileSync(resolve("index.html"), "utf8");
 for (const requirement of [/<html[^>]+lang=/i, /<meta[^>]+name=["']viewport["']/i, /<meta[^>]+name=["']description["']/i, /<script[^>]+application\/ld\+json/i]) {
@@ -66,6 +79,10 @@ for (const php of ["public/project.php", "public/note.php", "public/case-study.p
 }
 
 const readme = readFileSync(resolve("README.md"), "utf8");
+const deploymentGuide = readFileSync(resolve("docs/DEPLOYMENT.md"), "utf8");
+const supportedNodeRuntime = "Node.js >=20.19.0 or >=22.12.0";
+if (!readme.includes(supportedNodeRuntime) || !deploymentGuide.includes(supportedNodeRuntime)) fail("README and deployment guide do not match the Vite 8 Node.js runtime requirement");
+else pass("Documentation declares the supported Vite 8 Node.js runtime");
 const releaseSection = readme.split("## Release history")[1]?.split("## License")[0] || "";
 const readmeReleaseCount = (releaseSection.match(/^### v\d+/gm) || []).length;
 if (readmeReleaseCount <= 6) pass(`README release summary capped at ${readmeReleaseCount}/6 releases`);
@@ -74,7 +91,7 @@ if (!/English-only/i.test(readme) || /English \/ Persian i18n|EN\/FA i18n/i.test
 else pass("README English-only product contract");
 
 const packageVersion = JSON.parse(readFileSync(resolve("package.json"), "utf8")).version;
-if (!readme.includes(`### v${packageVersion}`) || !readFileSync(resolve("CHANGELOG.md"), "utf8").includes(`## ${packageVersion} -`)) fail("Current package version is not represented in README/CHANGELOG release history");
+if (!readme.includes(`### v${packageVersion}`) || !readFileSync(resolve("docs/CHANGELOG.md"), "utf8").includes(`## ${packageVersion} -`)) fail("Current package version is not represented in README/docs/CHANGELOG release history");
 else pass(`Documentation includes current release v${packageVersion}`);
 
 const appSource = readFileSync(resolve("src/App.tsx"), "utf8");
@@ -101,13 +118,25 @@ else pass("Engineering Notes and Case Studies expose dedicated context-menu hook
 const terminalContracts = ["case-studies", "case <id>", "capabilities", "activity", "palette", "mood:list", "accessibility"];
 if (!terminalContracts.every(token => appSource.includes(token))) fail("Terminal command coverage is missing one or more v5.1 feature commands");
 else pass("Terminal covers Case Studies, capabilities, GitHub Activity, Mood, Accessibility, and Command Palette");
-if (!featureCss.includes("scrollbar-gutter:stable both-edges") || !featureCss.includes("--header-control-height:34px")) fail("v5.1 modal/header alignment contracts are missing");
-else pass("v5.1 modal gutter and header-control sizing contracts are present");
+if (!featureCss.includes("--modal-inline-gutter:18px") || !featureCss.includes("--site-scrollbar-size:9px") || !featureCss.includes("--site-scrollbar-thumb:rgba(137,153,142,.20)") || !featureCss.includes("--modal-scrollbar-width:0px") || !featureCss.includes("var(--modal-scrollbar-width,0px)") || !featureCss.includes("scrollbar-gutter:auto") || !featureCss.includes("--header-control-height:34px")) fail("v5.1 overlay-scrollbar/modal/header alignment contracts are missing");
+else pass("v5.1 overlay scrollbar, symmetric modal gutter, and header-control sizing contracts are present");
+if (featureCss.includes("var(--native-scrollbar-width)") || readFileSync(resolve("src/main.tsx"), "utf8").includes("scrollbarProbe")) fail("Modal geometry must not use a global native scrollbar measurement");
+else pass("Modal geometry uses per-viewport scrollbar measurements");
+if (/scrollbar-gutter:stable/.test(featureCss) || /scrollbar-gutter:stable/.test(readFileSync(resolve("app/globals.css"), "utf8"))) fail("Reserved scrollbar gutters remain in the UI and can reintroduce right-side modal spacing");
+else pass("No permanent scrollbar gutters remain in application styles");
+if (!featureCss.includes("*::-webkit-scrollbar-thumb:hover") || !featureCss.includes("--site-scrollbar-thumb-hover") || !featureCss.includes(".feature-modal>header,.advanced-modal>header,.recruiter-mode>header,.recruiter-progress") || !featureCss.includes("width:100%;box-sizing:border-box")) fail("Global scrollbar hover/full-bleed modal chrome contracts are incomplete");
+else pass("Global scrollbar hover and edge-to-edge modal chrome contracts are present");
+if (!featureSource.includes("<span>{profile.label}</span>")) fail("Header Portfolio Mood must render the full active profile label");
+else pass("Header Portfolio Mood renders the full active availability message");
 if (/routeScrollTimerRef/.test(appSource)) fail("Delayed initial route scrolling can race with modal restoration");
 else pass("Section deep links no longer depend on delayed route timers");
 const modalScrollSource = readFileSync(resolve("src/modalScroll.ts"), "utf8");
 if (!modalScrollSource.includes("restorePosition") || !featureSource.includes("restorePosition")) fail("Case Study modal does not provide an explicit pre-modal restore position");
 else pass("Modal scroll lock supports deterministic pre-modal restoration");
+const modalConsumerSources = [appSource, featureSource, readFileSync(resolve("src/AdvancedUI.tsx"), "utf8"), readFileSync(resolve("src/ProjectIntelligence.tsx"), "utf8")];
+const dialogTags = modalConsumerSources.flatMap(source => source.match(/<[^>]+role="dialog"[^>]*>/g) || []);
+if (!dialogTags.length || !modalScrollSource.includes("useModalDialog") || !modalScrollSource.includes("stopImmediatePropagation") || !modalScrollSource.includes("returnFocus?.isConnected") || modalConsumerSources.some(source => source.includes("useModalScrollLock")) || dialogTags.some(tag => !/ref=\{(?:dialogRef|\w+DialogRef)\}/.test(tag))) fail("One or more dialogs bypass shared Escape, focus trap, focus return, or scroll-lock behavior");
+else pass(`${dialogTags.length} dialogs use shared focus, Escape, return-focus, and scroll-lock behavior`);
 const requiredSectionSequence = ['path: "/projects"', 'path: "/case-studies"', 'path: "/experience"', 'path: "/activity"', 'path: "/now"'];
 const sectionPositions = requiredSectionSequence.map(token => appSource.indexOf(token));
 if (sectionPositions.some(position => position < 0) || sectionPositions.some((position, index) => index > 0 && position <= sectionPositions[index - 1])) fail("Main section registry is out of document order");

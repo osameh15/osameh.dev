@@ -4,6 +4,28 @@ import { readFileSync } from "node:fs";
 const availabilityFixture = JSON.parse(readFileSync(new URL("../../config/availability.json", import.meta.url), "utf8"));
 const activeAvailability = availabilityFixture.profiles[availabilityFixture.activeStatus];
 
+async function expectSymmetric(dialog: Locator, leftCard: Locator, rightCard = leftCard, tolerance = 2) {
+  const dialogBox = await dialog.boundingBox();
+  const leftCardBox = await leftCard.boundingBox();
+  const rightCardBox = await rightCard.boundingBox();
+  expect(dialogBox).not.toBeNull();
+  expect(leftCardBox).not.toBeNull();
+  expect(rightCardBox).not.toBeNull();
+  const left = leftCardBox!.x - dialogBox!.x;
+  const right = dialogBox!.x + dialogBox!.width - (rightCardBox!.x + rightCardBox!.width);
+  expect(Math.abs(left - right)).toBeLessThanOrEqual(tolerance);
+  return { left, right, difference: Math.abs(left - right) };
+}
+
+async function expectEdgeToEdge(dialog: Locator, surface: Locator, tolerance = 1) {
+  const dialogBox = await dialog.boundingBox();
+  const surfaceBox = await surface.boundingBox();
+  expect(dialogBox).not.toBeNull();
+  expect(surfaceBox).not.toBeNull();
+  expect(Math.abs(surfaceBox!.x - dialogBox!.x)).toBeLessThanOrEqual(tolerance);
+  expect(Math.abs((surfaceBox!.x + surfaceBox!.width) - (dialogBox!.x + dialogBox!.width))).toBeLessThanOrEqual(tolerance);
+}
+
 test("home shell and engineering notes are reachable", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: /I build software/i })).toBeVisible();
@@ -20,6 +42,12 @@ test("note deep link renders content", async ({ page }) => {
 test("project section and source explorer remain available", async ({ page }) => {
   await page.goto("/projects");
   await expect(page.locator("#project-filter-panel")).toBeVisible();
+});
+
+test("direct GitHub Activity route renders the first-class section", async ({ page }) => {
+  await page.goto("/activity");
+  await expect(page).toHaveURL(/\/activity\/?$/);
+  await expect(page.getByRole("heading", { name: "Recent repository activity." })).toBeVisible();
 });
 
 test("baseline accessibility contracts", async ({ page }) => {
@@ -86,11 +114,12 @@ test("large diagnostics modal stays viewport-capped and scrollable", async ({ pa
   await expect(modal).toBeVisible();
   await expect.poll(() => page.evaluate(() => document.body.style.position)).toBe("fixed");
   const box = await modal.boundingBox();
-  const viewport = page.viewportSize();
+  const pageViewport = page.viewportSize();
   expect(box).not.toBeNull();
-  expect(viewport).not.toBeNull();
-  expect(box!.height).toBeLessThanOrEqual(viewport!.height * .77);
-  const overflowY = await modal.evaluate(element => getComputedStyle(element).overflowY);
+  expect(pageViewport).not.toBeNull();
+  expect(box!.height).toBeLessThanOrEqual(pageViewport!.height * .77);
+  const scrollViewport = modal.locator(".modal-scroll-viewport");
+  const overflowY = await scrollViewport.evaluate(element => getComputedStyle(element).overflowY);
   expect(["auto", "scroll"]).toContain(overflowY);
 });
 
@@ -125,7 +154,13 @@ test("case studies support privacy-safe deep links", async ({ page }) => {
   await expect(page.locator("#case-studies")).toBeVisible();
   await page.getByRole("button", { name: /Open case study/i }).first().click();
   await expect(page).toHaveURL(/\/case-studies\/[a-z0-9-]+$/);
-  await expect(page.getByRole("dialog")).toContainText("Engineering decisions");
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText("Engineering decisions");
+  const sections = dialog.locator(".case-study-detail > .modal-content > section");
+  await expect(sections).toHaveCount(6);
+  await expect(sections.first().locator("h3")).toBeVisible();
+  const sectionPadding = await sections.first().evaluate(element => Number.parseFloat(getComputedStyle(element).paddingInlineStart));
+  expect(sectionPadding).toBeGreaterThanOrEqual(20);
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toHaveCount(0);
 });
@@ -158,6 +193,28 @@ test("feature dialogs keep keyboard focus contained", async ({ page }) => {
   expect(await dialog.evaluate(element => element.contains(document.activeElement))).toBe(true);
   for (let index = 0; index < 8; index += 1) await page.keyboard.press("Shift+Tab");
   expect(await dialog.evaluate(element => element.contains(document.activeElement))).toBe(true);
+});
+
+test("shared modal behavior traps focus, closes on Escape, and returns focus", async ({ page }) => {
+  await page.goto("/");
+  const returnTarget = page.getByRole("button", { name: "Command Palette" });
+  await returnTarget.focus();
+  await page.evaluate(() => window.dispatchEvent(new Event("portfolio:diagnostics")));
+  const diagnostics = page.getByRole("dialog", { name: /Production signals/i });
+  await expect(diagnostics).toBeVisible();
+  await expect.poll(() => diagnostics.evaluate(element => element.contains(document.activeElement))).toBe(true);
+  await page.keyboard.press("Shift+Tab");
+  await expect.poll(() => diagnostics.evaluate(element => element.contains(document.activeElement))).toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(diagnostics).toBeHidden();
+  await expect(returnTarget).toBeFocused();
+
+  await returnTarget.click();
+  const palette = page.getByRole("dialog", { name: "Command Palette" });
+  await expect(palette).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(palette).toBeHidden();
+  await expect(returnTarget).toBeFocused();
 });
 
 test("site remains English-only and clears legacy locale preference", async ({ page }) => {
@@ -263,7 +320,10 @@ test("case-study modal preserves the opening position and never re-snaps after c
   const openButton = page.getByRole("button", { name: /Open case study/i }).first();
   await openButton.scrollIntoViewIfNeeded();
   const workspaceScroll = await page.evaluate(() => window.scrollY);
-  await openButton.click();
+  // Playwright's normal click may auto-scroll a barely-visible target by a
+  // few pixels after the baseline is captured. Force only the pointer action
+  // so this assertion measures the exact workspace position before opening.
+  await openButton.click({ force: true });
   const modal = page.getByRole("dialog");
   const body = modal.locator(".feature-modal-body");
   await expect(modal).toBeVisible();
@@ -430,21 +490,67 @@ test("header utility controls share one visual height and mood label", async ({ 
   await expect(install).toBeVisible();
   const heights = await Promise.all([install, palette, accessibility, mood].map(async locator => (await locator.boundingBox())?.height ?? 0));
   expect(Math.max(...heights) - Math.min(...heights)).toBeLessThanOrEqual(1);
-  await expect(mood).toContainText(activeAvailability.shortLabel);
+  await expect(mood).toContainText(activeAvailability.label);
+  const installBox = await install.boundingBox();
+  const installIconBox = await install.locator("svg").boundingBox();
+  expect(installBox).not.toBeNull();
+  expect(installIconBox).not.toBeNull();
+  const buttonCenterY = installBox!.y + installBox!.height / 2;
+  const iconCenterY = installIconBox!.y + installIconBox!.height / 2;
+  expect(Math.abs(buttonCenterY - iconCenterY)).toBeLessThanOrEqual(1);
 });
 
-test("feature modal cards keep symmetric inline gutters", async ({ page }) => {
-  await page.goto("/");
-  await page.getByRole("button", { name: "Accessibility" }).click();
-  const body = page.locator(".feature-modal-body");
-  const card = page.getByRole("switch", { name: /Reduce motion/i });
-  const bodyBox = await body.boundingBox();
-  const cardBox = await card.boundingBox();
-  expect(bodyBox).not.toBeNull();
-  expect(cardBox).not.toBeNull();
-  const left = cardBox!.x - bodyBox!.x;
-  const right = bodyBox!.x + bodyBox!.width - (cardBox!.x + cardBox!.width);
-  expect(Math.abs(left - right)).toBeLessThanOrEqual(2);
+test("modal chrome and cards stay geometrically symmetric across themes and viewports", async ({ page }) => {
+  const viewports = [{ width: 1440, height: 900 }, { width: 1024, height: 768 }, { width: 390, height: 844 }, { width: 375, height: 480 }];
+  for (const theme of ["dark", "light"] as const) {
+    for (const viewport of viewports) {
+      await page.setViewportSize(viewport);
+      await page.goto("/");
+      await page.evaluate(selectedTheme => {
+        if (selectedTheme === "light") localStorage.setItem("portfolio-theme", "light");
+        else localStorage.removeItem("portfolio-theme");
+      }, theme);
+      await page.reload();
+      await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+
+      await page.getByRole("button", { name: "Accessibility" }).click();
+      const accessibilityDialog = page.getByRole("dialog", { name: /Accessibility Control Center/i });
+      await expect(accessibilityDialog).toBeVisible();
+      await expectSymmetric(accessibilityDialog, accessibilityDialog.getByRole("switch", { name: /Reduce motion/i }));
+      await expectEdgeToEdge(accessibilityDialog, accessibilityDialog.locator("header"));
+      if (viewport.width <= 390) await expect.poll(() => accessibilityDialog.locator(".modal-scroll-viewport").evaluate(element => element.scrollHeight > element.clientHeight)).toBe(true);
+      await page.keyboard.press("Escape");
+
+      await page.evaluate(() => window.dispatchEvent(new Event("portfolio:diagnostics")));
+      const diagnosticsDialog = page.getByRole("dialog", { name: /Production signals/i });
+      await expect(diagnosticsDialog).toBeVisible();
+      const diagnosticCards = diagnosticsDialog.locator(".health-client-grid > article");
+      await expectSymmetric(diagnosticsDialog, diagnosticCards.first(), diagnosticCards.last(), 3);
+      await expectEdgeToEdge(diagnosticsDialog, diagnosticsDialog.locator("header"));
+      await page.keyboard.press("Escape");
+
+      await page.locator(".section-link-button").first().dispatchEvent("click");
+      const recruiterDialog = page.getByRole("dialog", { name: "Recruiter mode" });
+      await expect(recruiterDialog).toBeVisible();
+      await expectSymmetric(recruiterDialog, recruiterDialog.locator(".recruiter-facts"));
+      await expectEdgeToEdge(recruiterDialog, recruiterDialog.locator("header"));
+      await expectEdgeToEdge(recruiterDialog, recruiterDialog.locator(".recruiter-progress"));
+      await expect.poll(() => recruiterDialog.locator(".modal-scroll-viewport").evaluate(element => element.scrollHeight >= element.clientHeight)).toBe(true);
+      await page.keyboard.press("Escape");
+
+      await page.goto("/case-studies");
+      const caseStudyButton = page.getByRole("button", { name: /Open case study/i }).first();
+      // The fixed mobile status bar can cover the card action; dispatch the
+      // real React click without routing the pointer through that overlay.
+      await caseStudyButton.dispatchEvent("click");
+      const caseStudyDialog = page.locator(".case-study-modal[role=dialog]");
+      await expect(caseStudyDialog).toBeVisible();
+      await expectSymmetric(caseStudyDialog, caseStudyDialog.locator(".case-study-detail-hero"));
+      await expectEdgeToEdge(caseStudyDialog, caseStudyDialog.locator("header"));
+      await expect.poll(() => caseStudyDialog.locator(".modal-scroll-viewport").evaluate(element => element.scrollHeight > element.clientHeight)).toBe(true);
+      await page.keyboard.press("Escape");
+    }
+  }
 });
 
 test("context menu distinguishes engineering notes from case studies", async ({ page }) => {
@@ -465,6 +571,23 @@ test("context menu distinguishes engineering notes from case studies", async ({ 
   await expect(caseMenu.getByRole("menuitem", { name: /Visit live site/i })).toBeVisible();
   await expect(caseMenu.getByRole("menuitem", { name: /Share case study/i })).toBeVisible();
   await expect(caseMenu).not.toContainText(/^LINK$/);
+});
+
+test("project context-menu Gallery action targets the opened project Gallery", async ({ page }) => {
+  await page.goto("/projects");
+  const projectCard = page.locator(".project-card").first();
+  await expect(projectCard).toBeVisible();
+  const projectName = await projectCard.getAttribute("data-project-name");
+  expect(projectName).toBeTruthy();
+  await projectCard.click({ button: "right" });
+  await page.getByRole("menuitem", { name: /Open gallery/i }).click();
+  await expect.poll(() => new URL(page.url()).pathname).toBe(`/projects/${encodeURIComponent(projectName!)}`);
+  const gallery = page.locator(".project-gallery");
+  await expect(gallery).toHaveAttribute("id", `gallery-${projectName}`);
+  await expect.poll(() => gallery.evaluate(element => {
+    const bounds = element.getBoundingClientRect();
+    return bounds.top >= 0 && bounds.top < window.innerHeight / 2;
+  })).toBe(true);
 });
 
 test("light theme meets contrast targets across primary surfaces", async ({ page }) => {

@@ -310,7 +310,7 @@ A read-only fine-grained token scoped to public repository contents is sufficien
 
 Requirements:
 
-- Node.js 20+
+- Node.js >=20.19.0 or >=22.12.0
 - npm
 - PHP 8+ for local API testing
 
@@ -503,17 +503,17 @@ The site also includes an in-app resume viewer and download/open controls.
 
 ## Release history
 
-The **six most recent releases** are summarized here. See **[CHANGELOG.md](CHANGELOG.md)** for the complete production history. This section is intentionally capped at six releases.
+The **six most recent releases** are summarized here. See **[CHANGELOG.md](docs/CHANGELOG.md)** for the complete production history. This section is intentionally capped at six releases.
 
 ### v5.1.0 — Interaction reliability & developer UX
 
-- standardizes the Install, Command Palette, Accessibility, and Portfolio Mood header controls
+- standardizes the Install, Command Palette, Accessibility, and Portfolio Mood header controls, including true vertical icon/label centering
 - consolidates site-wide ranked search into a single **Command Palette** with one `Ctrl/Cmd + Shift + P` shortcut
-- makes the header availability label follow the active mood (`Available`, `Selective`, `Freelance`, `Focused`, or `Unavailable`)
-- fixes modal inline-gutter symmetry and eliminates delayed Case Study scroll snap-back after closing
+- shows the full active Portfolio Mood message in the header (for example, `Open to selected opportunities`)
+- unifies scrollbars across the IDE with transparent tracks, low-opacity thumbs that become fully visible on hover, removes reserved modal scrollbar gutters, and keeps modal title dividers/content margins edge-to-edge and symmetric
 - adds dedicated right-click actions for Engineering Notes and Case Studies
 - expands Terminal commands for Case Studies, capabilities, GitHub Activity, Portfolio Mood, Accessibility, and the Command Palette
-- hardens the new v5 surfaces against Light Theme and browser-regression drift
+- hardens the new v5 surfaces against Light Theme transition drift, mobile Gallery end-state flakiness, and context-menu/route-scroll races
 
 ### v5.0.0 — Portfolio product layer
 
@@ -574,4 +574,4 @@ Neither deployment job falls back to credentials from the other environment. Bot
 
 Runtime secrets such as the GitHub API token remain server-side outside `public_html` and are never copied by CI.
 
-See [`DEPLOYMENT.md`](DEPLOYMENT.md) for rollout, staging protection, secret setup, FTPS troubleshooting, and rollback.
+See [`DEPLOYMENT.md`](docs/DEPLOYMENT.md) for rollout, staging protection, secret setup, FTPS troubleshooting, and rollback.

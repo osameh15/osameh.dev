@@ -24,7 +24,7 @@ html[data-theme="light"] .capabilities-block{border-color:var(--light-border-sof
 
 /* v5.0 modal stability and visibly effective accessibility controls. */
 .feature-modal-backdrop{overscroll-behavior:contain}
-.feature-modal{overscroll-behavior:contain;scrollbar-gutter:stable}
+.feature-modal{overscroll-behavior:contain;scrollbar-gutter:auto}
 .feature-modal-body{overscroll-behavior:contain;touch-action:pan-y;scroll-behavior:auto}
 .availability-status-card p{margin:4px 0 0;color:#8f9b92;font-size:11px;line-height:1.55}
 .availability-unavailable-note{margin:12px 0 0;padding:12px;border:1px solid #303a32;background:#111612;color:#929d95;font-size:11px;line-height:1.6}
@@ -58,7 +58,7 @@ html[data-strong-focus="true"] .accessibility-live-preview button{outline:2px so
 
 /* v5.0 modal/accessibility hardening */
 .client-case-study-grid,.capability-grid,.published-case-studies{background:transparent!important;border:0!important;box-shadow:none!important}
-.feature-modal-body,.advanced-modal,.command-palette-list,.gallery-lightbox{overscroll-behavior:contain;overflow-anchor:none;scrollbar-gutter:stable;touch-action:pan-y}
+.feature-modal-body,.advanced-modal,.command-palette-list,.gallery-lightbox{overscroll-behavior:contain;overflow-anchor:none;scrollbar-gutter:auto;touch-action:pan-y}
 .feature-modal-body{scroll-behavior:auto}
 html[data-modal-open="true"],html[data-modal-open="true"] body{overscroll-behavior:none}
 
@@ -127,61 +127,134 @@ html[data-theme="light"] .availability-unavailable>i{background:#737b75;box-shad
 .pwa-install svg,.feature-icon-button svg{display:block;flex:0 0 auto}
 .header-actions{align-items:center}
 
-/* Reserve a matching scrollbar gutter on both inline edges. The content cards
-   therefore keep equal visual margins even when a modal body needs a scrollbar. */
-.feature-modal-body{
-  width:100%;
-  box-sizing:border-box;
-  padding-inline:18px;
-  scrollbar-gutter:stable both-edges;
+/* v5.1 final header and modal alignment. */
+:root{
+  --header-control-height:34px;
+  --modal-inline-gutter:18px;
+  --modal-scrollbar-width:0px;
+  --site-scrollbar-size:9px;
+  --site-scrollbar-thumb:rgba(137,153,142,.20);
+  --site-scrollbar-thumb-hover:rgba(137,153,142,1);
 }
-.case-study-detail{padding-inline:0}
-
-/* Client and capability cards are true light surfaces in the 4.2+ semantic
-   palette, not the muted editor canvas. */
-html[data-theme="light"] .case-study-card,
-html[data-theme="light"] .capability-card{background:var(--light-surface);border-color:var(--light-border)}
-html[data-theme="light"] .case-study-modal{background:var(--light-surface)}
-
-@media(max-width:720px){
-  .pwa-install{width:34px;padding:0;justify-content:center}
-  .pwa-install span{display:none}
-  .feature-modal-body{padding-inline:14px;scrollbar-gutter:stable both-edges}
-  .case-study-detail{padding-inline:0}
+html[data-theme="light"]{
+  --site-scrollbar-thumb:rgba(73,99,81,.20);
+  --site-scrollbar-thumb-hover:rgba(73,99,81,.92);
 }
 
-
-/* v5.1.0 final UI alignment and modal behavior. */
-:root{--header-control-height:34px}
 .header-actions>:is(.pwa-install,.feature-icon-button,.availability-button){
   height:var(--header-control-height);
   min-height:var(--header-control-height);
   box-sizing:border-box;
   align-self:center;
 }
-.header-actions>.pwa-install{padding-inline:10px;margin:0;border-radius:0}
+.header-actions>.pwa-install{
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  min-width:var(--header-control-height)!important;
+  margin:0!important;
+  padding:0 10px!important;
+  border-radius:0;
+  line-height:1!important;
+  vertical-align:middle;
+}
+.header-actions>.pwa-install svg{width:14px;height:14px;display:block;flex:0 0 auto;align-self:center;margin:0;transform:none}
+.header-actions>.pwa-install span{display:inline-flex;align-items:center;height:100%;line-height:1}
 .header-actions>.feature-icon-button{width:var(--header-control-height);min-width:var(--header-control-height);padding:0}
 .header-actions>.availability-button{padding-inline:10px}
 
-/* Scrollbars must not steal only the right-side gutter. Feature dialogs scroll
-   in their body; legacy dialogs scroll on the outer dialog. Both reserve equal
-   inline gutter space so bordered rows remain optically centered. */
-.feature-modal-body,.advanced-modal{scrollbar-gutter:stable both-edges}
-.feature-modal-body{padding-inline:18px}
-.accessibility-toggle,.availability-status-card,.availability-details>div,.accessibility-live-preview,.accessibility-summary{
-  width:100%;
-  margin-inline:0;
+/*
+ * One scrollbar contract for the whole IDE.
+ * - no permanent scrollbar gutter is reserved
+ * - tracks are transparent
+ * - thumbs sit visually on top of the content edge at ~20% opacity
+ * - the thumb becomes fully visible only when the pointer is actually over it
+ *
+ * CSS cannot force native Windows scrollbars to become compositor-overlay
+ * scrollbars, so modal padding compensates only the measured native width.
+ * This preserves equal visible left/right card gutters without a fake gutter.
+ */
+*{scrollbar-gutter:auto}
+*{scrollbar-color:var(--site-scrollbar-thumb) transparent}
+*::-webkit-scrollbar{width:var(--site-scrollbar-size);height:var(--site-scrollbar-size)}
+*::-webkit-scrollbar-track,*::-webkit-scrollbar-corner{background:transparent!important}
+*::-webkit-scrollbar-thumb{
+  background:var(--site-scrollbar-thumb)!important;
+  border:2px solid transparent!important;
+  background-clip:padding-box!important;
+  border-radius:999px!important;
+  min-height:34px;
+}
+*::-webkit-scrollbar-thumb:hover,*::-webkit-scrollbar-thumb:active{background:var(--site-scrollbar-thumb-hover)!important;background-clip:padding-box!important}
+
+/* Existing intentionally hidden rails stay hidden. */
+.tabs-row,.project-quick-access{scrollbar-width:none}
+.tabs-row::-webkit-scrollbar,.project-quick-access::-webkit-scrollbar{display:none!important;width:0!important;height:0!important}
+
+/* Modal shells keep chrome outside their measured scrolling viewport. The
+   viewport owns its scrollbar; its content reclaims only the width that this
+   exact viewport consumes, so overlay scrollbars resolve to zero. */
+.feature-modal,.advanced-modal,.recruiter-mode{overflow:hidden}
+.advanced-modal{display:flex;flex-direction:column}
+.feature-modal>header,.advanced-modal>header,.recruiter-mode>header,.recruiter-progress,.recruiter-mode>footer{position:relative;z-index:2;width:100%;box-sizing:border-box}
+.feature-modal-body,.advanced-modal>.modal-scroll-viewport,.recruiter-mode>main,.command-palette-list{
+  min-height:0;
   box-sizing:border-box;
+  overflow-y:auto;
+  overflow-x:hidden;
+  overscroll-behavior:contain;
+  scrollbar-gutter:auto!important;
+  scrollbar-width:thin;
+}
+.feature-modal-body,.advanced-modal>.modal-scroll-viewport,.recruiter-mode>main{width:100%;overflow-anchor:none}
+.advanced-modal>.modal-scroll-viewport{flex:1 1 auto}
+.feature-modal-body{padding:0!important}
+.modal-scroll-viewport>.modal-content{
+  width:calc(100% + var(--modal-scrollbar-width,0px));
+  min-height:100%;
+  box-sizing:border-box;
+  padding-inline:var(--modal-inline-gutter);
+}
+.feature-modal-body>.modal-content{padding-block:var(--modal-inline-gutter)}
+.feature-modal-body.case-study-detail>.modal-content{padding-inline:0;padding-block:0}
+.accessibility-toggle,.availability-status-card,.availability-details>div,.accessibility-live-preview,.accessibility-summary{
+  width:100%;margin-inline:0;box-sizing:border-box;
+}
+.advanced-modal>.modal-scroll-viewport>.modal-content{padding-inline:0}
+.advanced-modal>.modal-scroll-viewport>.modal-content>*{box-sizing:border-box}
+.compare-modal>.modal-scroll-viewport{overflow-x:auto}
+.recruiter-mode{scrollbar-gutter:auto!important}
+.recruiter-mode>header{margin:0}
+.recruiter-progress{margin:0}
+.recruiter-mode>main{padding:0}
+.recruiter-mode>main>.modal-content{padding-block:clamp(25px,5vw,58px);padding-inline:clamp(25px,5vw,58px)}
+.command-palette-list>button{width:calc(100% + var(--modal-scrollbar-width,0px))}
+
+/* The detail wrapper is also the scroll content root; keep its section rhythm
+   scoped through that wrapper so Case Study copy retains its panel treatment. */
+.case-study-detail>.modal-content>section{padding:22px 30px;border-bottom:1px solid #252d27}
+.case-study-detail>.modal-content>section h3{margin:0 0 10px;color:#d9dfda;font-size:15px}
+.case-study-detail>.modal-content>section p,.case-study-detail>.modal-content>section li{color:#9aa59c;font-size:13px;line-height:1.75}
+.case-study-detail>.modal-content>section ul{margin:0;padding-left:20px}
+.case-study-detail>.modal-content>section li+li{margin-top:5px}
+html[data-theme="light"] .case-study-detail>.modal-content>section{border-color:var(--light-border-soft)}
+html[data-theme="light"] .case-study-detail>.modal-content>section h3{color:var(--light-text)}
+html[data-theme="light"] .case-study-detail>.modal-content>section p,html[data-theme="light"] .case-study-detail>.modal-content>section li{color:var(--light-text-soft)}
+
+.command-palette-list,.source-tree,.terminal-body,.note-toc,.gallery-lightbox,.compare-bar>div{
+  scrollbar-gutter:auto!important;
 }
 
-/* Explicit semantic surfaces keep v5.1 additions aligned with the 4.2 light redesign. */
-html[data-theme="light"] :is(.case-study-card,.capability-card,.accessibility-toggle,.availability-details>div,.accessibility-live-preview){
-  background:var(--light-surface);
-  border-color:var(--light-border);
-}
+/* Immediate light-theme surfaces keep the 4.2 redesign stable. */
+.case-study-card{transition:transform .2s,border-color .2s,box-shadow .2s}
+html[data-theme="light"] :is(.case-study-card,.capability-card,.case-study-modal,.accessibility-toggle,.availability-details>div){background-color:#fff}
+html[data-theme="light"] :is(.case-study-card,.capability-card,.accessibility-toggle,.availability-details>div,.accessibility-live-preview){border-color:var(--light-border)}
 html[data-theme="light"] :is(.case-study-modal,.accessibility-center,.availability-modal){background:var(--light-surface)}
 
 @media(max-width:720px){
-  .header-actions>.pwa-install,.header-actions>.feature-icon-button{width:var(--header-control-height);min-width:var(--header-control-height);padding:0}
-  .feature-modal-body{padding-inline:14px}
+  :root{--modal-inline-gutter:14px}
+  .header-actions>.pwa-install,.header-actions>.feature-icon-button{width:var(--header-control-height);min-width:var(--header-control-height);padding:0!important}
+  .header-actions>.pwa-install span{display:none}
+  .recruiter-mode>main>.modal-content{padding:28px 18px}
+  .case-study-detail>.modal-content>section{padding:20px}
 }
