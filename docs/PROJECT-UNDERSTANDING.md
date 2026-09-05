@@ -1,16 +1,18 @@
 # osameh.dev Project Understanding Report
 
-**Review date:** 2026-09-05
+**Review date:** 2026-09-05 (updated for v5.1.1)
 **Repository:** `osameh.dev`
 **Review scope:** Tracked application source, configuration, workflows, tests, documentation, public endpoints, generated metadata, and static-asset inventory.
 
 This report records a read-only architectural onboarding of the repository. The repository implementation is the source of truth for subsequent engineering work.
 
+Companion references: [`ARCHITECTURE.md`](./ARCHITECTURE.md) for how the deployed system behaves at runtime, [`CI-CD.md`](./CI-CD.md) for the delivery pipeline, and [`TESTING.md`](./TESTING.md) for what is verified where.
+
 ## 1. Detected version
 
-The repository version is **5.1.0**. It is consistent across `package.json`, `docs/CHANGELOG.md`, `README.md`, deployment documentation, and generated build metadata.
+The repository version is **5.1.1**. It is consistent across `package.json`, `package-lock.json`, `docs/CHANGELOG.md`, `README.md`, deployment documentation, and generated build metadata.
 
-The reviewed generated build identifies `v5.1.0-20260905T061243Z`. No version bump is required while finalizing this release.
+The reviewed generated build identifies `v5.1.1-20260905T134339Z`. v5.1.1 is a hotfix release over v5.1.0.
 
 ## 2. Current branch and worktree
 
@@ -267,7 +269,9 @@ shortcuts     share          version        build/system commands
 
 ## 16. SEO and API architecture
 
-Apache routing sends dynamic project, Engineering Note, and Case Study URLs through PHP metadata layers. These inject appropriate titles, descriptions, canonical URLs, social metadata, JSON-LD, and safe noindex soft-404 behavior.
+Apache routing sends dynamic project, Engineering Note, and Case Study URLs through PHP metadata layers. These inject appropriate titles, descriptions, canonical URLs, social metadata, and JSON-LD.
+
+Since v5.1.1 an unknown route returns a **true HTTP 404** carrying the portfolio's own IDE-style shell, rather than the previous soft-404 that answered HTTP 200. Four handlers own this — `not-found.php`, `note.php`, `case-study.php`, and `project.php` — and each returns 404 only where authoritative data proves the route invalid. Routing is an internal Apache rewrite, never a redirect, so the browser keeps the original URL. 404 responses carry `no-store`; valid dynamic routes keep their normal cache policy. This depends on the ParsPack CDN setting **Show origin server errors**, which is enabled.
 
 Server endpoints provide:
 
@@ -325,6 +329,8 @@ There is no staging-secret fallback.
 
 `.github/workflows/quality.yml` runs for pull requests targeting `develop` or `main`, by manual dispatch, and as a reusable workflow.
 
+The full technical reference for the pipeline — inputs, step order, artifact strategy, indexing contracts, deployment gating and local gaps — is [`CI-CD.md`](./CI-CD.md).
+
 Its effective order is:
 
 ```text
@@ -355,7 +361,7 @@ The workflow takes a `deploy_env` input (`staging` or `production`) that selects
 
 ## 20. Testing architecture
 
-The Playwright suite contains **36 tests** in `tests/e2e/portfolio.spec.ts`.
+The Playwright suite contains **48 tests** in `tests/e2e/portfolio.spec.ts`.
 
 Coverage includes:
 
@@ -398,6 +404,12 @@ Playwright is a pinned project dependency. CI invokes the repository installatio
 - exact project-owned Playwright dependency
 - staging/production secret separation
 - deployment only after E2E and Lighthouse
+- workflow step order: build → E2E → Lighthouse → environment packaging → artifact upload
+- no environment-specific build mode may reappear ahead of the SEO audit
+- packaging derives `dist-<env>/` and never mutates the tested `dist/`
+- staging packaging applies noindex; production packaging never does
+- the deploy artifact upload preserves hidden files so `.htaccess` survives
+- Service Worker clones before body consumption and never caches `/api/` responses
 
 The quality script performs structural JSON checks but is not a complete JSON-Schema validator. It also does not provide generic YAML parsing or a standalone secret scanner; PHP lint and other checks are separate CI steps.
 
@@ -405,12 +417,12 @@ The quality script performs structural JSON checks but is not a complete JSON-Sc
 
 `README.md` currently lists exactly six releases:
 
-1. 5.1.0
-2. 5.0.0
-3. 4.2.2
-4. 4.2.1
-5. 4.2.0
-6. 4.1.1
+1. 5.1.1
+2. 5.1.0
+3. 5.0.0
+4. 4.2.2
+5. 4.2.1
+6. 4.2.0
 
 The complete release history remains in `docs/CHANGELOG.md`. The quality gate enforces the six-release README maximum.
 
@@ -430,30 +442,62 @@ Release notes are expected to describe user-visible differences from the previou
 
 ## 24. Contradictions and suspicious implementation
 
-### Confirmed discrepancies
+### Resolved since the original review
 
-1. `/activity` is a valid application route but is missing from the Apache first-class SPA rewrite list and both sitemap implementations. A direct production visit can enter the soft-404 path, and GitHub Activity is absent from sitemap discovery.
-2. The contact API’s origin allowlist contains production domains only. A browser request from `https://staging.osameh.dev` would be rejected with HTTP 403, preventing realistic staging contact-form verification.
-3. The project context-menu Gallery action searches for `gallery-${repo.id}`, while the rendered Gallery uses `gallery-${repo.name}`. The action can open the project but fail to scroll to Gallery.
-4. A modal-gutter Playwright assertion targets `.diagnostics-grid article`, while the diagnostics component renders `.health-check-grid` and `.health-client-grid`.
-5. The Mood CLI describes the short label as the header value even though the actual header correctly renders the full human-readable label.
-6. README documents Node.js `20+`, while installed Vite 8 requires `^20.19.0` or `>=22.12.0`.
+All six discrepancies recorded in the first review have been fixed and verified:
+`/activity` is present in the Apache rewrite list and both sitemaps; the contact
+origin allowlist includes `https://staging.osameh.dev`; the Gallery context action
+and the diagnostics test selector both target the rendered identifiers; the Mood
+CLI distinguishes preset, short label and public header label; and the documented
+Node.js floor matches Vite 8.
 
-### Additional risks
+### Resolved in v5.1.1
 
-- Focus trapping and Escape handling are consistent in central feature dialogs but are not uniformly implemented by every older advanced modal.
-- Production live-build verification warns rather than fails when CDN content remains stale after its retries.
-- Schema files are present and readable, but the quality script performs partial contract checks rather than complete JSON-Schema validation.
+- The Service Worker cloned a response inside the `caches.open()` callback, after
+  the body had been handed to the browser, producing an unhandled
+  `Failed to execute 'clone' on 'Response'`. The clone is now taken synchronously
+  and cache failures are contained.
+- Unknown routes answered HTTP 200 with a 404 body. They now return a real 404.
+- The Recruiter Mode tour panel sized itself from the viewport while its backdrop
+  inset it by its own padding, so it overflowed its container on narrow screens
+  and the footer pushed the Next button off-screen at 320px.
+- A slow or failed Source Explorer request could overwrite a newer file selection.
+
+### Corrected diagnosis worth recording
+
+The Source Explorer outage was **not** an application path-validation bug. Every
+file request failed identically — including `src/App.tsx` and `package.json` —
+because the edge cache stripped client query strings, so `$_GET['path']` arrived
+empty. `.idea/`-prefixed paths were never rejected by the validator: the traversal
+pattern only ever matched a segment equal to `..`. The fix was an external CDN
+configuration change; the code changes in v5.1.1 are defensive hardening
+(segment-based normalization, no double-decoding) and stale-request recovery.
+
+### Standing risks
+
+- Focus trapping and Escape handling are consistent in central feature dialogs but
+  are not uniformly implemented by every older advanced modal.
+- Production live-build verification warns rather than fails when CDN content
+  remains stale after its retries.
+- The quality script performs partial contract checks rather than complete
+  JSON-Schema validation.
+- `vite preview` runs no PHP and no `.htaccess`, so the 404 status contract, every
+  `/api/*` endpoint, and CDN behavior are staging-only acceptance checks.
+- Source Explorer availability depends on the edge preserving client query
+  strings. That is external configuration and can regress silently.
 
 ## 25. Current engineering priorities
 
-1. Preserve and understand the existing dirty 5.1.0 stabilization changes before touching overlapping files.
-2. Close the `/activity` rewrite and sitemap gap.
-3. Decide whether staging must exercise contact submissions, then correct its origin policy if required.
-4. Repair the Gallery context action and stale diagnostics test selector at their actual sources.
-5. Audit every modal consumer for consistent focus trapping, Escape handling, and scroll restoration.
-6. Run the full build, PHP, Playwright, Lighthouse, and deployment validation path before release or production deployment.
-7. Keep future changes routed through the existing navigation, theme, modal, and configuration systems.
+1. Verify the v5.1.1 staging acceptance checks after deployment: true 404 status
+   and body, Source Explorer file loads, and the Recruiter tour on a real device.
+2. Keep Lighthouse pointed at the indexable build; never let environment packaging
+   move ahead of it. See [`CI-CD.md`](./CI-CD.md).
+3. Audit the remaining older advanced modals for consistent focus trapping,
+   Escape handling, and scroll restoration.
+4. Consider making the Source Explorer file endpoint path-encoded so it no longer
+   depends on edge query-string handling.
+5. Keep future changes routed through the existing navigation, theme, modal, and
+   configuration systems.
 
 ## Dependency and feature flow
 

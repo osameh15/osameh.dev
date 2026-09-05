@@ -2,6 +2,8 @@
 
 Target: ParsPack shared Linux hosting + ParsPack CDN + PHP 8+.
 
+Related: [`CI-CD.md`](./CI-CD.md) for the delivery pipeline, [`ARCHITECTURE.md`](./ARCHITECTURE.md) for runtime behavior and the CDN contracts this hosting must satisfy, and [`TESTING.md`](./TESTING.md) for the staging acceptance checklist.
+
 Build runtime: Node.js >=20.19.0 or >=22.12.0 (CI uses Node.js 22).
 
 ## 1. Build locally
@@ -101,32 +103,54 @@ After upload:
 Purge submission returning HTTP 200 only means the purge was queued. The CDN history status is the better confirmation that all nodes processed it.
 
 
-## CDN-compatible 404 behavior
+## 404 behavior (true origin status, custom body)
 
-ParsPack CDN currently replaces an upstream HTTP `404` response body with its own
-`Upstream Error - Not Found` document. To preserve the portfolio's IDE-style 404
-workspace, unknown browser routes intentionally return the React shell with HTTP
-`200`, plus:
+**Requires** ParsPack CDN -> Error Page Management -> **Show origin server errors: enabled**.
+With that setting off, the CDN replaces an upstream `404` body with its own
+`Upstream Error - Not Found` document and the portfolio's 404 workspace never
+reaches the visitor. The setting was enabled ahead of v5.1.1; if it is ever
+switched back off, unknown routes will show the CDN error page instead.
+
+Since v5.1.1 unknown routes return a **real HTTP 404** carrying the portfolio's
+own IDE-style shell as the response body:
 
 ```text
+HTTP/2 404
 X-Robots-Tag: noindex, nofollow
 X-Portfolio-Route-Status: 404
-Cache-Control: no-cache, must-revalidate
+Cache-Control: no-store, max-age=0
 ```
 
-React reads `window.location.pathname` and renders `404.md` inside the IDE workspace.
-The invalid route is therefore visible to the visitor but excluded from indexing.
-If the CDN later supports pass-through/custom origin error bodies, this compatibility
-layer can be switched back to a true HTTP 404.
+Four handlers own this, each returning 404 only when it has authoritative data
+proving the route is invalid:
 
-Smoke-test both a generic missing path and a missing project:
+| Handler | Invalid when |
+| --- | --- |
+| `public/not-found.php` | no file, directory, or first-class route matches |
+| `public/note.php` | slug is absent from `notes-index.json` |
+| `public/case-study.php` | id is absent from `case-studies-index.json` |
+| `public/project.php` | repository is absent from the cached GitHub repo record |
 
-```text
-https://osameh.dev/this-route-does-not-exist
-https://osameh.dev/projects/ThisRepoDoesNotExist
+Routing is an **internal Apache rewrite**, never a redirect, so the browser keeps
+the original invalid URL and React renders the 404 workspace from
+`window.location.pathname`. `no-store` is scoped to the 404 branches only; valid
+note/case-study/project responses keep their normal
+`public, max-age=300, stale-while-revalidate=3600` policy.
+
+Smoke-test status **and** body, since a 200 with the right body was the old bug:
+
+```bash
+curl -sI https://osameh.dev/this-route-does-not-exist        # expect 404
+curl -sI https://osameh.dev/projects/ThisRepoDoesNotExist    # expect 404
+curl -sI https://osameh.dev/notes/does-not-exist             # expect 404
+curl -sI https://osameh.dev/case-studies/does-not-exist      # expect 404
+curl -sI https://osameh.dev/activity                         # expect 200
+curl -s  https://osameh.dev/this-route-does-not-exist | grep "404 — Route not found"
 ```
 
-Both should display the in-app 404 workspace rather than a CDN upstream error page.
+The last command must match: it proves the body is the portfolio shell rather
+than a CDN error page. A static preview server runs no PHP, so none of this is
+observable locally; it is a staging acceptance check after every deployment.
 
 ## 6. Smoke tests
 
@@ -301,6 +325,8 @@ After deployment also verify:
 
 ## 12. CI/CD with GitHub Actions
 
+> Deep technical reference: [`CI-CD.md`](./CI-CD.md) — workflow inputs, step ordering rationale, artifact phases, indexing contracts, quality gates, and what blocks a deployment.
+
 The repository deliberately separates quality, staging deployment, and production deployment. Deployment never runs in parallel with E2E: the deploy job has `needs: quality` and receives the exact tested build artifact from the reusable quality workflow.
 
 The application is built **once**, as a normal indexable production-like bundle. Every application-level check — repository gates, TypeScript, PHP lint, `verify:dist`, Playwright and Lighthouse — runs against that single `dist/`. Environment indexing policy is applied only afterwards, into a separate `dist-<env>/` directory, and each derived bundle is verified against its own contract before it can become a deploy artifact.
@@ -453,10 +479,67 @@ The reusable `.github/workflows/quality.yml` runs the release-critical sequence 
 
 A failed Playwright or Lighthouse step prevents the artifact/deploy path from completing. A failed `verify:staging` or `verify:production` step blocks the artifact the same way, so a bundle whose indexing policy is wrong can never reach a deploy job. Re-running only a deploy step cannot bypass a failed quality job.
 
-## 13. Release notes
+### 12.7 Deploy artifact must include `.htaccess`
+
+`actions/upload-artifact` excludes hidden files by default. `.htaccess` is the only
+dot-file in the bundle and it carries the rewrite rules, CSP, security headers and
+the staging `X-Robots-Tag`. The environment artifact upload therefore sets:
+
+```yaml
+include-hidden-files: true
+```
+
+Both deploy jobs assert `dist/.htaccess` exists **before** `lftp` runs, naming any
+missing file. This ordering is deliberate: deployment mirrors with
+`--delete`, so a bundle missing `.htaccess` would remove the file from the
+server — dropping every rewrite and security header, and on staging removing the
+noindex header.
+
+## 13. Operational troubleshooting
+
+Symptom-first notes for runtime and delivery problems. Test-tooling problems are
+covered in [`TESTING.md`](./TESTING.md#8-troubleshooting).
+
+**Source Explorer returns HTTP 400 for every file.**
+Check CDN query-string forwarding. The file endpoint passes its path as a client
+query parameter; if the edge caches or normalises requests so query strings do not
+reach the origin, `$_GET` arrives empty and every path fails identically —
+including ordinary ones such as `src/App.tsx`. This is not a path-validation bug.
+Confirm by comparing a path-encoded endpoint with a query-encoded one:
+
+```bash
+curl -s https://osameh.dev/api/github/tree/osameh.dev | head -c 80   # path-encoded
+curl -s "https://osameh.dev/api/github.php?meta=osameh.dev" | head -c 80
+```
+
+If the second returns the repository list instead of metadata, query strings are
+being dropped before PHP.
+
+**A custom origin 404 is replaced by the ParsPack error page.**
+Check ParsPack → Error Page Management → **Show origin server errors**. It must be
+enabled, otherwise the edge substitutes its own body for any upstream error.
+
+**Deployment fails with a missing `dist/.htaccess`.**
+The artifact was uploaded without hidden files. Verify `include-hidden-files: true`
+on the environment artifact upload step. Do not work around this by relaxing the
+deploy-side assertion — it is what prevents `mirror --delete` from removing the
+server's `.htaccess`.
+
+**Staging Lighthouse reports SEO around 63.**
+Lighthouse is auditing a staging-packaged (noindexed) bundle. The `is-crawlable`
+audit fails by design on a noindex document. The audit must run against the normal
+indexable `dist/` **before** any environment packaging. See
+[`CI-CD.md`](./CI-CD.md#33-why-the-order-matters).
+
+**Staging deploy fails with FTPS 530.**
+Authentication was rejected before remote-path selection. Verify only that
+environment's four credentials. Never substitute production credentials into the
+staging job.
+
+## 14. Release notes
 
 Repository release history is maintained in [`CHANGELOG.md`](./CHANGELOG.md). README intentionally summarizes only the six latest releases. Documentation-only production commits remain excluded from automatic production deploys.
 
-## 14. Health endpoint
+## 15. Health endpoint
 
 Production and staging bundles expose `/api/health`. The endpoint intentionally returns only safe operational data and build metadata. Do not extend it with environment variables, credentials, absolute filesystem paths, raw IP addresses, or secret/config contents.

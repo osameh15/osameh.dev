@@ -194,7 +194,7 @@ html[data-theme="light"]{
 /* Modal shells keep chrome outside their measured scrolling viewport. The
    viewport owns its scrollbar; its content reclaims only the width that this
    exact viewport consumes, so overlay scrollbars resolve to zero. */
-.feature-modal,.advanced-modal,.recruiter-mode{overflow:hidden}
+.feature-modal,.advanced-modal,.recruiter-mode{overflow:hidden;max-width:100%}
 .advanced-modal{display:flex;flex-direction:column}
 .feature-modal>header,.advanced-modal>header,.recruiter-mode>header,.recruiter-progress,.recruiter-mode>footer{position:relative;z-index:2;width:100%;box-sizing:border-box}
 .feature-modal-body,.advanced-modal>.modal-scroll-viewport,.recruiter-mode>main,.command-palette-list{
@@ -258,3 +258,57 @@ html[data-theme="light"] :is(.case-study-modal,.accessibility-center,.availabili
   .recruiter-mode>main>.modal-content{padding:28px 18px}
   .case-study-detail>.modal-content>section{padding:20px}
 }
+
+/* v5.1.1 — Source Explorer file-level failure state. One bad file must leave the
+   repository tree usable, so the error panel offers a retry instead of a dead end. */
+.source-empty.source-error{gap:10px}
+.source-empty.source-error .source-error-hint{color:#6d7a70;font-size:8.5px}
+.source-retry{margin-top:2px;border:1px solid #3c5c3a;background:#16211a;color:#b7d3b6;padding:6px 14px;border-radius:6px;cursor:pointer;font:9px var(--code-font)}
+.source-retry:hover{border-color:#5f9257;color:#d8ecd7}
+html[data-theme="light"] .source-empty.source-error .source-error-hint{color:#63776a}
+html[data-theme="light"] .source-retry{border-color:#a9c9aa;background:#eef6ef;color:#2c5c34}
+html[data-theme="light"] .source-retry:hover{border-color:#4f9350;color:#1e4726}
+
+/* v5.1.1 — Recruiter tour mobile geometry.
+   The backdrop insets its content by its own padding, but the panel sized itself
+   from 100vw, so on narrow screens the panel was wider than the box containing
+   it and overflowed. Both now derive from one margin, and safe-area insets are
+   respected so the panel never sits under a notch or home indicator. */
+@media (max-width: 760px) {
+  :root { --tour-margin: 12px; }
+  .advanced-modal-backdrop {
+    padding: max(var(--tour-margin), env(safe-area-inset-top)) max(var(--tour-margin), env(safe-area-inset-right)) max(var(--tour-margin), env(safe-area-inset-bottom)) max(var(--tour-margin), env(safe-area-inset-left));
+  }
+  .recruiter-mode {
+    width: 100%;
+    max-width: calc(100vw - 2 * var(--tour-margin));
+    max-height: min(88svh, calc(100svh - 2 * var(--tour-margin)));
+  }
+  /* Header, progress and footer keep their own rows; only the body scrolls. */
+  .recruiter-mode > main { padding: 22px 14px; }
+  /* Pin the footer to one nowrap row. Left to the inherited cascade it wrapped
+     at 320px and pushed the Next button below the panel and off-screen. */
+  .recruiter-mode > footer { display: flex; flex-flow: row nowrap; align-items: center; justify-content: space-between; gap: 8px; padding: 0 10px; overflow: hidden }
+  .recruiter-mode > footer button { flex: 0 1 auto; min-width: 0; white-space: nowrap }
+  .recruiter-mode > footer > span { flex: 0 0 auto }
+  .recruiter-intro h2, .recruiter-project h2, .recruiter-outro h2 { font-size: 19px; line-height: 1.25 }
+  .recruiter-headline { font-size: 12px; line-height: 1.55 }
+  .recruiter-project-top { flex-wrap: wrap; gap: 6px }
+  .recruiter-skill-list { gap: 5px }
+  .recruiter-outro > div { display: flex; flex-wrap: wrap; gap: 8px }
+  .recruiter-outro > div button { flex: 1 1 auto; min-width: 44% }
+  .recruiter-mode .primary-btn, .recruiter-mode .secondary-btn { min-height: 40px }
+}
+@media (max-width: 380px) {
+  :root { --tour-margin: 8px; }
+  .recruiter-mode > footer button span { display: none }
+}
+
+/* v5.1.1 — Modal backdrop column must not grow to its child.
+   The backdrop is a centering grid whose single implicit column is auto-sized,
+   so a panel wider than the padded content box stretched the column instead of
+   being clamped by it: max-width:100% then resolved against the panel's own
+   width and centering degraded to start-alignment (768px showed 30px/18px).
+   Constraining the column to the content box makes max-width:100% meaningful
+   and keeps the inline gaps symmetric at every width, scrollbar included. */
+.advanced-modal-backdrop { grid-template-columns: minmax(0, 1fr) }

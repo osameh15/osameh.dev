@@ -109,13 +109,13 @@ $index = __DIR__ . '/index.html';
 if (!is_file($index)) { http_response_code(500); echo 'Missing index.html'; exit; }
 $html = (string)file_get_contents($index);
 if ($repo === null) {
-    // ParsPack CDN replaces an upstream 404 response body with its own error page.
-    // Serve the React shell as HTTP 200 so the client-side IDE 404 can render,
-    // but mark the route as noindex and expose the semantic state diagnostically.
-    http_response_code(200);
+    // A real 404 status with our own IDE-style shell as the body. The edge is
+    // configured to pass origin errors through, so the browser keeps the original
+    // URL and React renders the 404 workspace from window.location.pathname.
+    http_response_code(404);
     header('X-Robots-Tag: noindex, nofollow');
     header('X-Portfolio-Route-Status: 404');
-    header('Cache-Control: no-cache, must-revalidate');
+    header('Cache-Control: no-store, max-age=0');
     $html = preg_replace('~<title>.*?</title>~is', '<title>404 — Project not found | Osameh Irandoust</title>', $html, 1) ?: $html;
     $html = preg_replace('/<link\s+rel=["\']canonical["\'][^>]*>/i', '', $html) ?: $html;
     $html = preg_replace('/<meta\s+property=["\']og:url["\'][^>]*>/i', '', $html) ?: $html;

@@ -35,8 +35,9 @@ RewriteRule ^api/github/meta/([A-Za-z0-9._-]+)/?$ api/github.php?meta=$1 [QSA,L]
   RewriteRule ^(?:home|about|projects|experience|activity|now|changelog|notes|case-studies|contact|resume|status)/?$ index.html [L]
 
   # Existing files/directories are served normally. Unknown browser routes are
-  # sent through not-found.php. It intentionally returns HTTP 200 + noindex because
-  # ParsPack CDN replaces upstream 404 bodies; React renders the IDE-style 404 UI.
+  # handled internally by not-found.php, which returns a real HTTP 404 carrying
+  # our IDE-style 404 shell. This is an internal rewrite, never a redirect, so
+  # the browser keeps the original invalid URL.
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
   RewriteRule ^ not-found.php [L]

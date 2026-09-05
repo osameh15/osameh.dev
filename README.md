@@ -505,6 +505,14 @@ The site also includes an in-app resume viewer and download/open controls.
 
 The **six most recent releases** are summarized here. See **[CHANGELOG.md](docs/CHANGELOG.md)** for the complete production history. This section is intentionally capped at six releases.
 
+### v5.1.1 — Source Explorer, Service Worker & mobile tour hotfix
+
+- Hardened GitHub repository path normalization so dot-prefixed directories stay previewable while traversal, absolute paths, and protocol injection remain blocked.
+- Source Explorer now recovers from a failed or stale file request: the tree stays usable, the failure is shown inline with a retry, and a late response can no longer replace the file you selected.
+- Fixed the Service Worker `Response.clone()` failure and kept `/api/` responses out of the cache entirely.
+- Made the Recruiter Mode tour fully usable on 320-412px mobile viewports.
+- Unknown URLs return a real HTTP 404 while keeping the custom IDE 404 UI.
+
 ### v5.1.0 — Interaction reliability & developer UX
 
 - standardizes the Install, Command Palette, Accessibility, and Portfolio Mood header controls, including true vertical icon/label centering
@@ -541,11 +549,17 @@ The **six most recent releases** are summarized here. See **[CHANGELOG.md](docs/
 - aligned IDE shell, project intelligence, Notes, modals, compare surfaces, and interactive states with the redesigned palette
 - expanded browser contrast coverage for the light-theme system
 
-### v4.1.1 — Notes navigation stability
 
-- restores Engineering Notes at the exact section anchor after note close and browser Back
-- keeps the article TOC selected reliably across repeated clicks, smooth scrolling, and manual scrolling
-- vertically centers the PWA download/install action across desktop, tablet, and mobile header layouts
+## Documentation
+
+| Document | Contents |
+| --- | --- |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Runtime architecture — request path, routing and the true-404 contract, CDN contracts, GitHub proxy, Service Worker, shared modal foundation |
+| [`docs/CI-CD.md`](docs/CI-CD.md) | CI/CD pipeline reference — workflow inputs, step ordering, artifact phases, indexing contracts, quality gates, deployment gating |
+| [`docs/TESTING.md`](docs/TESTING.md) | What each command verifies, local vs CI vs staging boundaries, Playwright coverage, staging acceptance checklist |
+| [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | Hosting, CDN, DNS, FTPS credentials, 404 behavior, smoke tests, operational troubleshooting |
+| [`docs/PROJECT-UNDERSTANDING.md`](docs/PROJECT-UNDERSTANDING.md) | Feature-level onboarding — application structure, feature layers, fragile areas, current priorities |
+| [`docs/CHANGELOG.md`](docs/CHANGELOG.md) | Full release history. README summarizes only the six latest releases |
 
 ## License
 
@@ -555,9 +569,11 @@ Choose and add a license before publishing if you want to explicitly define reus
 
 CI/CD uses three separate responsibilities instead of mixing build/test/deploy credentials:
 
-1. `.github/workflows/quality.yml` — reusable **secret-free** quality gate: repository validation → TypeScript/PHP → build → bundle verification → Playwright → Lighthouse → tested artifact.
-2. `.github/workflows/staging.yml` — runs only for `develop`, waits for the quality job, then deploys the tested staging artifact with staging-only credentials.
-3. `.github/workflows/deploy.yml` — runs only for `main`, waits for the quality job, then deploys the tested production artifact with production-only credentials.
+1. `.github/workflows/quality.yml` — reusable **secret-free** quality gate: repository validation → TypeScript/PHP → one indexable build → bundle verification → Playwright → Lighthouse → environment packaging and indexing-policy verification → verified artifact.
+2. `.github/workflows/staging.yml` — runs only for `develop`, waits for the quality job, then deploys the verified staging artifact with staging-only credentials.
+3. `.github/workflows/deploy.yml` — runs only for `main`, waits for the quality job, then deploys the verified production artifact with production-only credentials.
+
+The application is built **once** as a normal indexable bundle, and every check runs against it. Environment indexing policy is applied afterwards into a separate `dist-<env>/` directory, so a strict SEO audit can never grade a deliberately non-indexable staging document. Full technical reference: [`docs/CI-CD.md`](docs/CI-CD.md).
 
 The ten deployment secrets stay separated:
 

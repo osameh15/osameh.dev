@@ -834,3 +834,132 @@ test("Command Palette destinations run only after the palette releases its lock"
   await page.keyboard.press("Escape");
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(workspaceScroll);
 });
+
+const tourViewports = [
+  { width: 320, height: 568, margin: 8 },
+  { width: 360, height: 800, margin: 8 },
+  { width: 390, height: 844, margin: 12 },
+  { width: 412, height: 915, margin: 12 },
+  { width: 768, height: 1024, margin: 30 },
+];
+
+// Featured projects normally come from the GitHub metadata API, which is not
+// reachable from a static preview server. Without them the tour only contains
+// its intro and outro, so the long project steps - the ones most likely to
+// overflow - would never be measured. These fixtures make two realistic, long
+// project steps deterministic without any network access.
+const LONG_HEADLINE = "A production portfolio platform that treats every public repository as the single source of truth for its own presentation, metadata, architecture diagram and case study narrative.";
+const LONG_POINTS = [
+  "Repository-owned portfolio.json drives project pages, so documentation never drifts from the code it describes across eleven public repositories.",
+  "A same-origin PHP proxy fronts the GitHub REST API with disk caching, strict path validation and secret-aware exclusions for the public source explorer.",
+  "Deployment runs a single indexable build through quality gates, TypeScript, PHP lint, Playwright and Lighthouse before environment-specific packaging.",
+];
+const FEATURED_FIXTURES: Record<string, number> = { "osameh.dev": 1, "Mizekar": 2 };
+
+async function stubFeaturedProjects(page: import("@playwright/test").Page) {
+  await page.route("**/api/github/meta/**", async route => {
+    const name = decodeURIComponent(new URL(route.request().url()).pathname.split("/").pop() || "");
+    const order = FEATURED_FIXTURES[name];
+    if (!order) return route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ found: false }) });
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        found: true,
+        repo: name,
+        metadata: {
+          schemaVersion: "1.0",
+          project: { name, type: "Production web platform", featured: true, featuredOrder: order, summary: LONG_HEADLINE, lifecycle: "active" },
+          // normalizePortfolioMetadata returns null unless all four of these
+          // exist, which would silently fall back to an unfeatured project.
+          repository: { owner: "osameh15", name, defaultBranch: "main", license: "MIT" },
+          caseStudy: { problem: LONG_HEADLINE, solution: LONG_HEADLINE, highlights: LONG_POINTS, results: LONG_POINTS },
+          architecture: { nodes: [], edges: [] },
+          ownership: { role: "Lead engineer, end to end", collaboration: "solo", responsibilities: LONG_POINTS },
+          recruiter: { headline: LONG_HEADLINE, skillsDemonstrated: ["TypeScript", "React", "PHP", "CI/CD", "Accessibility", "Performance", "Security"], talkingPoints: LONG_POINTS },
+        },
+      }),
+    });
+  });
+}
+
+for (const viewport of tourViewports) {
+  test(`recruiter tour fits the ${viewport.width}px viewport on every step, including long project steps`, async ({ page }) => {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await stubFeaturedProjects(page);
+    await page.goto("/");
+    await page.evaluate(openPaletteShortcut);
+    const palette = page.getByRole("dialog", { name: "Command Palette" });
+    await expect(palette).toBeVisible();
+    await palette.getByRole("textbox").fill("recruiter mode");
+    await palette.getByRole("textbox").press("Enter");
+
+    const tour = page.locator('[role="dialog"].recruiter-mode');
+    await expect(tour).toBeVisible();
+    const steps = Number(((await page.locator(".recruiter-mode > footer > span").textContent()) || "1 / 1").split("/")[1]);
+    // intro + two fixture project steps + outro
+    expect(steps).toBe(4);
+
+    for (let step = 0; step < steps; step++) {
+      const box = await tour.boundingBox();
+      expect(box).not.toBeNull();
+      expect(box!.x).toBeGreaterThanOrEqual(viewport.margin - 1);
+      expect(box!.x + box!.width).toBeLessThanOrEqual(viewport.width - viewport.margin + 1);
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+      expect(overflow).toBeLessThanOrEqual(1);
+
+      for (const control of [page.locator(".recruiter-mode > header button"), page.locator(".recruiter-progress"), page.locator(".recruiter-mode > footer button").last()]) {
+        const rect = await control.boundingBox();
+        expect(rect).not.toBeNull();
+        expect(rect!.y).toBeGreaterThanOrEqual(0);
+        expect(rect!.y + rect!.height).toBeLessThanOrEqual(viewport.height + 1);
+        expect(rect!.x).toBeGreaterThanOrEqual(0);
+        expect(rect!.x + rect!.width).toBeLessThanOrEqual(viewport.width + 1);
+      }
+      // Inline gaps stay symmetric at every width, not merely non-negative.
+      expect(Math.abs(box!.x - (viewport.width - (box!.x + box!.width)))).toBeLessThanOrEqual(2);
+
+      // Long project steps must wrap rather than scroll sideways, and any
+      // vertical overflow has to be handled inside the panel body.
+      const body = page.locator(".recruiter-mode > main");
+      const flow = await body.evaluate(element => ({
+        horizontal: element.scrollWidth - element.clientWidth,
+        scrollable: element.scrollHeight > element.clientHeight + 1,
+        widest: Math.max(0, ...[...element.querySelectorAll("p, h2, span, b")].map(node => node.scrollWidth - element.clientWidth)),
+      }));
+      expect(flow.horizontal).toBeLessThanOrEqual(1);
+      expect(flow.widest).toBeLessThanOrEqual(1);
+      if (flow.scrollable) {
+        const moved = await body.evaluate(element => { element.scrollTop = 120; return element.scrollTop; });
+        expect(moved).toBeGreaterThan(0);
+        await body.evaluate(element => { element.scrollTop = 0; });
+      }
+
+      if (step < steps - 1) await page.locator(".recruiter-mode > footer button").last().click();
+    }
+
+    await page.locator(".recruiter-mode > footer button").first().click();
+    await expect(tour).toBeVisible();
+    await page.locator(".recruiter-mode > header button").click();
+    await expect(tour).toBeHidden();
+  });
+}
+
+test("unknown routes keep their URL and render the custom IDE 404 workspace", async ({ page }) => {
+  // Only the client half of the 404 contract is observable here. The real HTTP
+  // 404 status, the noindex meta rewrite and the X-Robots-Tag header are all
+  // produced by not-found.php, which a static preview server never executes;
+  // those are verified against staging after deployment.
+  await page.goto("/this-route-does-not-exist");
+  await expect(page).toHaveURL(/\/this-route-does-not-exist$/);
+  await expect(page.getByText(/404/).first()).toBeVisible();
+  await expect(page.locator("#root")).toBeVisible();
+});
+
+test("valid first-class routes still render their own workspace", async ({ page }) => {
+  for (const path of ["/activity", "/case-studies", "/notes"]) {
+    await page.goto(path);
+    await expect(page).toHaveURL(new RegExp(`${path}$`));
+    await expect(page.locator("#root")).toBeVisible();
+  }
+});

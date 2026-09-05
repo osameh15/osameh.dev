@@ -233,6 +233,8 @@ export function ProjectSourceExplorer({ repo, metadata }: { repo: RepoLike; meta
   const [activePath, setActivePath] = useState("");
   const [source, setSource] = useState<SourceFilePayload | null>(null);
   const [sourceState, setSourceState] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [sourceError, setSourceError] = useState("");
+  const sourceRequestRef = useRef(0);
   const [query, setQuery] = useState("");
 
   useEffect(() => {
@@ -274,15 +276,28 @@ export function ProjectSourceExplorer({ repo, metadata }: { repo: RepoLike; meta
 
   const openFile = async (file: SourceTreeFile) => {
     if (activePath === file.path && source) return;
-    setActivePath(file.path); setSourceState("loading"); setSource(null);
+    // Each request owns a token. A late response from an earlier file can no
+    // longer overwrite the file the user has since selected, which is what let
+    // one failed request poison the next selection.
+    const token = ++sourceRequestRef.current;
+    setActivePath(file.path); setSourceState("loading"); setSource(null); setSourceError("");
     try {
       const response = await fetch(`/api/github/file/${encodeURIComponent(repo.name)}?path=${encodeURIComponent(file.path)}`, { headers: { Accept: "application/json" }, cache: "no-store" });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(String(payload.error || "Source file could not be loaded."));
+      if (token !== sourceRequestRef.current) return;
       setSource(payload as SourceFilePayload); setSourceState("ready");
     } catch (error) {
-      setSourceState("error"); notify(error instanceof Error ? error.message : "Source file could not be loaded.", "error", 4400);
+      if (token !== sourceRequestRef.current) return;
+      const message = error instanceof Error ? error.message : "Source file could not be loaded.";
+      setSourceError(message); setSourceState("error");
+      notify(message, "error", 4400);
     }
+  };
+
+  const retrySource = () => {
+    const file = files.find(item => item.path === activePath);
+    if (file) { setSource(null); void openFile(file); }
   };
 
   const openEntryPoint = (entry: string) => {
@@ -310,7 +325,7 @@ export function ProjectSourceExplorer({ repo, metadata }: { repo: RepoLike; meta
       </aside>
       <div className="source-editor">
         <header><div><FileCode2 size={14} /><span>{source?.path || activePath || "Select a source file"}</span></div>{source && <div><button onClick={() => { void copySource(); }}><Copy size={13} /> Copy</button><a href={source.html_url} target="_blank" rel="noreferrer"><ExternalLink size={13} /> GitHub</a></div>}</header>
-        <div className="source-editor-body" tabIndex={0} aria-live="polite" aria-busy={sourceState === "loading"} aria-label={source ? `${source.name} source code viewport` : activePath ? `Loading ${activePath}` : "Source code viewport"}>{sourceState === "loading" ? <div className="source-loading-state"><div className="source-loading-head"><LoaderCircle className="spin" size={20} /><div><b>Loading source preview</b><span>{activePath || "Preparing file…"}</span></div></div><div className="source-loading-skeleton" aria-hidden="true">{[88,64,76,92,58,82,69,48,90,72,55,84].map((width, index) => <i key={index} style={{ width: `${width}%`, animationDelay: `${index * 45}ms` }} />)}</div></div> : sourceState === "error" ? <div className="source-empty"><FileCode2 size={22} /><span>Unable to render this source file.</span></div> : source ? <div className={`source-code language-${source.language}`}>{source.content.split(/\r?\n/).map((line, index) => <SourceLine key={index} line={line} language={source.language} number={index + 1} />)}</div> : <div className="source-empty"><FileCode2 size={24} /><b>Repository source explorer</b><span>Select a file from the tree to inspect it without leaving osameh.dev.</span></div>}</div>
+        <div className="source-editor-body" tabIndex={0} aria-live="polite" aria-busy={sourceState === "loading"} aria-label={source ? `${source.name} source code viewport` : activePath ? `Loading ${activePath}` : "Source code viewport"}>{sourceState === "loading" ? <div className="source-loading-state"><div className="source-loading-head"><LoaderCircle className="spin" size={20} /><div><b>Loading source preview</b><span>{activePath || "Preparing file…"}</span></div></div><div className="source-loading-skeleton" aria-hidden="true">{[88,64,76,92,58,82,69,48,90,72,55,84].map((width, index) => <i key={index} style={{ width: `${width}%`, animationDelay: `${index * 45}ms` }} />)}</div></div> : sourceState === "error" ? <div className="source-empty source-error" data-source-error="1"><FileCode2 size={22} /><b>Unable to load this source file.</b><span>{sourceError || "Source file could not be loaded."}</span><span className="source-error-hint">The repository tree is still available — retry, or pick another file.</span><button type="button" className="source-retry" onClick={retrySource}>Retry</button></div> : source ? <div className={`source-code language-${source.language}`}>{source.content.split(/\r?\n/).map((line, index) => <SourceLine key={index} line={line} language={source.language} number={index + 1} />)}</div> : <div className="source-empty"><FileCode2 size={24} /><b>Repository source explorer</b><span>Select a file from the tree to inspect it without leaving osameh.dev.</span></div>}</div>
         {source && <footer><span>{source.language}</span><span>{Math.max(1, Math.round(source.size / 1024))} KB</span><span>{source.content.split(/\r?\n/).length} lines</span></footer>}
       </div>
     </div>

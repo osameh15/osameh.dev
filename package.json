@@ -1,6 +1,6 @@
 {
   "name": "osameh-portfolio",
-  "version": "5.1.0",
+  "version": "5.1.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "quality": "node scripts/quality-gates.mjs",
     "verify:dist": "node scripts/verify-dist.mjs",
+    "verify:sw": "node scripts/verify-sw.mjs",
     "package:staging": "node scripts/package-env.mjs staging",
     "package:production": "node scripts/package-env.mjs production",
     "verify:staging": "node scripts/verify-env.mjs staging",

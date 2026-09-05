@@ -4,6 +4,23 @@ All notable changes to **osameh.dev** are documented here.
 
 The project follows [Semantic Versioning](https://semver.org/). The early production releases were shipped in rapid succession while the portfolio was moved from its hosted prototype to the current ParsPack/CDN deployment.
 
+## 5.1.1 - 2026-09-05
+
+### Fixed
+- A **GitHub Source Explorer** file that cannot be loaded no longer leaves the panel stuck: the repository tree stays usable, the failure is reported in place with a retry action, and selecting another file recovers immediately.
+- A slow or failed source request can no longer overwrite a file the reader has since selected; each request is now matched to the selection that started it.
+- Corrected **Service Worker** response handling. A cached copy is now taken before the response body is consumed, which removes the `Failed to execute 'clone' on 'Response'` error, and a failed cache write can no longer disturb an otherwise successful request.
+- **Recruiter Mode** tour is usable on mobile. The panel stays inside the viewport with symmetric margins at 320-412px widths, the footer no longer wraps its navigation off-screen, and the close button, progress bar, and Back/Next actions stay reachable.
+- Unknown URLs now return a real **HTTP 404** while still rendering the custom IDE-style 404 workspace, instead of answering 200 for a page that does not exist. Invalid Engineering Note, Case Study, and project routes return 404 as well.
+
+### Security
+- Repository source paths are validated by normalized path segments. A leading dot is treated as an ordinary directory name, so `.idea/`, `.github/`, and `.vscode/` files remain previewable, while traversal, absolute paths, protocol injection, and control characters are rejected. The path is no longer decoded a second time after the server has already decoded it, which also stops a literal `%` in a filename from being corrupted.
+
+### Changed
+- The Service Worker leaves `/api/` requests entirely to the network, so a transient GitHub failure or rate-limit response can never be replayed from cache.
+- Source Explorer availability was verified end to end after an edge cache configuration change corrected the handling of client query strings. The Source Explorer outage was caused by that edge behaviour, not by the application's repository path validation, which had always accepted dot-prefixed directories.
+- 404 responses are sent with `Cache-Control: no-store` so an invalid route is never cached by the browser or the CDN.
+
 ## 5.1.0 - 2026-09-02
 
 ### Added

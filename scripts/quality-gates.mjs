@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { verifyServiceWorker } from "./verify-sw.mjs";
 
 const failures = [];
 const pass = message => console.log(`✓ ${message}`);
@@ -226,6 +227,12 @@ for (const [workflow, label] of [[stagingWorkflow, "Staging"], [productionWorkfl
   if (!/for file in [^\n]*\.htaccess/.test(workflow)) fail(`${label} deploy does not assert .htaccess survived the artifact round trip`);
 }
 if (!failures.some(item => item.includes("artifact file is missing") || item.includes("artifact round trip"))) pass("Deploy jobs verify .htaccess survived and name any missing bundle file");
+
+// The service worker only registers over HTTPS, so no local browser run loads
+// it. Execute it against a minimal worker environment here instead.
+const serviceWorkerFailures = await verifyServiceWorker();
+for (const failure of serviceWorkerFailures) fail(failure);
+if (!serviceWorkerFailures.length) pass("Service worker clones before body consumption and never caches /api/ responses");
 
 if (failures.length) {
   console.error(`\nQuality gates failed (${failures.length}).`);
