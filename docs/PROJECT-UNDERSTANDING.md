@@ -10,7 +10,7 @@ Companion references: [`ARCHITECTURE.md`](./ARCHITECTURE.md) for how the deploye
 
 ## 1. Detected version
 
-The repository version is **5.2.0**, codename **Cipher** under the Cyber Noir release theme (see [`ARCHITECTURE.md`](./ARCHITECTURE.md)). It is consistent across `package.json`, `package-lock.json`, `docs/CHANGELOG.md`, `README.md`, deployment documentation, and generated build metadata.
+The repository version is **5.2.1**, codename **Cipher** under the Cyber Noir release theme (see [`ARCHITECTURE.md`](./ARCHITECTURE.md)). It is consistent across `package.json`, `package-lock.json`, `docs/CHANGELOG.md`, `README.md`, deployment documentation, and generated build metadata.
 
 Generated build metadata is refreshed during validation and resolves the current release as v5.2.0 · CIPHER.
 
@@ -361,7 +361,7 @@ The workflow takes a `deploy_env` input (`staging` or `production`) that selects
 
 ## 20. Testing architecture
 
-The Playwright suite contains **69 tests** in `tests/e2e/portfolio.spec.ts`.
+The Playwright suite contains **72 tests** in `tests/e2e/portfolio.spec.ts`.
 
 Coverage includes:
 

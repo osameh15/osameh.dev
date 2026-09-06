@@ -2,6 +2,7 @@ import { test, expect, type Locator } from "@playwright/test";
 import { readFileSync } from "node:fs";
 
 const availabilityFixture = JSON.parse(readFileSync(new URL("../../config/availability.json", import.meta.url), "utf8"));
+const RELEASE_VERSION: string = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")).version;
 const activeAvailability = availabilityFixture.profiles[availabilityFixture.activeStatus];
 
 async function expectSymmetric(dialog: Locator, leftCard: Locator, rightCard = leftCard, tolerance = 2) {
@@ -1142,23 +1143,24 @@ test("build modal reports the deployed environment from build-info.json", async 
 });
 
 // ---------------------------------------------------------------------------
-// v5.2.0 Cipher — release codename architecture, Neural Cipher branding, and
-// active-tab auto-scroll.
+// Cipher release family — codename architecture, Neural Cipher branding, and
+// active-tab auto-scroll. The version is read from package.json so a patch bump
+// never invalidates these assertions.
 // ---------------------------------------------------------------------------
 
 test("release identity surfaces show the version and Cipher codename", async ({ page }) => {
   await page.goto("/");
   // Status bar
   const status = page.locator(".status-build");
-  await expect(status).toContainText("v5.2.0");
+  await expect(status).toContainText(`v${RELEASE_VERSION}`);
   await expect(status).toContainText("CIPHER");
   // Build Info
   await page.evaluate(() => window.dispatchEvent(new Event("portfolio:build")));
   const modal = page.locator(".build-info-modal");
   await expect(modal).toBeVisible();
-  await expect(modal.locator("#build-info-title")).toContainText("v5.2.0 · CIPHER");
+  await expect(modal.locator("#build-info-title")).toContainText(`v${RELEASE_VERSION} · CIPHER`);
   const cell = (label: string) => modal.locator(".build-info-grid article").filter({ hasText: label }).locator("strong");
-  await expect(cell("VERSION")).toHaveText("v5.2.0 · CIPHER");
+  await expect(cell("VERSION")).toHaveText(`v${RELEASE_VERSION} · CIPHER`);
   await expect(cell("CODENAME")).toHaveText("Cipher");
   // Environment must stay runtime-derived, not compiled in.
   await expect(cell("ENVIRONMENT")).toHaveText("production");
@@ -1167,7 +1169,7 @@ test("release identity surfaces show the version and Cipher codename", async ({ 
 test("build info reports staging environment while keeping the Cipher identity", async ({ page }) => {
   await page.route("**/build-info.json", route => route.fulfill({
     status: 200, contentType: "application/json",
-    body: JSON.stringify({ version: "5.2.0", codename: "Cipher", buildId: "v5.2.0-test", builtAt: new Date().toISOString(), environment: "staging", availabilityMood: "selective" }),
+    body: JSON.stringify({ version: RELEASE_VERSION, codename: "Cipher", buildId: `v${RELEASE_VERSION}-test`, builtAt: new Date().toISOString(), environment: "staging", availabilityMood: "selective" }),
   }));
   await page.goto("/");
   await page.evaluate(() => window.dispatchEvent(new Event("portfolio:build")));
@@ -1185,7 +1187,7 @@ test("terminal version and status output carry the release codename", async ({ p
   const input = terminal.locator("input");
   await input.fill("version");
   await input.press("Enter");
-  await expect(terminal.locator(".terminal-output")).toContainText("osameh.dev v5.2.0 · Cipher");
+  await expect(terminal.locator(".terminal-output")).toContainText(`osameh.dev v${RELEASE_VERSION} · Cipher`);
   await input.fill("neofetch");
   await input.press("Enter");
   await expect(terminal.locator(".terminal-output")).toContainText("Codename  Cipher");
@@ -1321,7 +1323,7 @@ test("changelog shows codename badges only for named releases", async ({ page })
   })));
   expect(rows.length).toBeGreaterThan(5);
 
-  const named = new Map([["5.2.0", "Cipher"], ["4.2.2", "Specter"], ["3.1.0", "Shadow"], ["2.2.4", "Pixel"]]);
+  const named = new Map([["4.2.2", "Specter"], ["3.1.0", "Shadow"], ["2.2.4", "Pixel"]]);
   for (const row of rows) {
     // A family codename applies to every patch in that family; historical names
     // are exact. Everything else must render no badge at all.
@@ -1333,4 +1335,70 @@ test("changelog shows codename badges only for named releases", async ({ page })
 
   // The detail panel names the selected release.
   await expect(page.locator(".release-codename-line .release-codename")).toHaveText("Cipher");
+});
+
+// ---------------------------------------------------------------------------
+// Build Info runtime environment contract. One JS bundle serves staging and
+// production, so an unresolved environment must stay neutral: guessing would let
+// staging assert "PRODUCTION BUILD" while the request is in flight or failed.
+// ---------------------------------------------------------------------------
+
+const buildInfoState = (page: import("@playwright/test").Page) => page.evaluate(() => {
+  const modal = document.querySelector(".build-info-modal");
+  if (!modal) return null;
+  const cell = (label: string) => [...modal.querySelectorAll(".build-info-grid article")]
+    .find(a => a.querySelector("small")?.textContent === label)?.querySelector("strong")?.textContent || "";
+  return { badge: modal.querySelector(".build-info-badge")?.textContent || "", environment: cell("ENVIRONMENT") };
+});
+
+async function openBuildInfoWithDelayedMetadata(page: import("@playwright/test").Page, options: { environment?: string; delayMs: number; fail?: boolean }) {
+  await page.route("**/build-info.json", async route => {
+    await new Promise(resolve => setTimeout(resolve, options.delayMs));
+    if (options.fail) return route.abort("failed");
+    await route.fulfill({
+      status: 200, contentType: "application/json",
+      body: JSON.stringify({ version: "5.2.1", codename: "Cipher", buildId: "v5.2.1-test", builtAt: new Date().toISOString(), environment: options.environment, availabilityMood: "selective" }),
+    });
+  });
+  await page.goto("/");
+  await page.evaluate(() => window.dispatchEvent(new Event("portfolio:build")));
+  await expect(page.locator(".build-info-modal")).toBeVisible();
+}
+
+test("build info never claims production while the environment is unresolved", async ({ page }) => {
+  await openBuildInfoWithDelayedMetadata(page, { environment: "staging", delayMs: 2_500 });
+  // Sampled repeatedly across the pending window, not once.
+  for (let sample = 0; sample < 3; sample++) {
+    const state = await buildInfoState(page);
+    expect(state, "build info modal should be open").not.toBeNull();
+    expect(state!.badge).not.toMatch(/PRODUCTION/i);
+    expect(state!.environment).not.toBe("production");
+    await page.waitForTimeout(500);
+  }
+  // Resolves to the real environment.
+  await expect.poll(() => buildInfoState(page).then(s => s?.environment)).toBe("staging");
+  await expect.poll(() => buildInfoState(page).then(s => s?.badge)).toBe("STAGING BUILD");
+});
+
+test("build info shows production only after production metadata arrives", async ({ page }) => {
+  await openBuildInfoWithDelayedMetadata(page, { environment: "production", delayMs: 1_800 });
+  const pending = await buildInfoState(page);
+  expect(pending!.badge).not.toMatch(/PRODUCTION/i);
+  expect(pending!.environment).not.toBe("production");
+  await expect.poll(() => buildInfoState(page).then(s => s?.badge)).toBe("PRODUCTION BUILD");
+  await expect.poll(() => buildInfoState(page).then(s => s?.environment)).toBe("production");
+});
+
+test("build info never guesses production when the metadata request fails", async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on("pageerror", error => pageErrors.push(error.message));
+  await openBuildInfoWithDelayedMetadata(page, { delayMs: 800, fail: true });
+  await page.waitForTimeout(2_500);
+  const state = await buildInfoState(page);
+  expect(state!.badge).not.toMatch(/PRODUCTION/i);
+  expect(state!.environment).not.toBe("production");
+  // The modal stays usable and nothing rejects unhandled.
+  await expect(page.locator(".build-info-modal")).toBeVisible();
+  await expect(page.locator("#build-info-title")).toContainText("CIPHER");
+  expect(pageErrors).toEqual([]);
 });
