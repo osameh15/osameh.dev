@@ -38,14 +38,24 @@ script is loaded at runtime — the Content-Security-Policy in `.htaccess` is
 
 | Concern | Owner |
 | --- | --- |
-| TLS, edge caching, error pass-through | ParsPack CDN (external configuration) |
-| Rewrites, headers, cache policy, CSP | `public/.htaccess` |
+| TLS, edge caching, HSTS, error pass-through | ParsPack CDN (external configuration) |
+| Rewrites, non-HSTS security headers, cache policy, CSP | `public/.htaccess` |
 | Route validity + metadata for dynamic URLs | PHP handlers |
 | Everything after first paint | React SPA |
 | GitHub credentials | server-side only, never in the bundle |
 
 Staging and production run the **same application build**. They differ only in the
 indexing policy applied at packaging time — see [`CI-CD.md`](./CI-CD.md#4-artifact-strategy).
+
+### HSTS ownership
+
+ParsPack CDN is the single owner of browser-facing HSTS. Its current edge policy is
+`Strict-Transport-Security: max-age=31536000;preload`. The origin `.htaccess`
+intentionally does not emit HSTS: TLS terminates at the edge, and the CDN can
+generate or cache responses independently of the origin. Keeping HSTS at one edge
+ensures consistent responses and avoids duplicate values on error responses. The
+`includeSubDomains` directive is not claimed here, and this policy does not claim
+enrollment in browser preload lists.
 
 ### Knowing which environment is running
 

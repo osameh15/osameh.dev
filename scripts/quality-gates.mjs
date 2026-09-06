@@ -58,6 +58,8 @@ for (const study of caseStudies) {
 if (!failures.some(item => item.includes("case study"))) pass(`${caseStudies.length} case studies validated`);
 
 const htaccess = readFileSync(resolve("public/.htaccess"), "utf8");
+if (/^\s*Header\s+(?:always\s+)?set\s+Strict-Transport-Security\b/im.test(htaccess)) fail("Origin .htaccess must not inject HSTS; ParsPack CDN is the sole HSTS authority");
+else pass("HSTS is delegated to the ParsPack CDN edge");
 for (const route of ["api/health", "notes/", "case-studies/", "sitemap\\.xml", "projects/"]) {
   if (htaccess.includes(route)) pass(`route contract includes ${route}`); else fail(`Missing route contract: ${route}`);
 }
