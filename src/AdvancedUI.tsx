@@ -176,6 +176,7 @@ export function ResumeViewer({ onOpenChange }: { onOpenChange?: (open: boolean) 
 export function BuildInfoModal() {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [buildEnvironment, setBuildEnvironment] = useState<string | null>(null);
   const dialogRef = useModalDialog<HTMLElement>(open, () => setOpen(false));
 
   useEffect(() => {
@@ -186,6 +187,20 @@ export function BuildInfoModal() {
     window.addEventListener("portfolio:build", listener);
     return () => window.removeEventListener("portfolio:build", listener);
   }, []);
+
+  // The environment cannot be baked into the JS bundle: one indexable bundle is
+  // built and the staging/production bundles are derived from it afterwards, so
+  // the same JS ships to both. build-info.json is stamped per environment at
+  // packaging time and is the only truthful source at runtime.
+  useEffect(() => {
+    if (!open) return;
+    const controller = new AbortController();
+    fetch("/build-info.json", { headers: { Accept: "application/json" }, cache: "no-store", signal: controller.signal })
+      .then(response => response.ok ? response.json() : null)
+      .then(payload => { if (typeof payload?.environment === "string") setBuildEnvironment(payload.environment); })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [open]);
 
   const copyBuildId = async () => {
     try {
@@ -209,7 +224,7 @@ export function BuildInfoModal() {
       <div className="modal-scroll-viewport">
         <div className="modal-content">
           <div className="build-info-hero">
-            <span className="build-info-badge">PRODUCTION BUILD</span>
+            <span className="build-info-badge">{(buildEnvironment || "production").toUpperCase()} BUILD</span>
             <h2 id="build-info-title">osameh.dev <code>v{BUILD_VERSION}</code></h2>
             <p>This is the exact build currently rendered by the browser. Use the build ID to confirm whether a CDN edge or browser cache is serving the latest deployment.</p>
           </div>
@@ -217,7 +232,7 @@ export function BuildInfoModal() {
             <article><small>VERSION</small><strong>v{BUILD_VERSION}</strong><span>semantic release</span></article>
             <article><small>BUILD ID</small><strong className="build-info-id">{BUILD_ID}</strong><span>unique deployment fingerprint</span></article>
             <article><small>BUILT AT</small><strong>{new Date(BUILD_TIME).toLocaleString()}</strong><span>{BUILD_TIME}</span></article>
-            <article><small>ENVIRONMENT</small><strong>production</strong><span>Vite · ParsPack CDN</span></article>
+            <article><small>ENVIRONMENT</small><strong>{buildEnvironment || "production"}</strong><span>Vite · ParsPack CDN</span></article>
           </div>
           <div className="build-info-actions">
             <button className="primary-btn" onClick={() => { void copyBuildId(); }}><Check size={15} /> {copied ? "Build ID copied" : "Copy build ID"}</button>

@@ -19,6 +19,34 @@ import { AccessibilityControlButton, AvailabilityBadge, CaseStudiesSection, Case
 import type { CaseStudy } from "./caseStudiesData";
 import { getWorkspaceScrollPosition, useModalDialog } from "./modalScroll";
 
+// Shared editor-tab model. Every tab-backed view uses one lifecycle: activating a
+// tab never removes another, closing the active tab activates the tab to its
+// left, and each tab knows which Home section it came from so returning Home
+// restores the right place.
+const HOME_TAB_ID = "home";
+
+type EditorTab =
+  | { id: string; kind: "project"; repo: GithubRepo; title: string; path: string; homeSection: string }
+  | { id: string; kind: "note"; slug: string; title: string; path: string; homeSection: string };
+
+const projectTabId = (repo: GithubRepo) => `project:${repo.id}`;
+const noteTabId = (slug: string) => `note:${slug}`;
+
+const projectTab = (repo: GithubRepo): EditorTab => ({
+  id: projectTabId(repo), kind: "project", repo,
+  title: `${repo.name}.md`, path: `/projects/${encodeURIComponent(repo.name)}`, homeSection: "/projects",
+});
+const noteTab = (slug: string): EditorTab => ({
+  id: noteTabId(slug), kind: "note", slug,
+  title: `${slug}.md`, path: `/notes/${encodeURIComponent(slug)}`, homeSection: "/notes",
+});
+
+/** Tab activated when `closingId` is closed: the one immediately to its left, or Home. */
+function tabAfterClose(tabs: EditorTab[], closingId: string): EditorTab | null {
+  const index = tabs.findIndex(tab => tab.id === closingId);
+  return index > 0 ? tabs[index - 1] : null;
+}
+
 type ThemePreference = "dark" | "light" | "system";
 type FontPreference = "inter" | "mono" | "humanist" | "serif";
 type CodeLanguage = "typescript" | "cpp" | "csharp" | "java" | "go" | "python" | "php";
@@ -508,10 +536,17 @@ export default function Home() {
   const [recruiterModeOpen, setRecruiterModeOpen] = useState(false);
   const [visibleRepos, setVisibleRepos] = useState(6);
   const [repoState, setRepoState] = useState<"loading" | "ready">("loading");
-  const [activeRepo, setActiveRepo] = useState<GithubRepo | null>(null);
-  const [activeNoteSlug, setActiveNoteSlug] = useState<string | null>(null);
+  // One ordered collection is the single source of truth for every closable
+  // editor tab. Projects previously lived in an array while a Note lived in a
+  // lone "active slug", so activating any other view destroyed the Note tab.
+  // Home is implicit, always first, and never stored here.
+  const [editorTabs, setEditorTabs] = useState<EditorTab[]>([]);
+  const [activeTabId, setActiveTabId] = useState<string>(HOME_TAB_ID);
   const [activeCaseStudy, setActiveCaseStudy] = useState<CaseStudy | null>(null);
-  const [openedRepos, setOpenedRepos] = useState<GithubRepo[]>([]);
+  const activeTab = editorTabs.find(tab => tab.id === activeTabId) || null;
+  const activeRepo = activeTab?.kind === "project" ? activeTab.repo : null;
+  const activeNoteSlug = activeTab?.kind === "note" ? activeTab.slug : null;
+  const openedRepos = editorTabs.flatMap(tab => tab.kind === "project" ? [tab.repo] : []);
   const [readmeHtml, setReadmeHtml] = useState<Record<string, string>>({});
   const [loadingReadmes, setLoadingReadmes] = useState<string[]>([]);
   const [repoImages, setRepoImages] = useState<Record<string, string>>({});
@@ -670,7 +705,9 @@ export default function Home() {
       const study = caseStudies.find(item => item.id === caseStudyMatch[1].toLowerCase());
       if (study) { setActiveCaseStudy(study); setActiveSectionPath("/case-studies"); } else setNotFoundPath(path);
     } else if (noteMatch && engineeringNotes.some(note => note.slug === noteMatch[1].toLowerCase())) {
-      setActiveNoteSlug(noteMatch[1].toLowerCase());
+      const slug = noteMatch[1].toLowerCase();
+      setEditorTabs(current => current.some(tab => tab.id === noteTabId(slug)) ? current : [...current, noteTab(slug)]);
+      setActiveTabId(noteTabId(slug));
       setActiveSectionPath("/notes");
     } else if (noteMatch) setNotFoundPath(path);
     else if (project) openProject(project, false);
@@ -997,13 +1034,14 @@ export default function Home() {
         return;
       }
       if (event.key !== "Escape" || fileMenuOpen) return;
+      // Every close path - X button, Back to Portfolio, Escape - runs the same
+      // tab-selection algorithm.
       if (notFoundPath) showHome();
-      else if (activeNoteSlug) closeNote();
-      else if (activeRepo) closeProject(activeRepo);
+      else if (activeTabId !== HOME_TAB_ID) closeTab(activeTabId);
     };
     document.addEventListener("keydown", closeActiveTab);
     return () => document.removeEventListener("keydown", closeActiveTab);
-  }, [activeRepo, activeNoteSlug, notFoundPath, openedRepos, fileMenuOpen, galleryLightbox, repoGalleries, contextMenu, commandPaletteOpen]);
+  }, [activeTabId, editorTabs, notFoundPath, fileMenuOpen, galleryLightbox, repoGalleries, contextMenu, commandPaletteOpen]);
 
   useEffect(() => {
     const toggleTerminal = (event: KeyboardEvent) => {
@@ -1272,11 +1310,11 @@ export default function Home() {
 
   const openProject = (repo: GithubRepo, updateHistory = true) => {
     setNotFoundPath(null);
-    setActiveNoteSlug(null);
     setActiveCaseStudy(null);
     setActiveSectionPath("/projects");
-    setActiveRepo(repo);
-    setOpenedRepos(current => current.some(item => item.id === repo.id) ? current : [...current, repo]);
+    // Reuse the existing tab for this entity; opening it twice never duplicates.
+    setEditorTabs(current => current.some(tab => tab.id === projectTabId(repo)) ? current : [...current, projectTab(repo)]);
+    setActiveTabId(projectTabId(repo));
     if (updateHistory) {
       const path = `/projects/${encodeURIComponent(repo.name)}`;
       if (window.location.pathname !== path) window.history.pushState({ project: repo.name }, "", path);
@@ -1289,15 +1327,53 @@ export default function Home() {
     void loadGallery(repo);
   };
 
-  const showHome = (updateHistory = true, scrollToTop = true) => {
+  /**
+   * Activates Home. Home is a singleton that is always present and never
+   * closable, and selecting it only changes which tab is active - every other
+   * editor tab stays open.
+   *
+   * `returnSection` belongs to the transition, not to global state: it is the
+   * Home section owned by the tab we are leaving, so a Project -> Home move can
+   * never be redirected to Notes by a Note that happens to be open.
+   */
+  const showHome = (updateHistory = true, scrollToTop = true, returnSection?: string) => {
     setNotFoundPath(null);
-    setActiveSectionPath("/home");
-    setActiveRepo(null);
-    setActiveNoteSlug(null);
     setActiveCaseStudy(null);
+    setActiveTabId(HOME_TAB_ID);
     document.title = "Osameh Irandoust — Software Engineer";
     if (updateHistory && window.location.pathname !== "/") window.history.pushState({}, "", "/");
+    const section = returnSection && returnSection !== "/home" ? returnSection : null;
+    if (section) {
+      setActiveSectionPath(section);
+      // Same deterministic restoration the Notes path already uses: no timers,
+      // no guessed frame counts, and obsolete work is cancelled by user intent.
+      cancelSectionScroll();
+      scrollToSection(section === "/projects" ? "work" : section.slice(1), "auto", true);
+      return;
+    }
+    setActiveSectionPath("/home");
     if (scrollToTop) window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  /** The one close path for every editor tab, whatever triggered it. */
+  const closeTab = (tabId: string) => {
+    const closing = editorTabs.find(tab => tab.id === tabId);
+    if (!closing) return;
+    const previous = tabAfterClose(editorTabs, tabId);
+    setEditorTabs(current => current.filter(tab => tab.id !== tabId));
+    // Closing a tab that is not active must never steal focus from the active one.
+    if (activeTabId !== tabId) return;
+    cancelSectionScroll();
+    if (previous) {
+      setActiveTabId(previous.id);
+      setActiveSectionPath(previous.homeSection);
+      document.title = previous.kind === "project" ? `${previous.repo.name} — Osameh Irandoust` : "Osameh Irandoust — Software Engineer";
+      if (window.location.pathname !== previous.path) window.history.pushState({}, "", previous.path);
+      window.scrollTo({ top: 0, behavior: "auto" });
+      return;
+    }
+    // Home is the previous tab: restore the section this tab belongs to.
+    showHome(true, false, closing.homeSection);
   };
 
   useEffect(() => {
@@ -1394,9 +1470,9 @@ export default function Home() {
     const note = engineeringNotes.find(item => item.slug === slug);
     if (!note) { setNotFoundPath(`/notes/${slug}`); return; }
     setNotFoundPath(null);
-    setActiveRepo(null);
     setActiveCaseStudy(null);
-    setActiveNoteSlug(slug);
+    setEditorTabs(current => current.some(tab => tab.id === noteTabId(slug)) ? current : [...current, noteTab(slug)]);
+    setActiveTabId(noteTabId(slug));
     setActiveSectionPath("/notes");
     if (updateHistory) {
       const path = `/notes/${encodeURIComponent(slug)}`;
@@ -1409,17 +1485,17 @@ export default function Home() {
   };
 
   const closeNote = (returnToNotes = true) => {
-    setActiveNoteSlug(null);
-    document.title = "Osameh Irandoust — Software Engineer";
-    if (returnToNotes) {
-      setActiveSectionPath("/notes");
-      if (window.location.pathname !== "/notes") window.history.pushState({}, "", "/notes");
-      scrollToSection("notes", "auto", true);
-    } else {
-      setActiveSectionPath("/home");
-      if (window.location.pathname !== "/") window.history.pushState({}, "", "/");
-      window.scrollTo({ top: 0, behavior: "smooth" });
+    const slug = activeNoteSlug;
+    if (!slug) return;
+    if (!returnToNotes) {
+      setEditorTabs(current => current.filter(tab => tab.id !== noteTabId(slug)));
+      showHome(true, true);
+      return;
     }
+    // Closing the active Note follows the shared rule: activate the tab to its
+    // left. Only when that is Home does the Notes section get restored, which
+    // is the behavior this path already had.
+    closeTab(noteTabId(slug));
   };
 
   const openCaseStudy = (study: CaseStudy, updateHistory = true) => {
@@ -1439,8 +1515,7 @@ export default function Home() {
       caseStudyOriginRef.current = null;
     }
     setNotFoundPath(null);
-    setActiveRepo(null);
-    setActiveNoteSlug(null);
+    setActiveTabId(HOME_TAB_ID);
     setActiveCaseStudy(study);
     setActiveSectionPath("/case-studies");
     document.title = `${study.title} — Case Study | Osameh Irandoust`;
@@ -1480,19 +1555,13 @@ export default function Home() {
   };
 
   const closeProject = (repo: GithubRepo, returnHome = false) => {
-    const remaining = openedRepos.filter(item => item.id !== repo.id);
-    setOpenedRepos(remaining);
     if (returnHome) {
-      setActiveSectionPath("/home");
-      setActiveRepo(null);
-      document.title = "Osameh Irandoust — Software Engineer";
-      if (window.location.pathname !== "/") window.history.pushState({}, "", "/");
-    } else if (activeRepo?.id === repo.id) {
-      const next = remaining[remaining.length - 1] || null;
-      setActiveRepo(next);
-      if (next) window.history.replaceState({ project: next.name }, "", `/projects/${encodeURIComponent(next.name)}`);
-      else { document.title = "Osameh Irandoust — Software Engineer"; window.history.replaceState({}, "", "/"); }
+      // "Back to Portfolio" with no tab to its left lands on Home at Projects.
+      setEditorTabs(current => current.filter(tab => tab.id !== projectTabId(repo)));
+      showHome(true, false, "/projects");
+      return;
     }
+    closeTab(projectTabId(repo));
   };
 
   const goTo = (result: SearchResult) => {
@@ -1779,9 +1848,8 @@ export default function Home() {
     }
     if (command === "ls") {
       const liveTabs = [
-        `${!activeRepo && !activeNoteSlug && !activeCaseStudy && !notFoundPath ? "*" : " "} ${code.file}  [home]`,
-        ...openedRepos.map(repo => `${activeRepo?.id === repo.id ? "*" : " "} ${repo.name}.md  [project]`),
-        ...(activeNoteSlug ? [`* ${activeNoteSlug}.md  [note]`] : []),
+        `${activeTabId === HOME_TAB_ID && !activeCaseStudy && !notFoundPath ? "*" : " "} ${code.file}  [home]`,
+        ...editorTabs.map(tab => `${activeTabId === tab.id ? "*" : " "} ${tab.title}  [${tab.kind}]`),
         ...(activeCaseStudy ? [`* case-study/${activeCaseStudy.id}.md  [case-study]`] : []),
         ...(notFoundPath ? ["* 404.md  [not found]"] : []),
       ];
@@ -1991,7 +2059,7 @@ export default function Home() {
     // Filtering from the Command Palette should land on the actual filter controls,
     // not at the Featured/Recruiter block above them.
     setNotFoundPath(null);
-    setActiveRepo(null);
+    setActiveTabId(HOME_TAB_ID);
     setActiveSectionPath("/projects");
     setPanelOpen(false);
     document.title = "Osameh Irandoust — Software Engineer";
@@ -2060,7 +2128,7 @@ export default function Home() {
           <button className={activeSectionPath === "/activity" && !activeRepo && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/activity" && !activeRepo && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => goTo(sectionByPath("/activity"))}><Github size={14} /> github-activity</button>
           <button className={activeSectionPath === "/now" && !activeRepo && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/now" && !activeRepo && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => goTo(sectionByPath("/now"))}><Zap size={14} /> now.md</button>
           <button className={activeSectionPath === "/changelog" && !activeRepo && !activeNoteSlug && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/changelog" && !activeRepo && !activeNoteSlug && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => goTo(sectionByPath("/changelog"))}><RefreshCw size={14} /> changelog.md</button>
-          <button className={activeSectionPath === "/notes" && !activeRepo && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/notes" && !activeRepo && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => activeNoteSlug ? closeNote() : goTo(sectionByPath("/notes"))}><Braces size={14} /> engineering-notes</button>
+          <button className={activeSectionPath === "/notes" && !activeRepo && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/notes" && !activeRepo && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => goTo(sectionByPath("/notes"))}><Braces size={14} /> engineering-notes</button>
           <button className={activeSectionPath === "/contact" && !activeRepo && !activeNoteSlug && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/contact" && !activeRepo && !activeNoteSlug && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => goTo(sectionByPath("/contact"))}><Mail size={14} /> contact.md</button>
 
           <div className="explorer-plugins" aria-label="Portfolio tools">
@@ -2079,9 +2147,19 @@ export default function Home() {
 
         <div className="editor">
           <div className="tabs-row">
-            <button className={activeRepo || activeNoteSlug || notFoundPath ? "editor-tab" : "editor-tab active"} onClick={() => showHome()}><FileCode2 size={14} /> {code.file}</button>
-            {openedRepos.map(repo => <button key={repo.id} className={activeRepo?.id === repo.id ? "editor-tab project-tab active" : "editor-tab project-tab"} onClick={() => openProject(repo)}><Code2 size={14} /><span>{repo.name}.md</span><X size={12} onClick={event => { event.stopPropagation(); closeProject(repo); }} /></button>)}
-            {activeNoteSlug && <button className="editor-tab project-tab active" onClick={() => openNote(activeNoteSlug, false)}><Braces size={14} /><span>{activeNoteSlug}.md</span><X size={12} onClick={event => { event.stopPropagation(); closeNote(); }} /></button>}
+            <button aria-current={activeTabId === HOME_TAB_ID && !notFoundPath ? "page" : undefined} className={activeTabId !== HOME_TAB_ID || notFoundPath ? "editor-tab" : "editor-tab active"} onClick={() => showHome(true, true, activeTab?.homeSection)}><FileCode2 size={14} /> {code.file}</button>
+            {editorTabs.map(tab => <button
+              key={tab.id}
+              aria-current={activeTabId === tab.id && !notFoundPath ? "page" : undefined}
+              data-tab-id={tab.id}
+              data-tab-kind={tab.kind}
+              className={activeTabId === tab.id && !notFoundPath ? "editor-tab project-tab active" : "editor-tab project-tab"}
+              onClick={() => tab.kind === "project" ? openProject(tab.repo) : openNote(tab.slug)}
+            >
+              {tab.kind === "project" ? <Code2 size={14} /> : <Braces size={14} />}
+              <span>{tab.title}</span>
+              <X size={12} aria-label={`Close ${tab.title}`} onClick={event => { event.stopPropagation(); closeTab(tab.id); }} />
+            </button>)}
             {notFoundPath && <button className="editor-tab project-tab error-tab active"><FileCode2 size={14} /><span>404.md</span><X size={12} onClick={event => { event.stopPropagation(); showHome(); }} /></button>}
           </div>
 

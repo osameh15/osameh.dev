@@ -113,7 +113,10 @@ artifact and the deployed artifact stay distinguishable.
 | `dist-production/` | `npm run package:production` | yes | Production deploy artifact. |
 
 `scripts/package-env.mjs <env>` copies `dist/` to `dist-<env>/` and stamps
-`build-info.json` with the environment. For staging it additionally:
+`build-info.json` with the environment. That stamp is not only metadata: because
+one JS bundle serves both environments, `build-info.json` is the **only** runtime
+source that can tell them apart, and the application reads it to report which
+environment it is running in. For staging the packaging step additionally:
 
 - rewrites the robots meta to `noindex,nofollow,noarchive`
 - writes `robots.txt` as `User-agent: * / Disallow: /` with **no** `Sitemap:` line
@@ -219,7 +222,7 @@ annotation and the JSON + HTML report and preview log are uploaded as artifacts.
 Report paths are workspace-relative; absolute `/tmp` paths are not reliably
 uploadable.
 
-Current baseline: **48 Playwright tests**; Lighthouse **accessibility 95,
+Current baseline: **57 Playwright tests**; Lighthouse **accessibility 95,
 best-practices 96, SEO 100**.
 
 ---

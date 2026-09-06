@@ -505,13 +505,16 @@ The site also includes an in-app resume viewer and download/open controls.
 
 The **six most recent releases** are summarized here. See **[CHANGELOG.md](docs/CHANGELOG.md)** for the complete production history. This section is intentionally capped at six releases.
 
-### v5.1.1 — Source Explorer, Service Worker & mobile tour hotfix
+### v5.1.1 — Editor tabs, Source Explorer, Service Worker, 404 & mobile tour hotfix
 
 - Hardened GitHub repository path normalization so dot-prefixed directories stay previewable while traversal, absolute paths, and protocol injection remain blocked.
 - Source Explorer now recovers from a failed or stale file request: the tree stays usable, the failure is shown inline with a retry, and a late response can no longer replace the file you selected.
 - Fixed the Service Worker `Response.clone()` failure and kept `/api/` responses out of the cache entirely.
 - Made the Recruiter Mode tour fully usable on 320-412px mobile viewports.
 - Unknown URLs return a real HTTP 404 while keeping the custom IDE 404 UI.
+- Unified the editor-tab lifecycle: projects and Engineering Notes coexist as independent tabs, selecting Home no longer closes them, closing a tab activates the one to its left, and returning Home restores the section that tab came from.
+- Closing a project returns to the Projects section.
+- The build-information panel reports the environment it is actually running in.
 
 ### v5.1.0 — Interaction reliability & developer UX
 

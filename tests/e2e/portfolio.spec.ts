@@ -963,3 +963,180 @@ test("valid first-class routes still render their own workspace", async ({ page 
     await expect(page.locator("#root")).toBeVisible();
   }
 });
+
+// ---------------------------------------------------------------------------
+// Shared editor-tab contract. Every tab-backed view uses one lifecycle:
+// activating a tab never removes another, closing the active tab activates the
+// tab to its left, and Home restores the section owned by the tab it replaced.
+// ---------------------------------------------------------------------------
+
+const PROJECT_A = "open project: osameh";
+const PROJECT_B = "open project: Mizekar";
+const NOTE_A = "read note: repository-driven";
+
+async function runPalette(page: import("@playwright/test").Page, query: string) {
+  await page.evaluate(openPaletteShortcut);
+  const palette = page.getByRole("dialog", { name: "Command Palette" });
+  await expect(palette).toBeVisible();
+  await palette.getByRole("textbox").fill(query);
+  await expect(palette.getByRole("option").first()).toBeVisible();
+  await palette.getByRole("textbox").press("Enter");
+  await expect(palette).toBeHidden();
+  await page.waitForTimeout(400);
+}
+const tabIds = (page: import("@playwright/test").Page) =>
+  page.evaluate(() => [...document.querySelectorAll(".editor-tab")].map(tab => (tab as HTMLElement).dataset.tabId || "home"));
+const activeTabId = (page: import("@playwright/test").Page) =>
+  page.evaluate(() => (document.querySelector(".editor-tab.active") as HTMLElement | null)?.dataset.tabId || "home");
+const clickTab = (page: import("@playwright/test").Page, id: string) =>
+  id === "home" ? page.locator(".editor-tab").first().click() : page.locator(`.editor-tab[data-tab-id="${id}"]`).click();
+const closeTabById = (page: import("@playwright/test").Page, id: string) =>
+  page.locator(`.editor-tab[data-tab-id="${id}"] [aria-label^="Close"]`).click();
+const sectionTop = (page: import("@playwright/test").Page, id: string) =>
+  page.evaluate(sectionId => { const node = document.getElementById(sectionId); return node ? Math.round(node.getBoundingClientRect().top) : null; }, id);
+
+test("closing a project returns Home to the Projects section", async ({ page }) => {
+  await page.goto("/");
+  await runPalette(page, PROJECT_A);
+  const project = (await tabIds(page)).find(id => id.startsWith("project:"))!;
+  expect(project).toBeTruthy();
+  await closeTabById(page, project);
+  await expect.poll(() => activeTabId(page)).toBe("home");
+  await expect(page).toHaveURL(/\/$/);
+  // Real geometry, not just an active class: the Projects section is anchored
+  // under the sticky chrome exactly like the Notes restoration.
+  await expect.poll(() => sectionTop(page, "work")).toBeLessThan(140);
+  await expect.poll(() => sectionTop(page, "work")).toBeGreaterThan(40);
+  // And it must stay there - no delayed re-snap.
+  const settled = await sectionTop(page, "work");
+  await page.waitForTimeout(1_150);
+  expect(await sectionTop(page, "work")).toBe(settled);
+});
+
+test("clicking Home keeps the project tab open and restores Projects", async ({ page }) => {
+  await page.goto("/");
+  await runPalette(page, PROJECT_A);
+  const project = (await tabIds(page)).find(id => id.startsWith("project:"))!;
+  await clickTab(page, "home");
+  await expect.poll(() => activeTabId(page)).toBe("home");
+  expect(await tabIds(page)).toContain(project);
+  await expect.poll(() => sectionTop(page, "work")).toBeLessThan(140);
+  await clickTab(page, project);
+  await expect.poll(() => activeTabId(page)).toBe(project);
+  await expect(page).toHaveURL(/\/projects\/[^/]+$/);
+});
+
+test("clicking Home keeps the note tab open and restores Engineering Notes", async ({ page }) => {
+  await page.goto("/");
+  await runPalette(page, NOTE_A);
+  const note = (await tabIds(page)).find(id => id.startsWith("note:"))!;
+  expect(note).toBeTruthy();
+  await clickTab(page, "home");
+  await expect.poll(() => activeTabId(page)).toBe("home");
+  expect(await tabIds(page)).toContain(note);
+  await expect.poll(() => sectionTop(page, "notes")).toBeLessThan(140);
+  await clickTab(page, note);
+  await expect.poll(() => activeTabId(page)).toBe(note);
+  await expect(page).toHaveURL(/\/notes\/[a-z0-9-]+$/);
+});
+
+test("mixed project and note tabs coexist, switch and never duplicate", async ({ page }) => {
+  await page.goto("/");
+  await runPalette(page, PROJECT_A);
+  await runPalette(page, NOTE_A);
+  await runPalette(page, PROJECT_B);
+  let ids = await tabIds(page);
+  expect(ids.filter(id => id.startsWith("project:"))).toHaveLength(2);
+  expect(ids.filter(id => id.startsWith("note:"))).toHaveLength(1);
+  expect(ids[0]).toBe("home");
+
+  // Re-opening an already-open entity activates its tab instead of duplicating.
+  const before = ids.length;
+  await runPalette(page, PROJECT_A);
+  expect(await tabIds(page)).toHaveLength(before);
+  // Tab order is stable: activation must not reorder the strip.
+  expect(await tabIds(page)).toEqual(ids);
+
+  const note = ids.find(id => id.startsWith("note:"))!;
+  await clickTab(page, note);
+  await expect(page).toHaveURL(/\/notes\/[a-z0-9-]+$/);
+  const projectB = ids.filter(id => id.startsWith("project:"))[1];
+  await clickTab(page, projectB);
+  await expect(page).toHaveURL(/\/projects\/[^/]+$/);
+  ids = await tabIds(page);
+  expect(ids).toHaveLength(before);
+});
+
+test("closing the active tab activates the tab to its left", async ({ page }) => {
+  await page.goto("/");
+  await runPalette(page, PROJECT_A);
+  await runPalette(page, NOTE_A);
+  const ids = await tabIds(page);
+  const projectA = ids.find(id => id.startsWith("project:"))!;
+  const note = ids.find(id => id.startsWith("note:"))!;
+  await expect.poll(() => activeTabId(page)).toBe(note);
+  await closeTabById(page, note);
+  // Not Home - the tab immediately to the left.
+  await expect.poll(() => activeTabId(page)).toBe(projectA);
+  await expect(page).toHaveURL(/\/projects\/[^/]+$/);
+  expect(await tabIds(page)).not.toContain(note);
+});
+
+test("closing an inactive tab leaves the active tab untouched", async ({ page }) => {
+  await page.goto("/");
+  await runPalette(page, PROJECT_A);
+  await runPalette(page, NOTE_A);
+  const ids = await tabIds(page);
+  const projectA = ids.find(id => id.startsWith("project:"))!;
+  const note = ids.find(id => id.startsWith("note:"))!;
+  await expect.poll(() => activeTabId(page)).toBe(note);
+  await closeTabById(page, projectA);
+  await expect.poll(() => activeTabId(page)).toBe(note);
+  await expect(page).toHaveURL(/\/notes\/[a-z0-9-]+$/);
+  expect(await tabIds(page)).not.toContain(projectA);
+});
+
+test("closing an active project with Home to its left restores Projects and keeps other tabs", async ({ page }) => {
+  await page.goto("/");
+  await runPalette(page, PROJECT_A);
+  await runPalette(page, NOTE_A);
+  const ids = await tabIds(page);
+  const projectA = ids.find(id => id.startsWith("project:"))!;
+  const note = ids.find(id => id.startsWith("note:"))!;
+  await clickTab(page, projectA);
+  await closeTabById(page, projectA);
+  await expect.poll(() => activeTabId(page)).toBe("home");
+  await expect(page).toHaveURL(/\/$/);
+  await expect.poll(() => sectionTop(page, "work")).toBeLessThan(140);
+  // The unrelated note tab survives the close.
+  expect(await tabIds(page)).toContain(note);
+});
+
+test("closing the only note returns Home to Engineering Notes", async ({ page }) => {
+  await page.goto("/");
+  await runPalette(page, NOTE_A);
+  const note = (await tabIds(page)).find(id => id.startsWith("note:"))!;
+  await closeTabById(page, note);
+  await expect.poll(() => activeTabId(page)).toBe("home");
+  await expect.poll(() => sectionTop(page, "notes")).toBeLessThan(140);
+  await expect.poll(() => sectionTop(page, "notes")).toBeGreaterThan(40);
+  expect(await tabIds(page)).toEqual(["home"]);
+});
+
+test("build modal reports the deployed environment from build-info.json", async ({ page }) => {
+  // One bundle is built and the staging/production bundles are derived from it,
+  // so the same JS ships to both. The environment must come from the packaged
+  // build-info.json at runtime, never from a literal compiled into the bundle.
+  await page.route("**/build-info.json", route => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ version: "5.1.1", buildId: "v5.1.1-test", builtAt: new Date().toISOString(), environment: "staging", availabilityMood: "selective" }),
+  }));
+  await page.goto("/");
+  await page.evaluate(() => window.dispatchEvent(new Event("portfolio:build")));
+  const modal = page.locator(".build-info-modal");
+  await expect(modal).toBeVisible();
+  await expect(modal.locator(".build-info-badge")).toHaveText("STAGING BUILD");
+  const environment = modal.locator(".build-info-grid article").filter({ hasText: "ENVIRONMENT" }).locator("strong");
+  await expect(environment).toHaveText("staging");
+});

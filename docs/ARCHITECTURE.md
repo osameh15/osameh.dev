@@ -47,6 +47,15 @@ script is loaded at runtime — the Content-Security-Policy in `.htaccess` is
 Staging and production run the **same application build**. They differ only in the
 indexing policy applied at packaging time — see [`CI-CD.md`](./CI-CD.md#4-artifact-strategy).
 
+### Knowing which environment is running
+
+Because one bundle serves both environments, nothing compiled into the JavaScript
+can identify the environment — a build-time constant would report the same value
+on staging and production. `build-info.json` is stamped per environment during
+packaging and is therefore the only truthful runtime source. Surfaces that report
+the deployed environment, such as the build-information panel, read it at runtime;
+the health endpoint exposes the same value server-side.
+
 ---
 
 ## 2. Application shell
@@ -63,11 +72,33 @@ The shell owns:
 - Command Palette, context menus, galleries and project comparison
 - scroll restoration and user-intent cancellation
 
-Editor tabs are a presentation of application state, not a separate router:
-opening a project, Note or Case Study adds or activates a tab, and closing one
-falls back to the previously open tab. Tab state is derived from the same route
-state that drives the URL, so history navigation and tab interaction cannot
-diverge.
+### Editor tab contract
+
+One ordered collection is the single source of truth for every closable editor
+tab; the active view is derived from it rather than tracked separately. All
+tab-backed views therefore share one lifecycle:
+
+- **Home is a singleton.** Always present, always first, never closable.
+  Activating Home only changes which tab is active - it never removes another tab.
+- **Mixed types coexist.** Projects and Engineering Notes are independent
+  persistent tabs and can be open at the same time in any combination.
+- **Identity is the entity, not the title.** Re-opening an entity activates its
+  existing tab instead of creating a duplicate.
+- **Order is stable.** New tabs append; activating a tab never reorders the strip.
+- **Closing the active tab activates the tab to its left**, whatever its type.
+  When that is Home, Home is activated.
+- **Closing an inactive tab never steals focus** from the active one.
+- **Each tab owns its Home section.** A Project belongs to Projects, a Note to
+  Engineering Notes, so returning to Home restores the section the departing tab
+  came from. That section travels with the transition rather than living in
+  global state, so an open Note can never redirect a Project -> Home move.
+- **One close path.** The X button, Escape and "Back to Portfolio" all run the
+  same close algorithm.
+
+Section restoration on returning Home reuses the same deterministic mechanism as
+Notes and modal restoration - a tokenized request applied on committed DOM rather
+than a guessed timer - and obsolete restoration is cancelled the moment the user
+scrolls.
 
 Feature modules cover portfolio features (availability, accessibility, public case
 studies, capabilities), advanced UI (GitHub Activity, diagnostics, resume,

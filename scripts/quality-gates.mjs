@@ -95,6 +95,13 @@ const packageVersion = JSON.parse(readFileSync(resolve("package.json"), "utf8"))
 if (!readme.includes(`### v${packageVersion}`) || !readFileSync(resolve("docs/CHANGELOG.md"), "utf8").includes(`## ${packageVersion} -`)) fail("Current package version is not represented in README/docs/CHANGELOG release history");
 else pass(`Documentation includes current release v${packageVersion}`);
 
+const advancedSource = readFileSync(resolve("src/AdvancedUI.tsx"), "utf8");
+// One bundle serves both environments, so a hardcoded environment literal in the
+// build modal would misreport staging as production.
+if (/<strong>production<\/strong>/.test(advancedSource) || /build-info-badge">PRODUCTION BUILD/.test(advancedSource)) fail("Build modal hardcodes the environment instead of reading build-info.json");
+else if (!/fetch\("\/build-info\.json"/.test(advancedSource)) fail("Build modal does not read the deployed environment from build-info.json");
+else pass("Build modal reports the deployed environment from build-info.json");
+
 const appSource = readFileSync(resolve("src/App.tsx"), "utf8");
 const featureSource = readFileSync(resolve("src/PortfolioFeatures.tsx"), "utf8");
 if (/LanguageControl|setLocale\(|portfolio-locale/.test(appSource)) fail("App still contains locale-switching UI/state");

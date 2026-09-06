@@ -12,6 +12,10 @@ The project follows [Semantic Versioning](https://semver.org/). The early produc
 - Corrected **Service Worker** response handling. A cached copy is now taken before the response body is consumed, which removes the `Failed to execute 'clone' on 'Response'` error, and a failed cache write can no longer disturb an otherwise successful request.
 - **Recruiter Mode** tour is usable on mobile. The panel stays inside the viewport with symmetric margins at 320-412px widths, the footer no longer wraps its navigation off-screen, and the close button, progress bar, and Back/Next actions stay reachable.
 - Unknown URLs now return a real **HTTP 404** while still rendering the custom IDE-style 404 workspace, instead of answering 200 for a page that does not exist. Invalid Engineering Note, Case Study, and project routes return 404 as well.
+- Closing a project now returns to the **Projects** section of the workspace instead of an arbitrary position, matching how closing an Engineering Note already returned to Notes.
+- Editor tabs behave consistently for every view type. Projects and Engineering Notes can now be open side by side as independent tabs, and selecting Home no longer closes the Note or project you were reading — it simply switches to Home and restores the section that tab belongs to.
+- Closing an editor tab now activates the tab to its left rather than jumping to Home, and closing a tab you are not currently viewing no longer changes which tab is active.
+- The build-information panel reports the environment it is actually running in, so staging identifies itself as **staging** instead of always reading production.
 
 ### Security
 - Repository source paths are validated by normalized path segments. A leading dot is treated as an ordinary directory name, so `.idea/`, `.github/`, and `.vscode/` files remain previewable, while traversal, absolute paths, protocol injection, and control characters are rejected. The path is no longer decoded a second time after the server has already decoded it, which also stops a literal `%` in a filename from being corrupted.

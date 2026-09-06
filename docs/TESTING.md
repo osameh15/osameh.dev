@@ -17,7 +17,7 @@ Every command below exists in `package.json`.
 
 | Command | Contract it verifies |
 | --- | --- |
-| `npm run quality` | Repository and product contracts as static analysis: availability profiles and Mood workflow, Note and Case Study metadata, SEO route-support files, GitHub Activity present in routing and both sitemaps, one Command Palette shortcut, Terminal coverage, all 11 dialogs on the shared modal system, README capped at six releases and containing the current version, staging/production secret separation, CI step ordering, environment packaging rules, artifact hidden-file handling. Also runs the Service Worker verifier. |
+| `npm run quality` | Repository and product contracts as static analysis: availability profiles and Mood workflow, Note and Case Study metadata, SEO route-support files, GitHub Activity present in routing and both sitemaps, one Command Palette shortcut, Terminal coverage, all 11 dialogs on the shared modal system, the build modal reading its environment from `build-info.json`, README capped at six releases and containing the current version, staging/production secret separation, CI step ordering, environment packaging rules, artifact hidden-file handling. Also runs the Service Worker verifier. |
 | `npm run typecheck` | TypeScript in strict, no-emit mode across the application. |
 | `npm run build` | Generates build metadata, typechecks, produces the one **indexable** `dist/` bundle, and copies the PHP/asset deployment files. |
 | `npm run verify:dist` | The built bundle contains every required deployment file, and local links/Notes/Case Studies resolve. |
@@ -118,10 +118,15 @@ never surface as uncaught exceptions, unhandled rejections or React errors.
 
 ## 4. Playwright coverage
 
-Baseline: **48 passing tests** in `tests/e2e/portfolio.spec.ts`. Treat this as a
+Baseline: **57 passing tests** in `tests/e2e/portfolio.spec.ts`. Treat this as a
 floor that grows with each release, not as the contract itself — the contract is
 the coverage areas below.
 
+- the shared editor-tab contract: Home singleton, mixed Project/Note coexistence,
+  duplicate prevention, stable order, close-active-activates-left,
+  close-inactive-preserves-active, and Home section restoration per source tab
+- the build modal reporting the deployed environment from `build-info.json`
+  rather than a literal compiled into the bundle
 - core SPA navigation, deep links and browser Back
 - Light and Dark theme surfaces and contrast targets
 - Engineering Notes rendering, TOC selection and repeated navigation

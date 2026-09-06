@@ -56,7 +56,7 @@ The package manifest and lockfile are synchronized. Application state is impleme
 
 - route and browser-history state
 - semantic section navigation and scroll spy
-- open editor tabs
+- open editor tabs under one shared lifecycle (see [`ARCHITECTURE.md`](./ARCHITECTURE.md))
 - project, Note, Case Study, and not-found views
 - top-level panels and Outline
 - Terminal and Command Palette
@@ -361,7 +361,7 @@ The workflow takes a `deploy_env` input (`staging` or `production`) that selects
 
 ## 20. Testing architecture
 
-The Playwright suite contains **48 tests** in `tests/e2e/portfolio.spec.ts`.
+The Playwright suite contains **57 tests** in `tests/e2e/portfolio.spec.ts`.
 
 Coverage includes:
 
