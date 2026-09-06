@@ -4,6 +4,22 @@ All notable changes to **osameh.dev** are documented here.
 
 The project follows [Semantic Versioning](https://semver.org/). The early production releases were shipped in rapid succession while the portfolio was moved from its hosted prototype to the current ParsPack/CDN deployment.
 
+## 5.2.1 - 2026-09-06 — Cipher
+
+Patch release in the **Cipher** family, consolidating post-5.2.0 reliability work.
+
+### Fixed
+- The Build Information panel no longer assumes it is running in production while the runtime environment is still being read. Opening the panel on a slow connection previously showed **PRODUCTION BUILD** for a moment before correcting itself, and a failed metadata request left the same incorrect label in place. The environment is now shown only once it is actually known, and stays neutral otherwise.
+- The System Health panel no longer reports a guessed environment before the health endpoint responds.
+
+### Changed
+- **HSTS is owned solely by the ParsPack CDN edge.** The origin no longer emits `Strict-Transport-Security`, removing the duplicate header that previously appeared alongside the edge value on error responses.
+- Staging and production now occupy separate document roots with separate, directory-scoped FTP accounts. Production deployment mirrors destructively, so filesystem isolation is a deployment safety contract rather than a convention.
+
+### Added
+- A quality gate that fails the build if an origin HSTS directive is reintroduced into `.htaccess`.
+- Regression coverage proving the Build Information panel never reports production while the environment is unresolved, on a delayed response, on a production response, and on a failed request.
+
 ## 5.2.0 - 2026-09-06 — Cipher
 
 First release in the **Cyber Noir** codename line.

@@ -119,10 +119,13 @@ never surface as uncaught exceptions, unhandled rejections or React errors.
 
 ## 4. Playwright coverage
 
-Baseline: **69 passing tests** in `tests/e2e/portfolio.spec.ts`. Treat this as a
+Baseline: **72 passing tests** in `tests/e2e/portfolio.spec.ts`. Treat this as a
 floor that grows with each release, not as the contract itself — the contract is
 the coverage areas below.
 
+- the Build Information runtime-environment contract: neutral while unresolved,
+  correct on staging and production responses, and never guessing production when
+  the metadata request fails
 - release identity: codename resolution per family, the status bar, Build
   Information and Terminal surfaces, and Neural Cipher branding in the header,
   Resume Viewer, favicons and PWA manifest

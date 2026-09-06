@@ -59,6 +59,13 @@ enrollment in browser preload lists.
 
 ### Knowing which environment is running
 
+The environment has three runtime states, and **unknown is never treated as
+either one**: while `/build-info.json` is in flight the panel reports a neutral
+"resolving" state, a successful response yields `staging` or `production`, and a
+failed request reports the environment as unavailable. Defaulting to production
+would let staging assert "PRODUCTION BUILD" during the request, which is exactly
+the failure this contract exists to prevent.
+
 Because one bundle serves both environments, nothing compiled into the JavaScript
 can identify the environment — a build-time constant would report the same value
 on staging and production. `build-info.json` is stamped per environment during

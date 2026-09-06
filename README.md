@@ -505,6 +505,13 @@ The site also includes an in-app resume viewer and download/open controls.
 
 The **six most recent releases** are summarized here. See **[CHANGELOG.md](docs/CHANGELOG.md)** for the complete production history. This section is intentionally capped at six releases.
 
+### v5.2.1 — Cipher
+
+- Build Information now reports the runtime environment only once it is known, instead of briefly showing production while the metadata request is still in flight or after it fails.
+- HSTS is owned solely by the CDN edge, removing a duplicate header on error responses.
+- Staging and production run from separate document roots with directory-scoped deployment credentials.
+- Added guards preventing an origin HSTS directive and a fabricated environment label from returning.
+
 ### v5.2.0 — Cipher
 
 - New **Neural Cipher** visual identity across the header, favicons, Apple touch icon, PWA install icons, and the Resume Viewer.
@@ -546,12 +553,6 @@ The **six most recent releases** are summarized here. See **[CHANGELOG.md](docs/
 
 - keeps the 4.2 semantic light-theme redesign protected by stricter Engineering Notes and primary-surface contrast regressions
 - follows the 4.2.1 mobile gallery/notes restoration fixes and the 4.2.0 cross-shell light-theme redesign
-
-### v4.2.1 — Light-theme and mobile regressions
-
-- tightened light-theme Skills Preview contrast checks
-- kept the mobile project Gallery quick-access item visible when active at the end of the document
-- made Engineering Notes restoration deterministic by bypassing smooth scrolling on return
 
 
 ## Documentation

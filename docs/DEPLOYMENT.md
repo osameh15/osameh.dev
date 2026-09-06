@@ -264,6 +264,34 @@ private/osameh-portfolio-analytics/
 
 They should not be web-accessible.
 
+## 7.9 Staging/production filesystem isolation
+
+Production and staging **must** occupy separate document roots, each served by its
+own FTP account scoped to that directory alone.
+
+| Environment | Document root | FTP account scope |
+| --- | --- | --- |
+| Production | production root | production root only |
+| Staging | staging root (a separate subdomain root, never nested inside production) | staging root only |
+
+This is a deployment safety contract, not a convention. Production deploys with:
+
+```text
+mirror --reverse --delete
+```
+
+which deletes anything at the destination that is not in the artifact. When the
+staging subdomain lived inside the production document root, a production deploy
+removed the entire staging site. The production FTP account must therefore be
+unable to list or delete the staging document root.
+
+Do not restore a nested staging directory, and do not rely on a mirror exclusion
+as the primary protection - an exclusion is a single fragile string in a command,
+whereas credential scoping fails safe.
+
+After any production deployment, confirm staging is still serving and still
+reports its own independent build id.
+
 ## 8. Security checks
 
 HSTS is owned exclusively by the ParsPack CDN edge. The current edge policy is:
