@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
 const files = [
@@ -18,11 +18,17 @@ const files = [
   ["public/not-found.php", "dist/not-found.php"],
   ["public/manifest.webmanifest", "dist/manifest.webmanifest"],
   ["public/sw.js", "dist/sw.js"],
-  ["public/icons/icon-192.png", "dist/icons/icon-192.png"],
-  ["public/icons/icon-512.png", "dist/icons/icon-512.png"],
+  ["public/icons/favicon.ico", "dist/icons/favicon.ico"],
+  ["public/icons/icon-16x16.png", "dist/icons/icon-16x16.png"],
+  ["public/icons/icon-32x32.png", "dist/icons/icon-32x32.png"],
+  ["public/icons/icon-48x48.png", "dist/icons/icon-48x48.png"],
+  ["public/icons/icon-64x64.png", "dist/icons/icon-64x64.png"],
+  ["public/icons/icon-128x128.png", "dist/icons/icon-128x128.png"],
+  ["public/icons/icon-256x256.png", "dist/icons/icon-256x256.png"],
+  ["public/icons/pwa-192x192.png", "dist/icons/pwa-192x192.png"],
+  ["public/icons/pwa-512x512.png", "dist/icons/pwa-512x512.png"],
   ["public/icons/apple-touch-icon.png", "dist/icons/apple-touch-icon.png"],
   ["public/resume/Osameh_Irandoust_CV.pdf", "dist/resume/Osameh_Irandoust_CV.pdf"],
-  ["public/favicon.svg", "dist/favicon.svg"],
   ["public/og-cover.webp", "dist/og-cover.webp"],
   ["public/og-cover-social.jpg", "dist/og-cover-social.jpg"],
   ["public/build-info.json", "dist/build-info.json"],
@@ -35,6 +41,20 @@ for (const [source, target] of files) {
   mkdirSync(dirname(to), { recursive: true });
   copyFileSync(from, to);
 }
+
+// Vite copies public/ wholesale, including authoring-only design/master
+// variants. Keep them in source without shipping roughly 5 MB of unused
+// artwork in every deploy bundle.
+const nonRuntimeAssets = [
+  "dist/icons/README.md",
+  "dist/icons/osameh-neural-cipher-source.png",
+  "dist/icons/icon-1024x1024.png",
+  "dist/icons/app-icon-180x180.png",
+  "dist/icons/app-icon-192x192.png",
+  "dist/icons/app-icon-512x512.png",
+  "dist/og-cover-background.png",
+];
+for (const asset of nonRuntimeAssets) rmSync(resolve(asset), { force: true });
 
 // Keep the strict CSP valid even if Vite changes whitespace around the JSON-LD block.
 // The source .htaccess contains a placeholder; the built dist/.htaccess receives the exact hash.

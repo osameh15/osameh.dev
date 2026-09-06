@@ -312,3 +312,64 @@ html[data-theme="light"] .source-retry:hover{border-color:#4f9350;color:#1e4726}
    Constraining the column to the content box makes max-width:100% meaningful
    and keeps the inline gaps symmetric at every width, scrollbar included. */
 .advanced-modal-backdrop { grid-template-columns: minmax(0, 1fr) }
+
+/* v5.2.0 Cipher — Neural Cipher brand mark.
+   The legacy monogram mark was a 45deg-rotated bordered tile built around the
+   "OI" glyph. The artwork must not inherit that rotation, border or dot accent. */
+.brand-mark{width:32px;height:32px;border:0;border-radius:0;transform:none;place-items:center;flex:0 0 auto}
+.brand-mark::before,.brand-mark::after{content:none}
+.brand-mark i{display:none}
+.brand-mark img{width:32px;height:32px;display:block;object-fit:contain;image-rendering:auto}
+.logo-link{line-height:0}
+@media (max-width:520px){
+  .brand-mark,.brand-mark img{width:28px;height:28px}
+}
+
+/* Resume Viewer identity mark. Sits with the profile block rather than floating
+   as decoration, and is hidden from assistive tech since the adjacent name and
+   title already identify the document. */
+.resume-brand{width:56px;height:56px;flex:0 0 auto;border-radius:10px;overflow:hidden;display:block}
+.resume-brand img{width:100%;height:100%;display:block;object-fit:contain}
+@media (max-width:640px){ .resume-brand{width:44px;height:44px} }
+.resume-identity{display:flex;align-items:center;gap:14px;margin-bottom:10px}
+.resume-identity>div{min-width:0}
+.resume-identity .eyebrow{margin:0}
+.resume-identity h2{margin:2px 0 0}
+@media (max-width:640px){ .resume-identity{gap:10px} }
+
+/* v5.2.0 — Trailing empty cell in 1px-gutter grids.
+   These grids paint their gutters by showing a line-coloured background through
+   a 1px gap. An item count that does not fill the last row therefore leaves the
+   background exposed as a grey rectangle. A trailing item now spans the rest of
+   its row, which fixes every such grid rather than one panel at a time. */
+.build-info-grid > *:last-child:nth-child(odd),
+.skills-grid > *:last-child:nth-child(odd),
+.skills-preview > *:last-child:nth-child(odd),
+.case-study-grid > *:last-child:nth-child(odd),
+.now-grid > *:last-child:nth-child(odd),
+.contact-form-grid > *:last-child:nth-child(odd),
+.shortcut-grid > *:last-child:nth-child(odd),
+.notes-grid > *:last-child:nth-child(odd),
+.project-metadata-grid > *:last-child:nth-child(odd),
+.project-metrics-grid > *:last-child:nth-child(odd){grid-column:1/-1}
+
+/* Three-column grids: a trailing row of one spans all three, a trailing row of
+   two spans the remaining pair. */
+.health-check-grid > *:last-child:nth-child(3n+1){grid-column:1/-1}
+.health-check-grid > *:last-child:nth-child(3n+2){grid-column:span 2}
+
+/* v5.2.0 — .primary-btn had no cursor, so every primary action in the app showed
+   the default arrow while .secondary-btn correctly showed a pointer. */
+.primary-btn{cursor:pointer}
+.primary-btn:disabled{cursor:default}
+
+/* v5.2.0 — Release codename badge (Cyber Noir).
+   Only rendered for releases that actually carry a codename, so unnamed
+   releases show no empty chip. */
+.release-codename{display:inline-flex;align-items:center;font-style:normal;font:700 8.5px/1 var(--code-font);letter-spacing:.14em;text-transform:uppercase;color:var(--green);background:color-mix(in srgb, var(--green) 12%, transparent);border:1px solid color-mix(in srgb, var(--green) 38%, transparent);border-radius:999px;padding:4px 8px;white-space:nowrap}
+.changelog-node-content .release-codename{margin-top:7px;align-self:flex-start}
+.release-codename-line{display:flex;align-items:center;gap:9px;margin:8px 0 0}
+.release-codename-line span{color:var(--muted);font:9px var(--code-font);letter-spacing:.04em}
+.release-codename-line .release-codename{font-size:9.5px;padding:5px 10px}
+html[data-theme="light"] .release-codename{color:#2c6a2f;background:color-mix(in srgb, #3f8f42 10%, transparent);border-color:color-mix(in srgb, #3f8f42 34%, transparent)}
+@media (max-width:520px){ .release-codename{font-size:8px;padding:3px 7px} }

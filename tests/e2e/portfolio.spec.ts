@@ -1140,3 +1140,197 @@ test("build modal reports the deployed environment from build-info.json", async 
   const environment = modal.locator(".build-info-grid article").filter({ hasText: "ENVIRONMENT" }).locator("strong");
   await expect(environment).toHaveText("staging");
 });
+
+// ---------------------------------------------------------------------------
+// v5.2.0 Cipher — release codename architecture, Neural Cipher branding, and
+// active-tab auto-scroll.
+// ---------------------------------------------------------------------------
+
+test("release identity surfaces show the version and Cipher codename", async ({ page }) => {
+  await page.goto("/");
+  // Status bar
+  const status = page.locator(".status-build");
+  await expect(status).toContainText("v5.2.0");
+  await expect(status).toContainText("CIPHER");
+  // Build Info
+  await page.evaluate(() => window.dispatchEvent(new Event("portfolio:build")));
+  const modal = page.locator(".build-info-modal");
+  await expect(modal).toBeVisible();
+  await expect(modal.locator("#build-info-title")).toContainText("v5.2.0 · CIPHER");
+  const cell = (label: string) => modal.locator(".build-info-grid article").filter({ hasText: label }).locator("strong");
+  await expect(cell("VERSION")).toHaveText("v5.2.0 · CIPHER");
+  await expect(cell("CODENAME")).toHaveText("Cipher");
+  // Environment must stay runtime-derived, not compiled in.
+  await expect(cell("ENVIRONMENT")).toHaveText("production");
+});
+
+test("build info reports staging environment while keeping the Cipher identity", async ({ page }) => {
+  await page.route("**/build-info.json", route => route.fulfill({
+    status: 200, contentType: "application/json",
+    body: JSON.stringify({ version: "5.2.0", codename: "Cipher", buildId: "v5.2.0-test", builtAt: new Date().toISOString(), environment: "staging", availabilityMood: "selective" }),
+  }));
+  await page.goto("/");
+  await page.evaluate(() => window.dispatchEvent(new Event("portfolio:build")));
+  const modal = page.locator(".build-info-modal");
+  await expect(modal.locator(".build-info-badge")).toHaveText("STAGING BUILD");
+  await expect(modal.locator(".build-info-grid article").filter({ hasText: "ENVIRONMENT" }).locator("strong")).toHaveText("staging");
+  await expect(modal.locator(".build-info-grid article").filter({ hasText: "CODENAME" }).locator("strong")).toHaveText("Cipher");
+});
+
+test("terminal version and status output carry the release codename", async ({ page }) => {
+  await page.goto("/");
+  await page.keyboard.press("`");
+  const terminal = page.locator(".terminal-panel");
+  await expect(terminal).toBeVisible();
+  const input = terminal.locator("input");
+  await input.fill("version");
+  await input.press("Enter");
+  await expect(terminal.locator(".terminal-output")).toContainText("osameh.dev v5.2.0 · Cipher");
+  await input.fill("neofetch");
+  await input.press("Enter");
+  await expect(terminal.locator(".terminal-output")).toContainText("Codename  Cipher");
+  await expect(terminal.locator(".terminal-output")).toContainText("OSAMEH.DEV // NEURAL CIPHER");
+});
+
+test("header and resume use the Neural Cipher brand mark", async ({ page }) => {
+  await page.goto("/");
+  const header = page.locator(".brand-mark img");
+  await expect(header).toHaveAttribute("src", "/icons/icon-32x32.png");
+  await expect(header).toHaveAttribute("srcset", /icon-64x64\.png 2x/);
+  // Decorative: the wrapping link carries the accessible name.
+  await expect(header).toHaveAttribute("alt", "");
+  const loaded = await header.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0);
+  expect(loaded).toBe(true);
+
+  await page.evaluate(() => window.dispatchEvent(new Event("portfolio:resume")));
+  const resumeMark = page.locator(".resume-brand img");
+  await expect(resumeMark).toBeVisible();
+  expect(await resumeMark.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
+});
+
+test("manifest and favicons use the new icon pack and drop the retired names", async ({ page }) => {
+  await page.goto("/");
+  const manifest = await (await page.request.get("/manifest.webmanifest")).json();
+  const sources = (manifest.icons || []).map((icon: { src: string }) => icon.src);
+  expect(sources).toContain("/icons/pwa-192x192.png");
+  expect(sources).toContain("/icons/pwa-512x512.png");
+  expect(sources.join(" ")).not.toMatch(/icon-192\.png|icon-512\.png/);
+  for (const src of sources) expect((await page.request.get(src)).status()).toBe(200);
+
+  // Head wiring plus real asset availability.
+  await expect(page.locator('link[rel="icon"][href="/icons/favicon.ico"]')).toHaveCount(1);
+  await expect(page.locator('link[rel="apple-touch-icon"][sizes="180x180"]')).toHaveCount(1);
+  for (const asset of ["/icons/favicon.ico", "/icons/icon-16x16.png", "/icons/icon-32x32.png", "/icons/icon-48x48.png", "/icons/apple-touch-icon.png", "/og-cover-social.jpg"]) {
+    expect((await page.request.get(asset)).status()).toBe(200);
+  }
+  // The retired monogram favicon must not be referenced any more.
+  await expect(page.locator('link[href="/favicon.svg"]')).toHaveCount(0);
+});
+
+const tabScrollViewports = [
+  { width: 320, height: 568 },
+  { width: 360, height: 800 },
+  { width: 390, height: 844 },
+  { width: 412, height: 915 },
+  { width: 768, height: 1024 },
+];
+
+/** Geometry of the active tab relative to its scroll container. */
+const activeTabVisibility = (page: import("@playwright/test").Page) => page.evaluate(() => {
+  const strip = document.querySelector(".tabs-row") as HTMLElement | null;
+  const active = strip?.querySelector(".editor-tab.active") as HTMLElement | null;
+  if (!strip || !active) return null;
+  const stripBox = strip.getBoundingClientRect();
+  const tabBox = active.getBoundingClientRect();
+  return {
+    overflows: strip.scrollWidth > strip.clientWidth + 1,
+    fullyVisible: tabBox.left >= stripBox.left - 1 && tabBox.right <= stripBox.right + 1,
+    id: active.dataset.tabId || "home",
+  };
+});
+
+for (const viewport of tabScrollViewports) {
+  test(`active editor tab scrolls into view at ${viewport.width}px`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await stubFeaturedProjects(page);
+    await page.goto("/");
+
+    // Build enough tabs to force real horizontal overflow.
+    await runPalette(page, PROJECT_A);
+    await runPalette(page, NOTE_A);
+    await runPalette(page, PROJECT_B);
+    const ids = await tabIds(page);
+    expect(ids.length).toBeGreaterThanOrEqual(4);
+
+    // Scrolling is smooth, so poll until it settles rather than sampling once.
+    const visible = () => activeTabVisibility(page).then(state => state?.fullyVisible ?? false);
+    const activeId = () => activeTabVisibility(page).then(state => state?.id ?? null);
+
+    // The most recently opened tab is far right and must become visible.
+    await expect.poll(visible).toBe(true);
+
+    // Far-left Home.
+    await clickTab(page, "home");
+    await expect.poll(activeId).toBe("home");
+    await expect.poll(visible).toBe(true);
+
+    // Back to the far-right tab. Switching between two editor tabs performs no
+    // section restoration, so the page must not move vertically at all - only
+    // the strip scrolls horizontally.
+    const last = ids[ids.length - 1];
+    await clickTab(page, last);
+    await expect.poll(activeId).toBe(last);
+    await expect.poll(visible).toBe(true);
+    // Activating a tab scrolls the document to the top of that view. The
+    // horizontal strip scroll must not hijack that: the page settles at 0
+    // rather than at some arbitrary intermediate offset.
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+
+    // Closing the active tab activates its left neighbour, which must also be visible.
+    await closeTabById(page, last);
+    await expect.poll(visible).toBe(true);
+
+    // The tab strip scrolls inside itself; the document never scrolls sideways.
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
+  });
+}
+
+test("tab auto-scroll leaves an already-visible active tab alone", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await stubFeaturedProjects(page);
+  await page.goto("/");
+  await runPalette(page, PROJECT_A);
+  await runPalette(page, NOTE_A);
+  // Wide viewport: no overflow, so the strip must not scroll at all.
+  const scrollLeft = await page.evaluate(() => (document.querySelector(".tabs-row") as HTMLElement).scrollLeft);
+  await clickTab(page, "home");
+  await page.waitForTimeout(400);
+  expect(await page.evaluate(() => (document.querySelector(".tabs-row") as HTMLElement).scrollLeft)).toBe(scrollLeft);
+});
+
+test("changelog shows codename badges only for named releases", async ({ page }) => {
+  await page.goto("/changelog");
+  await page.waitForTimeout(1_200);
+  const expand = page.locator(".changelog-load-more button").first();
+  if (await expand.count()) await expand.click();
+  await page.waitForTimeout(500);
+
+  const rows = await page.evaluate(() => [...document.querySelectorAll(".changelog-node")].map(node => ({
+    version: (node.querySelector(".changelog-node-axis small")?.textContent || "").replace(/^v/, ""),
+    codename: node.querySelector(".release-codename")?.textContent || null,
+  })));
+  expect(rows.length).toBeGreaterThan(5);
+
+  const named = new Map([["5.2.0", "Cipher"], ["4.2.2", "Specter"], ["3.1.0", "Shadow"], ["2.2.4", "Pixel"]]);
+  for (const row of rows) {
+    // A family codename applies to every patch in that family; historical names
+    // are exact. Everything else must render no badge at all.
+    const expected = named.get(row.version) ?? (row.version.startsWith("5.2.") ? "Cipher" : null);
+    expect(row.codename, `codename badge for ${row.version}`).toBe(expected);
+  }
+  // A version with no official release metadata naturally renders no badge.
+  expect(rows.find(row => row.version === "1.0.0")?.codename).toBeNull();
+
+  // The detail panel names the selected release.
+  await expect(page.locator(".release-codename-line .release-codename")).toHaveText("Cipher");
+});

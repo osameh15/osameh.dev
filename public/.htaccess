@@ -78,9 +78,9 @@ RewriteRule ^api/github/meta/([A-Za-z0-9._-]+)/?$ api/github.php?meta=$1 [QSA,L]
   <FilesMatch "\.(?:png|jpe?g|webp|avif|svg)$">
     Header set Cache-Control "public, max-age=2592000"
   </FilesMatch>
-  <Files "favicon.svg">
+  <FilesMatch "^(?:favicon\.ico|icon-\d+x\d+\.png|apple-touch-icon\.png|pwa-\d+x\d+\.png)$">
     Header set Cache-Control "public, max-age=604800"
-  </Files>
+  </FilesMatch>
   <FilesMatch "^og-cover(?:-social)?\.(?:webp|jpg)$">
     Header set Cache-Control "public, max-age=86400"
   </FilesMatch>

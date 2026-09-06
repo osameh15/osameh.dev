@@ -1,4 +1,4 @@
-# Deployment — osameh.dev v5.1.0
+# Deployment — osameh.dev v5.2.0
 
 Target: ParsPack shared Linux hosting + ParsPack CDN + PHP 8+.
 
@@ -85,7 +85,6 @@ public_html/
 ├── icons/
 ├── resume/
 │   └── Osameh_Irandoust_CV.pdf
-├── favicon.svg
 ├── og-cover-social.jpg
 ├── robots.txt
 └── sitemap.xml

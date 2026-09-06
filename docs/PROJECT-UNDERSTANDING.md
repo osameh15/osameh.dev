@@ -1,6 +1,6 @@
 # osameh.dev Project Understanding Report
 
-**Review date:** 2026-09-05 (updated for v5.1.1)
+**Review date:** 2026-09-06 (updated for v5.2.0)
 **Repository:** `osameh.dev`
 **Review scope:** Tracked application source, configuration, workflows, tests, documentation, public endpoints, generated metadata, and static-asset inventory.
 
@@ -10,9 +10,9 @@ Companion references: [`ARCHITECTURE.md`](./ARCHITECTURE.md) for how the deploye
 
 ## 1. Detected version
 
-The repository version is **5.1.1**. It is consistent across `package.json`, `package-lock.json`, `docs/CHANGELOG.md`, `README.md`, deployment documentation, and generated build metadata.
+The repository version is **5.2.0**, codename **Cipher** under the Cyber Noir release theme (see [`ARCHITECTURE.md`](./ARCHITECTURE.md)). It is consistent across `package.json`, `package-lock.json`, `docs/CHANGELOG.md`, `README.md`, deployment documentation, and generated build metadata.
 
-The reviewed generated build identifies `v5.1.1-20260905T134339Z`. v5.1.1 is a hotfix release over v5.1.0.
+Generated build metadata is refreshed during validation and resolves the current release as v5.2.0 · CIPHER.
 
 ## 2. Current branch and worktree
 
@@ -361,7 +361,7 @@ The workflow takes a `deploy_env` input (`staging` or `production`) that selects
 
 ## 20. Testing architecture
 
-The Playwright suite contains **57 tests** in `tests/e2e/portfolio.spec.ts`.
+The Playwright suite contains **69 tests** in `tests/e2e/portfolio.spec.ts`.
 
 Coverage includes:
 
@@ -417,12 +417,12 @@ The quality script performs structural JSON checks but is not a complete JSON-Sc
 
 `README.md` currently lists exactly six releases:
 
-1. 5.1.1
-2. 5.1.0
-3. 5.0.0
-4. 4.2.2
-5. 4.2.1
-6. 4.2.0
+1. 5.2.0
+2. 5.1.1
+3. 5.1.0
+4. 5.0.0
+5. 4.2.2
+6. 4.2.1
 
 The complete release history remains in `docs/CHANGELOG.md`. The quality gate enforces the six-release README maximum.
 
@@ -488,8 +488,9 @@ configuration change; the code changes in v5.1.1 are defensive hardening
 
 ## 25. Current engineering priorities
 
-1. Verify the v5.1.1 staging acceptance checks after deployment: true 404 status
-   and body, Source Explorer file loads, and the Recruiter tour on a real device.
+1. Complete the v5.2.0 staging acceptance pass: release identity, Neural Cipher
+   assets, active-tab auto-scroll, plus the mature 404, Source Explorer, Service
+   Worker, and Recruiter Mode contracts.
 2. Keep Lighthouse pointed at the indexable build; never let environment packaging
    move ahead of it. See [`CI-CD.md`](./CI-CD.md).
 3. Audit the remaining older advanced modals for consistent focus trapping,

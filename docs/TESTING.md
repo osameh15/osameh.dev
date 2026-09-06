@@ -1,6 +1,6 @@
 # Testing Reference
 
-**Applies to:** v5.1.1
+**Applies to:** v5.2.0
 **Scope:** what is tested, which command proves which contract, and — most
 importantly — what can be trusted locally versus what requires CI or staging.
 
@@ -25,6 +25,7 @@ Every command below exists in `package.json`.
 | `npm run verify:staging` | Staging bundle is genuinely non-indexable: noindex meta, `Disallow: /`, global `X-Robots-Tag`, no canonical, no `og:url`, no sitemap reference, correct environment stamp. |
 | `npm run package:production` | Derives `dist-production/` from the same tested `dist/`, applying no indexing policy. |
 | `npm run verify:production` | Production bundle stayed indexable and inherited no staging policy: indexable robots meta, no `Disallow: /`, no global noindex header, production canonical and `og:url`, valid sitemap. |
+| `npm run verify:brand` | Neural Cipher icon pack presence and pixel dimensions, manifest icon validity, 1200x630 social card, and absence of retired asset references. Also invoked by `npm run quality`. |
 | `npm run verify:sw` | Service Worker response-ownership and caching rules (see §5). Also invoked by `npm run quality`. |
 | `npm run test:e2e:install` | Installs the pinned Playwright browser. Run once. |
 | `npm run test:e2e` | The browser regression suite (see §4). |
@@ -118,10 +119,15 @@ never surface as uncaught exceptions, unhandled rejections or React errors.
 
 ## 4. Playwright coverage
 
-Baseline: **57 passing tests** in `tests/e2e/portfolio.spec.ts`. Treat this as a
+Baseline: **69 passing tests** in `tests/e2e/portfolio.spec.ts`. Treat this as a
 floor that grows with each release, not as the contract itself — the contract is
 the coverage areas below.
 
+- release identity: codename resolution per family, the status bar, Build
+  Information and Terminal surfaces, and Neural Cipher branding in the header,
+  Resume Viewer, favicons and PWA manifest
+- active editor-tab auto-scroll at 320/360/390/412/768 px, including that an
+  already-visible tab is never moved and the document never scrolls sideways
 - the shared editor-tab contract: Home singleton, mixed Project/Note coexistence,
   duplicate prevention, stable order, close-active-activates-left,
   close-inactive-preserves-active, and Home section restoration per source tab

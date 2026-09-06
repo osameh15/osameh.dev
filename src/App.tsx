@@ -8,7 +8,8 @@ import {
   CornerDownLeft, Info, ListTree, LoaderCircle, Maximize2, MessageCircle, Minimize2, PanelBottom, RefreshCw,
   Image as ImageIcon, LayoutGrid, Monitor, Moon, Package, Search, Send, ServerCog, Star, Sun, Terminal, Type, X, Zap,
 } from "lucide-react";
-import { BUILD_DISPLAY, BUILD_ID, BUILD_TIME, BUILD_VERSION } from "./generated/build";
+import { BUILD_CODENAME, BUILD_DISPLAY, BUILD_ID, BUILD_TIME, BUILD_VERSION } from "./generated/build";
+import { formatReleaseLabel } from "./releaseMetadata";
 import { BuildInfoModal, ChangelogSection, ContactForm, GithubActivity, NowSection, ProjectCompare, PwaInstallControl, ResumeViewer, ShortcutGuide, SystemDiagnostics, shareProject, trackEvent } from "./AdvancedUI";
 import type { ToastKind, ToastPayload } from "./toast";
 import { FeaturedProjects, ProjectArchitecture, ProjectCaseStudyV3, ProjectMetadataPanel, ProjectMetrics, ProjectQuickAccess, ProjectSourceExplorer, RecruiterMode } from "./ProjectIntelligence";
@@ -383,7 +384,19 @@ function skillSource(language: CodeLanguage) {
 type ToastState = { message: string; kind: ToastKind } | null;
 
 function BrandMark() {
-  return <div className="brand-mark" aria-label="Osameh Irandoust"><span>OI</span><i /></div>;
+  // Neural Cipher brand mark. The anchor that wraps this carries the accessible
+  // name, so the image itself is decorative and must not be announced twice.
+  return <div className="brand-mark">
+    <img
+      src="/icons/icon-32x32.png"
+      srcSet="/icons/icon-32x32.png 1x, /icons/icon-64x64.png 2x"
+      width={32}
+      height={32}
+      alt=""
+      aria-hidden="true"
+      decoding="async"
+    />
+  </div>;
 }
 
 
@@ -542,6 +555,7 @@ export default function Home() {
   // Home is implicit, always first, and never stored here.
   const [editorTabs, setEditorTabs] = useState<EditorTab[]>([]);
   const [activeTabId, setActiveTabId] = useState<string>(HOME_TAB_ID);
+  const tabsRowRef = useRef<HTMLDivElement>(null);
   const [activeCaseStudy, setActiveCaseStudy] = useState<CaseStudy | null>(null);
   const activeTab = editorTabs.find(tab => tab.id === activeTabId) || null;
   const activeRepo = activeTab?.kind === "project" ? activeTab.repo : null;
@@ -878,11 +892,22 @@ export default function Home() {
       openUniversalSearch();
     };
     const openFromEvent = () => openUniversalSearch();
+    // Modals hand section navigation back to the shell instead of calling
+    // scrollIntoView themselves: a modal's own scroll-lock restore runs during
+    // its closing commit and would otherwise undo the jump. goTo() routes
+    // through the tokenized section scroller, which applies after that commit
+    // and is cancelled by real user scrolling.
+    const navigateFromEvent = (event: Event) => {
+      const path = (event as CustomEvent<{ path?: string }>).detail?.path;
+      if (path) goTo(sectionByPath(path));
+    };
     window.addEventListener("keydown", openPalette, true);
     window.addEventListener("portfolio:search", openFromEvent);
+    window.addEventListener("portfolio:navigate", navigateFromEvent);
     return () => {
       window.removeEventListener("keydown", openPalette, true);
       window.removeEventListener("portfolio:search", openFromEvent);
+      window.removeEventListener("portfolio:navigate", navigateFromEvent);
     };
   }, [openUniversalSearch]);
 
@@ -1355,6 +1380,32 @@ export default function Home() {
     if (scrollToTop) window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  /**
+   * Keeps the active editor tab visible in the horizontal strip.
+   *
+   * On narrow viewports the strip scrolls, so a newly activated tab could sit
+   * outside the visible area and had to be found by hand. This scrolls the
+   * container itself rather than calling scrollIntoView, which would also move
+   * the page vertically. It runs in a layout effect after the active tab has
+   * committed - no timers - and does nothing when the tab is already fully
+   * visible, so it never fights a deliberate horizontal scroll.
+   */
+  useLayoutEffect(() => {
+    const strip = tabsRowRef.current;
+    if (!strip) return;
+    const active = strip.querySelector<HTMLElement>(".editor-tab.active");
+    if (!active) return;
+    const margin = 12;
+    const stripBox = strip.getBoundingClientRect();
+    const tabBox = active.getBoundingClientRect();
+    let delta = 0;
+    if (tabBox.left < stripBox.left + margin) delta = tabBox.left - stripBox.left - margin;
+    else if (tabBox.right > stripBox.right - margin) delta = tabBox.right - stripBox.right + margin;
+    if (Math.abs(delta) < 1) return;
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    strip.scrollBy({ left: delta, behavior: reduceMotion ? "auto" : "smooth" });
+  }, [activeTabId, editorTabs.length, notFoundPath]);
+
   /** The one close path for every editor tab, whatever triggered it. */
   const closeTab = (tabId: string) => {
     const closing = editorTabs.find(tab => tab.id === tabId);
@@ -1767,7 +1818,7 @@ export default function Home() {
       return;
     }
     if (command === "version" || command === "--version") {
-      setTerminalLines(lines => [...lines, "› " + raw, `osameh.dev v${BUILD_VERSION}`]);
+      setTerminalLines(lines => [...lines, "› " + raw, `osameh.dev ${formatReleaseLabel(BUILD_VERSION, { uppercase: false })}`]);
       setSearchResults([]); return;
     }
     if (command === "build") {
@@ -1791,13 +1842,14 @@ export default function Home() {
     }
     if (command === "neofetch") {
       setTerminalLines(lines => [...lines, "› " + raw,
-        "        OI // OSAMEH.DEV",
+        "        OSAMEH.DEV // NEURAL CIPHER",
         "  -----------------------------",
         "  Role      Software Engineer",
         "  Focus     Backend · Full-Stack · Systems",
         "  Stack     .NET · C++ · Nuxt · PHP · SQL",
         `  Projects  ${repos.length} public repositories`,
         `  Build     ${BUILD_VERSION}`,
+        ...(BUILD_CODENAME ? [`  Codename  ${BUILD_CODENAME}`] : []),
         `  Mood      ${availabilityConfig.activeStatus} · ${availabilityProfile.shortLabel}`,
         `  Cases     ${caseStudies.length} published · ${capabilities.length} capabilities`,
         `  Theme     ${document.documentElement.dataset.theme || "dark"}`,
@@ -2070,7 +2122,7 @@ export default function Home() {
   return (
     <main>
       <header className="topbar">
-        <a href="#home" className="logo-link"><BrandMark /></a>
+        <a href="#home" className="logo-link" aria-label="Osameh Irandoust — home"><BrandMark /></a>
         <div className="ide-file-menu">
           <button className={fileMenuOpen ? "file-menu-trigger active" : "file-menu-trigger"} onClick={() => setFileMenuOpen(open => !open)} aria-expanded={fileMenuOpen} aria-haspopup="menu">File <ChevronDown size={12} /></button>
           {fileMenuOpen && <div className="file-menu-popover" role="menu">
@@ -2146,7 +2198,7 @@ export default function Home() {
         </aside>
 
         <div className="editor">
-          <div className="tabs-row">
+          <div className="tabs-row" ref={tabsRowRef}>
             <button aria-current={activeTabId === HOME_TAB_ID && !notFoundPath ? "page" : undefined} className={activeTabId !== HOME_TAB_ID || notFoundPath ? "editor-tab" : "editor-tab active"} onClick={() => showHome(true, true, activeTab?.homeSection)}><FileCode2 size={14} /> {code.file}</button>
             {editorTabs.map(tab => <button
               key={tab.id}
@@ -2400,7 +2452,7 @@ export default function Home() {
             <div ref={commandPaletteListRef} className="command-palette-list modal-scroll-viewport" role="listbox" aria-label="Available commands">
               {filteredPaletteCommands.length ? filteredPaletteCommands.map((item, index) => <button key={item.id} className={index === safeCommandIndex ? "active" : ""} role="option" aria-selected={index === safeCommandIndex} onMouseEnter={() => setCommandIndex(index)} onClick={() => runPaletteCommand(item)}><span className="command-palette-icon">{paletteIcon(item.icon)}</span><span><b>{item.label}</b><small>{item.hint}</small></span><CornerDownLeft size={13} /></button>) : <div className="command-palette-empty"><Search size={18} /><span>{t("noResults")} {commandQuery && <>“{commandQuery}”</>}</span></div>}
             </div>
-            <div className="command-palette-foot"><span><kbd>↑</kbd><kbd>↓</kbd> navigate</span><span><kbd>↵</kbd> run</span><span><kbd>esc</kbd> close</span><code>{BUILD_VERSION}</code></div>
+            <div className="command-palette-foot"><span><kbd>↑</kbd><kbd>↓</kbd> navigate</span><span><kbd>↵</kbd> run</span><span><kbd>esc</kbd> close</span><code>{formatReleaseLabel(BUILD_VERSION)}</code></div>
           </section>
         </div>}
         {actionToast && <div className={`action-toast ${actionToast.kind}`} role={actionToast.kind === "error" ? "alert" : "status"} aria-live={actionToast.kind === "error" ? "assertive" : "polite"}>
@@ -2473,7 +2525,7 @@ export default function Home() {
           </div>}
         </section>}
         <div className="status-bar">
-          <span><Github size={12} /> main*</span><button type="button" className="status-build status-build-button" title={`${BUILD_ID} · built ${BUILD_TIME}`} onClick={() => window.dispatchEvent(new Event("portfolio:build"))}>{BUILD_VERSION}</button><span className="status-online"><i /> {code.label} mode</span>
+          <span><Github size={12} /> main*</span><button type="button" className="status-build status-build-button" title={`${BUILD_ID} · built ${BUILD_TIME}`} onClick={() => window.dispatchEvent(new Event("portfolio:build"))}>v{BUILD_VERSION}{BUILD_CODENAME && <> · <b>{BUILD_CODENAME.toUpperCase()}</b></>}</button><span className="status-online"><i /> {code.label} mode</span>
           <button onClick={() => { if (panelOpen) setPanelOpen(false); else openTerminal(); }}><PanelBottom size={13} /> {panelOpen ? "Close panel" : "Open panel"}</button>
         </div>
       </div>

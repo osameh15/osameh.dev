@@ -443,7 +443,7 @@ public_html/
 ├── case-study.php
 ├── icons/
 ├── resume/
-├── favicon.svg
+├── og-cover-social.jpg
 ├── manifest.webmanifest
 ├── sw.js
 ├── robots.txt
@@ -505,6 +505,13 @@ The site also includes an in-app resume viewer and download/open controls.
 
 The **six most recent releases** are summarized here. See **[CHANGELOG.md](docs/CHANGELOG.md)** for the complete production history. This section is intentionally capped at six releases.
 
+### v5.2.0 — Cipher
+
+- New **Neural Cipher** visual identity across the header, favicons, Apple touch icon, PWA install icons, and the Resume Viewer.
+- Release codenames under the **Cyber Noir** theme. Starting with 5.2, each official major/minor family receives one codename, so every 5.2.x patch is Cipher. The version and codename appear in the status bar, Build Information, and Terminal.
+- Refreshed social sharing artwork.
+- Editor tabs now scroll the active tab into view on narrow screens instead of leaving it off-strip.
+
 ### v5.1.1 — Editor tabs, Source Explorer, Service Worker, 404 & mobile tour hotfix
 
 - Hardened GitHub repository path normalization so dot-prefixed directories stay previewable while traversal, absolute paths, and protocol injection remain blocked.
@@ -535,7 +542,7 @@ The **six most recent releases** are summarized here. See **[CHANGELOG.md](docs/
 - adds GitHub Activity to Explorer/Outline navigation in the same sequence as the document and extends the v4.2 semantic light-theme system across every new v5 surface
 - separates staging and production deployment credentials while requiring the reusable quality pipeline and tested artifact before either environment can deploy
 
-### v4.2.2 — Light-theme regression hardening
+### v4.2.2 — Specter · Light-theme regression hardening
 
 - keeps the 4.2 semantic light-theme redesign protected by stricter Engineering Notes and primary-surface contrast regressions
 - follows the 4.2.1 mobile gallery/notes restoration fixes and the 4.2.0 cross-shell light-theme redesign
@@ -545,12 +552,6 @@ The **six most recent releases** are summarized here. See **[CHANGELOG.md](docs/
 - tightened light-theme Skills Preview contrast checks
 - kept the mobile project Gallery quick-access item visible when active at the end of the document
 - made Engineering Notes restoration deterministic by bypassing smooth scrolling on return
-
-### v4.2.0 — Semantic light-theme redesign
-
-- moved light-theme behavior into a dedicated semantic override layer loaded after the base styles
-- aligned IDE shell, project intelligence, Notes, modals, compare surfaces, and interactive states with the redesigned palette
-- expanded browser contrast coverage for the light-theme system
 
 
 ## Documentation

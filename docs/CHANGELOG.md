@@ -4,6 +4,24 @@ All notable changes to **osameh.dev** are documented here.
 
 The project follows [Semantic Versioning](https://semver.org/). The early production releases were shipped in rapid succession while the portfolio was moved from its hosted prototype to the current ParsPack/CDN deployment.
 
+## 5.2.0 - 2026-09-06 — Cipher
+
+First release in the **Cyber Noir** codename line.
+
+### Added
+- **Neural Cipher visual identity.** A new brand mark replaces the previous monogram across the header, and a complete icon pack ships for favicons, Apple touch, PWA install, and in-app use.
+- Release **codenames**. A codename identifies a release family, so every patch in the family inherits it: 5.2.0, 5.2.1 and later 5.2.x releases are all **Cipher**. The current release and its codename now appear in the status bar, Build Information panel, and Terminal.
+- The Resume Viewer carries the Neural Cipher mark in its profile block.
+
+### Changed
+- Favicons now use a multi-size `favicon.ico` plus 16/32/48 px PNGs, replacing the previous monogram favicon.
+- The PWA manifest installs the new 192 px and 512 px icons.
+- Social sharing artwork was refreshed; the 1200x630 card remains the canonical Open Graph and Twitter image.
+- Editor tabs scroll the active tab into view automatically. On narrow screens an activated tab could previously sit outside the visible strip and had to be found by hand; the strip now scrolls only when the tab is not already fully visible, and respects reduced-motion preferences.
+
+### Fixed
+- The deployment bundle no longer ships icon authoring assets (design source, 1024 px master, duplicate variants), removing roughly 5 MB from every deploy.
+
 ## 5.1.1 - 2026-09-05
 
 ### Fixed
@@ -73,7 +91,7 @@ The project follows [Semantic Versioning](https://semver.org/). The early produc
 - Published case-study content is limited to client work that is safe to identify publicly. Capability cards are explicitly separated from client claims, and no private metrics, secrets, deployment credentials, or confidential implementation details are exposed.
 - The existing private GitHub API token boundary, staging `noindex` behavior, CSP, API protections, and environment-specific deployment-secret isolation remain intact.
 
-## 4.2.2 - 2026-09-02
+## 4.2.2 - 2026-09-02 — Specter
 
 ### Fixed
 - Hardened the Engineering Notes light-theme contrast regression selector and visibility assertion used by the browser quality suite.
@@ -157,7 +175,7 @@ The project follows [Semantic Versioning](https://semver.org/). The early produc
 - Fixed Source Explorer status-bar clipping so language, file size, and line count remain vertically centered and fully visible.
 - Added subtle status separators that remain consistent in dark and light themes.
 
-## 3.1.0 - 2026-09-01
+## 3.1.0 - 2026-09-01 — Shadow
 
 ### Added
 - Pointer-responsive parallax for the custom engineering showcase on the home screen.
@@ -249,7 +267,7 @@ The project follows [Semantic Versioning](https://semver.org/). The early produc
 - Source paths reject traversal, generated/dependency trees, configured exclusions, binary content, and files above each repository's preview limit.
 - GitHub credentials remain server-side; the browser only talks to same-origin PHP endpoints.
 
-## 2.2.4 - 2026-08-31
+## 2.2.4 - 2026-08-31 — Pixel
 
 ### Fixed
 - Restored the IDE-style 404 workspace for unknown routes behind ParsPack CDN.

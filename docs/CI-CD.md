@@ -1,6 +1,6 @@
 # CI/CD Pipeline — Technical Reference
 
-**Applies to:** v5.1.1
+**Applies to:** v5.2.0
 **Scope:** how code reaches `staging.osameh.dev` and `osameh.dev`, what blocks a
 deployment, and why the pipeline is shaped the way it is.
 

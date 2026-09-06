@@ -1,6 +1,8 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { verifyServiceWorker } from "./verify-sw.mjs";
+import { verifyBrandAssets } from "./verify-brand-assets.mjs";
+import { resolveReleaseCodename } from "../src/releaseMetadataCore.js";
 
 const failures = [];
 const pass = message => console.log(`✓ ${message}`);
@@ -234,6 +236,39 @@ for (const [workflow, label] of [[stagingWorkflow, "Staging"], [productionWorkfl
   if (!/for file in [^\n]*\.htaccess/.test(workflow)) fail(`${label} deploy does not assert .htaccess survived the artifact round trip`);
 }
 if (!failures.some(item => item.includes("artifact file is missing") || item.includes("artifact round trip"))) pass("Deploy jobs verify .htaccess survived and name any missing bundle file");
+
+// ---- Release codename architecture (config/releases.json is the only source) ----
+const releaseConfig = JSON.parse(readFileSync(resolve("config/releases.json"), "utf8"));
+const codenameCases = [["2.2.4", "Pixel"], ["3.1.0", "Shadow"], ["4.2.2", "Specter"], ["5.2.0", "Cipher"], ["5.2.1", "Cipher"], ["5.2.42", "Cipher"], ["5.2.99", "Cipher"], ["5.3.0", null], ["1.0.0", null], ["9.9.9", null], ["", null], ["garbage", null]];
+const codenameFailures = codenameCases.filter(([version, expected]) => resolveReleaseCodename(releaseConfig, version) !== expected);
+if (releaseConfig.theme !== "Cyber Noir") fail("Release naming theme must be Cyber Noir");
+else if (Object.hasOwn(releaseConfig, "unnamed")) fail("Release metadata must not define an explicit unnamed-family policy");
+else if (codenameFailures.length) fail(`Release codename resolution is wrong for: ${codenameFailures.map(([v]) => v).join(", ")}`);
+else pass("Historical, active-family, reserved, unmapped, and invalid codename resolution is correct");
+if (resolveReleaseCodename(releaseConfig, packageVersion) === null) fail(`Current release ${packageVersion} does not resolve a codename`);
+else pass(`Current release ${packageVersion} resolves codename ${resolveReleaseCodename(releaseConfig, packageVersion)}`);
+
+const generatedBuild = readFileSync(resolve("src/generated/build.ts"), "utf8");
+if (!/export const BUILD_CODENAME =/.test(generatedBuild)) fail("Generated build metadata is missing BUILD_CODENAME");
+else pass("Generated build metadata exposes BUILD_CODENAME");
+if (!prepareBuildSource.includes("codename")) fail("Build preparation does not stamp the release codename into build metadata");
+else pass("Build metadata stamps the release codename");
+const runtimeReleaseSource = readFileSync(resolve("src/releaseMetadata.ts"), "utf8");
+if (!prepareBuildSource.includes("resolveReleaseCodename") || !runtimeReleaseSource.includes("resolveReleaseCodename")) fail("Runtime and build metadata must use the shared release resolver");
+else pass("Runtime and build metadata use the same release resolver");
+
+// No component may hardcode the active codename; everything reads the resolver.
+const activeCodename = resolveReleaseCodename(releaseConfig, packageVersion);
+for (const file of ["src/App.tsx", "src/AdvancedUI.tsx", "src/ProjectIntelligence.tsx", "src/PortfolioFeatures.tsx"]) {
+  const source = readFileSync(resolve(file), "utf8");
+  if (activeCodename && new RegExp(`["'\`]${activeCodename}["'\`]`).test(source)) fail(`${file} hardcodes the release codename instead of using release metadata`);
+}
+if (!failures.some(item => item.includes("hardcodes the release codename"))) pass("No UI component hardcodes the active release codename");
+
+// ---- Neural Cipher brand assets ----
+const brandFailures = verifyBrandAssets();
+for (const failure of brandFailures) fail(failure);
+if (!brandFailures.length) pass("Neural Cipher icon pack, manifest icons, and social artwork verified");
 
 // The service worker only registers over HTTPS, so no local browser run loads
 // it. Execute it against a minimal worker environment here instead.

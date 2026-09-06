@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Activity, ArrowUpRight, Check, ChevronDown, ChevronUp, Code2, Download, ExternalLink, FileText, GitBranch, HardDrive, Keyboard, Laptop, LoaderCircle, Mail, MonitorCheck, PackageCheck, RefreshCw, Send, Share2, ShieldCheck, Sparkles, Terminal, Wifi, WifiOff, X } from "lucide-react";
-import { BUILD_ID, BUILD_TIME, BUILD_VERSION } from "./generated/build";
+import { BUILD_CODENAME, BUILD_ID, BUILD_TIME, BUILD_VERSION } from "./generated/build";
+import { RELEASE_THEME, formatReleaseLabel, getReleaseCodename } from "./releaseMetadata";
 import { notify } from "./toast";
 import { useModalDialog } from "./modalScroll";
 import { caseStudyFor, changelog, nowItems, resumeSummary, type RepoLike } from "./portfolioData";
@@ -112,6 +113,7 @@ export function ChangelogSection() {
               <span className="changelog-node-content">
                 <small>{index === 0 ? "LATEST" : !expanded ? "RECENT" : index < initialVisible ? "RECENT" : "ARCHIVE"}</small>
                 <strong>{item.title}</strong>
+                {getReleaseCodename(item.version) && <em className="release-codename" title={`${RELEASE_THEME} release family`}>{getReleaseCodename(item.version)}</em>}
               </span>
             </button>;
           })}
@@ -122,6 +124,7 @@ export function ChangelogSection() {
             <div>
               <p className="eyebrow">SELECTED RELEASE</p>
               <h3>{selected.title}</h3>
+              {getReleaseCodename(selected.version) && <p className="release-codename-line"><em className="release-codename">{getReleaseCodename(selected.version)}</em><span>{RELEASE_THEME} release family</span></p>}
             </div>
             <code>v{selected.version}</code>
           </div>
@@ -161,7 +164,7 @@ export function ResumeViewer({ onOpenChange }: { onOpenChange?: (open: boolean) 
     <header><div><FileText size={17} /><span>resume.pdf</span></div><div className="resume-header-actions"><a href="/resume/Osameh_Irandoust_CV.pdf" target="_blank" rel="noreferrer" className="icon-text-btn"><ExternalLink size={14} /> Open PDF</a><a href="/resume/Osameh_Irandoust_CV.pdf" download className="icon-text-btn"><Download size={14} /> Download</a><button onClick={() => changeOpen(false)} aria-label="Close resume"><X size={17} /></button></div></header>
     <div className="modal-scroll-viewport">
       <div className="modal-content">
-        <div className="resume-summary"><div><p className="eyebrow">CV / QUICK VIEW</p><h2>{resumeSummary.headline}</h2><p>{resumeSummary.profile}</p><small>{resumeSummary.education}</small></div><div className="resume-skill-cloud">{resumeSummary.skills.map(skill => <span key={skill}>{skill}</span>)}</div></div>
+        <div className="resume-summary"><div><div className="resume-identity"><span className="resume-brand"><img src="/icons/icon-128x128.png" srcSet="/icons/icon-128x128.png 1x, /icons/icon-256x256.png 2x" width={56} height={56} alt="" aria-hidden="true" decoding="async" /></span><div><p className="eyebrow">CV / QUICK VIEW</p><h2>{resumeSummary.headline}</h2></div></div><p>{resumeSummary.profile}</p><small>{resumeSummary.education}</small></div><div className="resume-skill-cloud">{resumeSummary.skills.map(skill => <span key={skill}>{skill}</span>)}</div></div>
         <div className="resume-document">
           <article><small>PROFILE</small><p>{resumeSummary.profile}</p></article>
           <article><small>EDUCATION</small><p>{resumeSummary.education}</p></article>
@@ -225,11 +228,12 @@ export function BuildInfoModal() {
         <div className="modal-content">
           <div className="build-info-hero">
             <span className="build-info-badge">{(buildEnvironment || "production").toUpperCase()} BUILD</span>
-            <h2 id="build-info-title">osameh.dev <code>v{BUILD_VERSION}</code></h2>
+            <h2 id="build-info-title">osameh.dev <code>{formatReleaseLabel(BUILD_VERSION)}</code></h2>
             <p>This is the exact build currently rendered by the browser. Use the build ID to confirm whether a CDN edge or browser cache is serving the latest deployment.</p>
           </div>
           <div className="build-info-grid">
-            <article><small>VERSION</small><strong>v{BUILD_VERSION}</strong><span>semantic release</span></article>
+            <article><small>VERSION</small><strong>{formatReleaseLabel(BUILD_VERSION)}</strong><span>semantic release</span></article>
+            {BUILD_CODENAME && <article><small>CODENAME</small><strong>{BUILD_CODENAME}</strong><span>{RELEASE_THEME} release family</span></article>}
             <article><small>BUILD ID</small><strong className="build-info-id">{BUILD_ID}</strong><span>unique deployment fingerprint</span></article>
             <article><small>BUILT AT</small><strong>{new Date(BUILD_TIME).toLocaleString()}</strong><span>{BUILD_TIME}</span></article>
             <article><small>ENVIRONMENT</small><strong>{buildEnvironment || "production"}</strong><span>Vite · ParsPack CDN</span></article>
@@ -319,7 +323,7 @@ export function SystemDiagnostics() {
           <article>{navigator.onLine ? <Wifi size={18} /> : <WifiOff size={18} />}<small>CLIENT NETWORK</small><b>{navigator.onLine ? "Online" : "Offline"}</b><span>browser connectivity</span></article>
           <article><ShieldCheck size={18} /><small>SERVICE WORKER</small><b>{sw}</b><span>offline shell</span></article>
           <article><Laptop size={18} /><small>CLIENT</small><b>{browser}</b><span>{window.innerWidth}×{window.innerHeight} · {window.devicePixelRatio}x</span></article>
-          <article><PackageCheck size={18} /><small>BUILD</small><b>v{health?.build.version || BUILD_VERSION}</b><span>{health?.build.environment || "production"}</span></article>
+          <article><PackageCheck size={18} /><small>BUILD</small><b>{formatReleaseLabel(health?.build.version || BUILD_VERSION)}</b><span>{health?.build.environment || "production"}</span></article>
         </div>
         <p className="diagnostics-note">Generated {health?.generatedAt ? new Date(health.generatedAt).toLocaleTimeString() : "on refresh"}. Diagnostics are ephemeral and privacy-friendly.</p>
       </div>

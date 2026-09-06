@@ -1,6 +1,6 @@
 # Runtime Architecture
 
-**Applies to:** v5.1.1
+**Applies to:** v5.2.0
 **Scope:** how the deployed system behaves at runtime — request path, routing,
 server-side metadata, the SPA shell, the GitHub proxy, the Service Worker, and
 the shared UI invariants.
@@ -324,7 +324,43 @@ scrolling and history from interfering with each other.
 
 ---
 
-## 8. Recruiter Mode
+## 8. Release identity
+
+**Cyber Noir** is the release-naming system for official osameh.dev releases.
+`config/releases.json` is the single metadata source; the pure
+`src/releaseMetadataCore.js` resolver is shared by runtime and build generation,
+while `src/releaseMetadata.ts` owns display formatting. No component may
+hardcode a codename.
+
+- A codename identifies a release **family** (`major.minor`), so every patch
+  inherits it: 5.2.0, 5.2.1 and 5.2.99 are all **Cipher**.
+- Three historical releases were named individually before the policy existed:
+  **2.2.4 Pixel**, **3.1.0 Shadow**, **4.2.2 Specter**.
+- Starting with **5.2**, every official major/minor release family receives one
+  codename, inherited by all patch releases in that family.
+- Future family names are recorded as `reserved` and are deliberately **not**
+  resolved, so an unreleased family can never appear in the UI as active.
+
+Runtime surfaces render `v5.2.0 · CIPHER`; documentation and GitHub Release
+titles use `5.2.0 — Cipher`. Git tags stay plain SemVer (`5.2.0`) - never
+`5.2.0-cipher`. An unmapped version renders only its version, with no dangling
+separator or placeholder. The build fingerprint carries `BUILD_CODENAME`, and `build-info.json`
+carries `codename` alongside `environment`, so both staging and production show
+the same release identity while remaining distinguishable by environment.
+
+### Brand assets
+
+The Neural Cipher icon pack lives in `public/icons/`, documented by its own
+`README.md`. Runtime assets are the favicon set (`favicon.ico` plus 16/32/48 px),
+the 64 px header retina variant, 128/256 px UI sizes, the 180 px Apple touch
+icon, and the 192/512 px PWA icons. The 1024 px master, the design source and the
+duplicate `app-icon-*` variants are authoring assets: they stay in `public/` but
+are pruned from the deploy bundle, since Vite would otherwise ship roughly 5 MB
+of unused artwork. `scripts/verify-brand-assets.mjs` checks the pack's presence
+and pixel dimensions, that the manifest points at real files, that the social
+card is 1200x630, and that retired names are no longer referenced anywhere.
+
+## 9. Recruiter Mode
 
 A guided tour rendered as a centred dialog on the shared modal foundation — not an
 anchored popover, so it needs no separate mobile presentation mode.
@@ -347,7 +383,7 @@ tests use deterministic fixtures rather than the network — see
 
 ---
 
-## 9. Engineering Notes pipeline
+## 10. Engineering Notes pipeline
 
 Markdown is fetched at runtime, rendered, transformed, and then sanitized:
 

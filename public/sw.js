@@ -1,6 +1,6 @@
 const CACHE_VERSION = "osameh-portfolio-v2"; // __CACHE_VERSION__
 const PRECACHE_ASSETS = []; // __PRECACHE_ASSETS__
-const SHELL = ["/", "/favicon.svg", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png", "/og-cover-social.jpg"];
+const SHELL = ["/", "/icons/favicon.ico", "/icons/icon-32x32.png", "/icons/icon-64x64.png", "/manifest.webmanifest", "/icons/pwa-192x192.png", "/icons/pwa-512x512.png", "/og-cover-social.jpg"];
 const PRECACHE = [...new Set([...SHELL, ...PRECACHE_ASSETS])];
 
 self.addEventListener("install", event => {
