@@ -1,20 +1,52 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
 import {
-  AlertTriangle, ArrowUpRight, Braces, BriefcaseBusiness as Linkedin, Camera as Instagram,
+  Accessibility as AccessibilityIcon, AlertTriangle, ArrowUpRight, Braces, BriefcaseBusiness as Linkedin, Camera as Instagram,
   Check, ChevronDown, ChevronLeft, ChevronRight, Circle, Code2, Command, Copy, Download, ExternalLink, FileCode2,
   FolderOpen, GitBranch as Github, GitFork as Gitlab, Home as HomeIcon, Link2, Mail, MapPin, Menu,
   CornerDownLeft, Info, ListTree, LoaderCircle, Maximize2, MessageCircle, Minimize2, PanelBottom, RefreshCw,
   Image as ImageIcon, LayoutGrid, Monitor, Moon, Package, Search, Send, ServerCog, Star, Sun, Terminal, Type, X, Zap,
 } from "lucide-react";
-import { BUILD_DISPLAY, BUILD_ID, BUILD_TIME, BUILD_VERSION } from "./generated/build";
+import { BUILD_CODENAME, BUILD_DISPLAY, BUILD_ID, BUILD_TIME, BUILD_VERSION } from "./generated/build";
+import { formatReleaseLabel } from "./releaseMetadata";
 import { BuildInfoModal, ChangelogSection, ContactForm, GithubActivity, NowSection, ProjectCompare, PwaInstallControl, ResumeViewer, ShortcutGuide, SystemDiagnostics, shareProject, trackEvent } from "./AdvancedUI";
 import type { ToastKind, ToastPayload } from "./toast";
 import { FeaturedProjects, ProjectArchitecture, ProjectCaseStudyV3, ProjectMetadataPanel, ProjectMetrics, ProjectQuickAccess, ProjectSourceExplorer, RecruiterMode } from "./ProjectIntelligence";
 import { fetchPortfolioMetadata, type PortfolioMetadata } from "./projectMetadata";
 import { EngineeringNotesSection, EngineeringNoteView } from "./EngineeringNotes";
 import { engineeringNotes } from "./notesData";
+import { AccessibilityControlButton, AvailabilityBadge, CaseStudiesSection, CaseStudyModal, PortfolioFeatureModals, availabilityConfig, availabilityProfile, capabilities, caseStudies, usePortfolioFeatures } from "./PortfolioFeatures";
+import type { CaseStudy } from "./caseStudiesData";
+import { getWorkspaceScrollPosition, useModalDialog } from "./modalScroll";
+
+// Shared editor-tab model. Every tab-backed view uses one lifecycle: activating a
+// tab never removes another, closing the active tab activates the tab to its
+// left, and each tab knows which Home section it came from so returning Home
+// restores the right place.
+const HOME_TAB_ID = "home";
+
+type EditorTab =
+  | { id: string; kind: "project"; repo: GithubRepo; title: string; path: string; homeSection: string }
+  | { id: string; kind: "note"; slug: string; title: string; path: string; homeSection: string };
+
+const projectTabId = (repo: GithubRepo) => `project:${repo.id}`;
+const noteTabId = (slug: string) => `note:${slug}`;
+
+const projectTab = (repo: GithubRepo): EditorTab => ({
+  id: projectTabId(repo), kind: "project", repo,
+  title: `${repo.name}.md`, path: `/projects/${encodeURIComponent(repo.name)}`, homeSection: "/projects",
+});
+const noteTab = (slug: string): EditorTab => ({
+  id: noteTabId(slug), kind: "note", slug,
+  title: `${slug}.md`, path: `/notes/${encodeURIComponent(slug)}`, homeSection: "/notes",
+});
+
+/** Tab activated when `closingId` is closed: the one immediately to its left, or Home. */
+function tabAfterClose(tabs: EditorTab[], closingId: string): EditorTab | null {
+  const index = tabs.findIndex(tab => tab.id === closingId);
+  return index > 0 ? tabs[index - 1] : null;
+}
 
 type ThemePreference = "dark" | "light" | "system";
 type FontPreference = "inter" | "mono" | "humanist" | "serif";
@@ -89,6 +121,8 @@ type ContextMenuState = {
   linkUrl?: string;
   linkLabel?: string;
   selection?: string;
+  noteSlug?: string;
+  caseStudyId?: string;
 };
 
 type PaletteCommand = {
@@ -100,16 +134,48 @@ type PaletteCommand = {
   action: () => void;
 };
 
+function universalSearchScore(query: string, item: Pick<PaletteCommand, "label" | "hint" | "keywords">) {
+  const q = query.trim().toLowerCase();
+  if (!q) return 1;
+  const label = item.label.toLowerCase();
+  const haystack = `${item.label} ${item.hint} ${item.keywords}`.toLowerCase();
+  const compact = (value: string) => value.replace(/[^a-z0-9]+/g, "");
+  const compactQuery = compact(q);
+  const compactLabel = compact(label);
+  const compactHaystack = compact(haystack);
+  if (label === q) return 1000;
+  if (label.startsWith(q)) return 800;
+  if (label.includes(q)) return 650;
+  // Treat punctuation and separators as search-neutral so queries such as
+  // "realtime communications" rank "real-time communications" naturally.
+  if (compactQuery && compactLabel.includes(compactQuery)) return 625;
+  if (haystack.includes(q)) return 500;
+  if (compactQuery && compactHaystack.includes(compactQuery)) return 475;
+  const tokens = q.split(/\s+/).filter(Boolean);
+  if (tokens.every(token => haystack.includes(token) || compactHaystack.includes(compact(token)))) return 350 + tokens.length * 10;
+  let cursor = 0;
+  for (const char of compactQuery) {
+    cursor = compactHaystack.indexOf(char, cursor);
+    if (cursor < 0) return -1;
+    cursor += 1;
+  }
+  return 100;
+}
+
 const sections: SearchResult[] = [
   { label: "Home", path: "/home", kind: "section" },
   { label: "About me", path: "/about", kind: "section" },
   { label: "Projects", path: "/projects", kind: "section" },
+  { label: "Case Studies", path: "/case-studies", kind: "section" },
   { label: "Experience", path: "/experience", kind: "section" },
+  { label: "GitHub Activity", path: "/activity", kind: "section" },
   { label: "Now", path: "/now", kind: "section" },
   { label: "Changelog", path: "/changelog", kind: "section" },
-  { label: "Contact", path: "/contact", kind: "section" },
   { label: "Engineering Notes", path: "/notes", kind: "section" },
+  { label: "Contact", path: "/contact", kind: "section" },
 ];
+
+const sectionByPath = (path: string) => sections.find(section => section.path === path)!;
 
 const GITHUB_OWNER = "osameh15";
 
@@ -318,7 +384,19 @@ function skillSource(language: CodeLanguage) {
 type ToastState = { message: string; kind: ToastKind } | null;
 
 function BrandMark() {
-  return <div className="brand-mark" aria-label="Osameh Irandoust"><span>OI</span><i /></div>;
+  // Neural Cipher brand mark. The anchor that wraps this carries the accessible
+  // name, so the image itself is decorative and must not be announced twice.
+  return <div className="brand-mark">
+    <img
+      src="/icons/icon-32x32.png"
+      srcSet="/icons/icon-32x32.png 1x, /icons/icon-64x64.png 2x"
+      width={32}
+      height={32}
+      alt=""
+      aria-hidden="true"
+      decoding="async"
+    />
+  </div>;
 }
 
 
@@ -455,6 +533,7 @@ function HeroShowcase({ codeLanguage, repoCount }: { codeLanguage: CodeLanguage;
 }
 
 export default function Home() {
+  const { t, setAccessibilityOpen, setAvailabilityOpen } = usePortfolioFeatures();
   const [menuOpen, setMenuOpen] = useState(false);
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
   const [activeSectionPath, setActiveSectionPath] = useState<string>("/home");
@@ -470,9 +549,18 @@ export default function Home() {
   const [recruiterModeOpen, setRecruiterModeOpen] = useState(false);
   const [visibleRepos, setVisibleRepos] = useState(6);
   const [repoState, setRepoState] = useState<"loading" | "ready">("loading");
-  const [activeRepo, setActiveRepo] = useState<GithubRepo | null>(null);
-  const [activeNoteSlug, setActiveNoteSlug] = useState<string | null>(null);
-  const [openedRepos, setOpenedRepos] = useState<GithubRepo[]>([]);
+  // One ordered collection is the single source of truth for every closable
+  // editor tab. Projects previously lived in an array while a Note lived in a
+  // lone "active slug", so activating any other view destroyed the Note tab.
+  // Home is implicit, always first, and never stored here.
+  const [editorTabs, setEditorTabs] = useState<EditorTab[]>([]);
+  const [activeTabId, setActiveTabId] = useState<string>(HOME_TAB_ID);
+  const tabsRowRef = useRef<HTMLDivElement>(null);
+  const [activeCaseStudy, setActiveCaseStudy] = useState<CaseStudy | null>(null);
+  const activeTab = editorTabs.find(tab => tab.id === activeTabId) || null;
+  const activeRepo = activeTab?.kind === "project" ? activeTab.repo : null;
+  const activeNoteSlug = activeTab?.kind === "note" ? activeTab.slug : null;
+  const openedRepos = editorTabs.flatMap(tab => tab.kind === "project" ? [tab.repo] : []);
   const [readmeHtml, setReadmeHtml] = useState<Record<string, string>>({});
   const [loadingReadmes, setLoadingReadmes] = useState<string[]>([]);
   const [repoImages, setRepoImages] = useState<Record<string, string>>({});
@@ -483,9 +571,6 @@ export default function Home() {
   const readmeRequests = useRef<Map<string, Promise<string>>>(new Map());
   const galleryRequests = useRef<Map<string, Promise<RepoGalleryImage[]>>>(new Map());
   const readmeRenderRequests = useRef<Set<string>>(new Set());
-  const pendingSectionScrollRef = useRef<{ id: string; behavior: ScrollBehavior; exact: boolean; token: number } | null>(null);
-  const sectionScrollTokenRef = useRef(0);
-  const sectionScrollTimersRef = useRef<number[]>([]);
   const projectsSectionRef = useRef<HTMLElement>(null);
   const [projectsNearViewport, setProjectsNearViewport] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
@@ -494,6 +579,9 @@ export default function Home() {
   const [terminalInput, setTerminalInput] = useState("");
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  // Destination chosen in the Command Palette, held until the palette has
+  // actually closed and released its share of the shared modal lock.
+  const pendingPaletteActionRef = useRef<(() => void) | null>(null);
   const [commandQuery, setCommandQuery] = useState("");
   const [commandIndex, setCommandIndex] = useState(0);
   const [actionToast, setActionToast] = useState<ToastState>(null);
@@ -511,6 +599,8 @@ export default function Home() {
     "Type `help` for commands, or just scroll.",
   ]);
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const commandPaletteDialogRef = useModalDialog<HTMLElement>(commandPaletteOpen, () => setCommandPaletteOpen(false));
+  const galleryDialogRef = useModalDialog<HTMLDivElement>(Boolean(galleryLightbox), () => setGalleryLightbox(null));
   const terminalOutputRef = useRef<HTMLDivElement>(null);
   const terminalInputRef = useRef<HTMLInputElement>(null);
   const terminalCompletionRef = useRef<{ seed: string; matches: string[]; index: number; applied: string }>({ seed: "", matches: [], index: -1, applied: "" });
@@ -521,6 +611,22 @@ export default function Home() {
   const panelResizeRef = useRef<{ startY: number; startHeight: number } | null>(null);
   const keyboardChordRef = useRef<{ key: string; at: number } | null>(null);
   const actionToastTimerRef = useRef<number | null>(null);
+  const pendingSectionScrollRef = useRef<{ id: string; behavior: ScrollBehavior; exact: boolean; token: number } | null>(null);
+  const sectionScrollTokenRef = useRef(0);
+  const sectionScrollTimersRef = useRef<number[]>([]);
+
+  const cancelSectionScroll = useCallback(() => {
+    sectionScrollTokenRef.current += 1;
+    pendingSectionScrollRef.current = null;
+    sectionScrollTimersRef.current.forEach(timer => window.clearTimeout(timer));
+    sectionScrollTimersRef.current = [];
+  }, []);
+  const caseStudyOriginRef = useRef<{ path: string; sectionPath: string; scrollX: number; scrollY: number } | null>(null);
+  useEffect(() => {
+    const previous = window.history.scrollRestoration;
+    window.history.scrollRestoration = "manual";
+    return () => { window.history.scrollRestoration = previous; };
+  }, []);
   const code = codeProfiles[codeLanguage];
   const skillLines = skillSource(codeLanguage);
 
@@ -603,19 +709,19 @@ export default function Home() {
     openTerminal();
   };
 
-  useEffect(() => {
-    const previousScrollRestoration = window.history.scrollRestoration;
-    window.history.scrollRestoration = "manual";
-    return () => { window.history.scrollRestoration = previousScrollRestoration; };
-  }, []);
-
-  useEffect(() => {
+  useLayoutEffect(() => {
     const path = window.location.pathname;
-    const knownPaths = ["/", "/home", "/about", "/projects", "/experience", "/now", "/changelog", "/notes", "/contact", "/resume", "/status"];
+    const knownPaths = ["/", "/home", "/about", "/projects", "/case-studies", "/experience", "/activity", "/now", "/changelog", "/notes", "/contact", "/resume", "/status"];
     const noteMatch = path.match(/^\/notes\/([a-z0-9-]+)\/?$/i);
+    const caseStudyMatch = path.match(/^\/case-studies\/([a-z0-9-]+)\/?$/i);
     const project = fallbackRepos.find(repo => `/${repo.name.toLowerCase()}` === path.toLowerCase() || `/projects/${repo.name.toLowerCase()}` === path.toLowerCase());
-    if (noteMatch && engineeringNotes.some(note => note.slug === noteMatch[1].toLowerCase())) {
-      setActiveNoteSlug(noteMatch[1].toLowerCase());
+    if (caseStudyMatch) {
+      const study = caseStudies.find(item => item.id === caseStudyMatch[1].toLowerCase());
+      if (study) { setActiveCaseStudy(study); setActiveSectionPath("/case-studies"); } else setNotFoundPath(path);
+    } else if (noteMatch && engineeringNotes.some(note => note.slug === noteMatch[1].toLowerCase())) {
+      const slug = noteMatch[1].toLowerCase();
+      setEditorTabs(current => current.some(tab => tab.id === noteTabId(slug)) ? current : [...current, noteTab(slug)]);
+      setActiveTabId(noteTabId(slug));
       setActiveSectionPath("/notes");
     } else if (noteMatch) setNotFoundPath(path);
     else if (project) openProject(project, false);
@@ -624,8 +730,15 @@ export default function Home() {
     else if (knownPaths.includes(path.toLowerCase()) && !["/", "/home", "/resume", "/status"].includes(path.toLowerCase())) {
       setActiveSectionPath(path.toLowerCase());
       const target = path.toLowerCase() === "/projects" ? "work" : path.slice(1);
-      window.setTimeout(() => scrollToSection(target, "auto"), 80);
-    } else if (!knownPaths.includes(path.toLowerCase()) && !/^\/projects\/[^/]+\/?$/i.test(path) && !/^\/notes\/[^/]+\/?$/i.test(path)) setNotFoundPath(path);
+      // Resolve deep-link section navigation immediately. A delayed route timer
+      // can race with opening a modal and later snap the workspace back to the
+      // section after the dialog closes. scrollToSection already waits for two
+      // animation frames, which is enough for the portfolio DOM to commit.
+      if (document.documentElement.dataset.modalOpen !== "true") {
+        const exact = path.toLowerCase() === "/notes" || path.toLowerCase() === "/case-studies";
+        scrollToSection(target, "auto", exact);
+      }
+    } else if (!knownPaths.includes(path.toLowerCase()) && !/^\/projects\/[^/]+\/?$/i.test(path) && !/^\/notes\/[^/]+\/?$/i.test(path) && !/^\/case-studies\/[^/]+\/?$/i.test(path)) setNotFoundPath(path);
   }, []);
 
   useEffect(() => { trackEvent("page_view"); }, []);
@@ -682,10 +795,23 @@ export default function Home() {
 
   useEffect(() => {
     if (!commandPaletteOpen) return;
+    // Escape is owned by the shared modal stack in useModalDialog, which closes
+    // only the topmost dialog. A second listener here would close the palette
+    // out of stack order.
     const frame = window.requestAnimationFrame(() => commandPaletteInputRef.current?.focus({ preventScroll: true }));
-    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") { event.preventDefault(); setCommandPaletteOpen(false); } };
-    document.addEventListener("keydown", closeOnEscape);
-    return () => { window.cancelAnimationFrame(frame); document.removeEventListener("keydown", closeOnEscape); };
+    return () => window.cancelAnimationFrame(frame);
+  }, [commandPaletteOpen]);
+
+  // A palette destination runs only once the palette is gone. This is a passive
+  // effect, so React has already flushed the palette's layout-effect cleanup -
+  // its modal lock is released, the body is unfrozen and the workspace scroll
+  // is restored - before the destination takes over focus, history and scroll.
+  useEffect(() => {
+    if (commandPaletteOpen) return;
+    const action = pendingPaletteActionRef.current;
+    if (!action) return;
+    pendingPaletteActionRef.current = null;
+    action();
   }, [commandPaletteOpen]);
 
   useEffect(() => { setCommandIndex(0); }, [commandQuery]);
@@ -724,7 +850,7 @@ export default function Home() {
       const chord = keyboardChordRef.current;
       keyboardChordRef.current = null;
       if (!chord || now - chord.at > 900) return;
-      const map: Record<string, SearchResult> = { h: sections[0], a: sections[1], p: sections[2], e: sections[3], n: sections[4], c: sections[6] };
+      const map: Record<string, SearchResult> = { h: sectionByPath("/home"), a: sectionByPath("/about"), p: sectionByPath("/projects"), e: sectionByPath("/experience"), n: sectionByPath("/now"), c: sectionByPath("/contact") };
       const destination = map[event.key.toLowerCase()];
       if (destination) { event.preventDefault(); goTo(destination); }
     };
@@ -747,18 +873,43 @@ export default function Home() {
     return () => document.removeEventListener("keydown", konami);
   }, []);
 
+  const openUniversalSearch = useCallback(() => {
+    setContextMenu(null);
+    setFileMenuOpen(false);
+    setCommandQuery("");
+    setCommandIndex(0);
+    setCommandPaletteOpen(true);
+  }, []);
+
   useEffect(() => {
     const openPalette = (event: KeyboardEvent) => {
-      if (!(event.ctrlKey || event.metaKey) || event.altKey || event.key.toLowerCase() !== "k") return;
+      const modifier = event.ctrlKey || event.metaKey;
+      const key = event.key.toLowerCase();
+      const primaryShortcut = modifier && event.shiftKey && !event.altKey && key === "p";
+      if (!primaryShortcut) return;
       event.preventDefault();
-      setContextMenu(null);
-      setCommandQuery("");
-      setCommandIndex(0);
-      setCommandPaletteOpen(open => !open);
+      event.stopPropagation();
+      openUniversalSearch();
     };
-    document.addEventListener("keydown", openPalette);
-    return () => document.removeEventListener("keydown", openPalette);
-  }, []);
+    const openFromEvent = () => openUniversalSearch();
+    // Modals hand section navigation back to the shell instead of calling
+    // scrollIntoView themselves: a modal's own scroll-lock restore runs during
+    // its closing commit and would otherwise undo the jump. goTo() routes
+    // through the tokenized section scroller, which applies after that commit
+    // and is cancelled by real user scrolling.
+    const navigateFromEvent = (event: Event) => {
+      const path = (event as CustomEvent<{ path?: string }>).detail?.path;
+      if (path) goTo(sectionByPath(path));
+    };
+    window.addEventListener("keydown", openPalette, true);
+    window.addEventListener("portfolio:search", openFromEvent);
+    window.addEventListener("portfolio:navigate", navigateFromEvent);
+    return () => {
+      window.removeEventListener("keydown", openPalette, true);
+      window.removeEventListener("portfolio:search", openFromEvent);
+      window.removeEventListener("portfolio:navigate", navigateFromEvent);
+    };
+  }, [openUniversalSearch]);
 
   useEffect(() => {
     const handleContextMenu = (event: MouseEvent) => {
@@ -772,11 +923,19 @@ export default function Home() {
       if (!finePointer && !keyboardInvocation) return;
 
       event.preventDefault();
+      // A context menu is direct user intent. Cancel route stabilization before
+      // opening it so a later programmatic scroll cannot dismiss or replace the
+      // Note/Case Study specific menu while the user is reading it.
+      cancelSectionScroll();
       setFileMenuOpen(false);
       setCommandPaletteOpen(false);
 
       const projectTarget = target.closest<HTMLElement>("[data-project-name]");
       const repoName = projectTarget?.dataset.projectName || (target.closest(".ide-project-view") ? activeRepo?.name : undefined);
+      const noteTarget = target.closest<HTMLElement>("[data-note-slug]");
+      const caseStudyTarget = target.closest<HTMLElement>("[data-case-study-id]");
+      const noteSlug = noteTarget?.dataset.noteSlug || activeNoteSlug || undefined;
+      const caseStudyId = caseStudyTarget?.dataset.caseStudyId || activeCaseStudy?.id || undefined;
       const imageTarget = target.closest<HTMLElement>("[data-image-url]");
       let imageUrl = imageTarget?.dataset.imageUrl;
       let imageIndex = imageTarget?.dataset.imageIndex ? Number(imageTarget.dataset.imageIndex) : undefined;
@@ -801,7 +960,7 @@ export default function Home() {
       }
 
       setContextMenu({
-        x, y, repoName, imageUrl, imageIndex,
+        x, y, repoName, noteSlug, caseStudyId, imageUrl, imageIndex,
         linkUrl: anchor?.href,
         linkLabel: anchor?.textContent?.trim() || anchor?.getAttribute("aria-label") || undefined,
         selection: selectedText || undefined,
@@ -812,7 +971,7 @@ export default function Home() {
       const target = event.target instanceof Element ? event.target : null;
       if (!target?.closest(".custom-context-menu")) setContextMenu(null);
     };
-    const closeOnScroll = (event: Event) => {
+    const closeOnScrollIntent = (event: Event) => {
       const target = event.target instanceof Element ? event.target : null;
       if (target?.closest(".custom-context-menu")) return;
       setContextMenu(null);
@@ -821,15 +980,17 @@ export default function Home() {
 
     document.addEventListener("contextmenu", handleContextMenu);
     document.addEventListener("pointerdown", closeOnPointer);
-    window.addEventListener("scroll", closeOnScroll, true);
+    window.addEventListener("wheel", closeOnScrollIntent, { passive: true });
+    window.addEventListener("touchstart", closeOnScrollIntent, { passive: true });
     window.addEventListener("resize", closeOnResize);
     return () => {
       document.removeEventListener("contextmenu", handleContextMenu);
       document.removeEventListener("pointerdown", closeOnPointer);
-      window.removeEventListener("scroll", closeOnScroll, true);
+      window.removeEventListener("wheel", closeOnScrollIntent);
+      window.removeEventListener("touchstart", closeOnScrollIntent);
       window.removeEventListener("resize", closeOnResize);
     };
-  }, [activeRepo, repoGalleries]);
+  }, [activeRepo, activeNoteSlug, activeCaseStudy, repoGalleries, cancelSectionScroll]);
 
   useEffect(() => {
     if (!contextMenu) return;
@@ -898,13 +1059,14 @@ export default function Home() {
         return;
       }
       if (event.key !== "Escape" || fileMenuOpen) return;
+      // Every close path - X button, Back to Portfolio, Escape - runs the same
+      // tab-selection algorithm.
       if (notFoundPath) showHome();
-      else if (activeNoteSlug) closeNote();
-      else if (activeRepo) closeProject(activeRepo);
+      else if (activeTabId !== HOME_TAB_ID) closeTab(activeTabId);
     };
     document.addEventListener("keydown", closeActiveTab);
     return () => document.removeEventListener("keydown", closeActiveTab);
-  }, [activeRepo, activeNoteSlug, notFoundPath, openedRepos, fileMenuOpen, galleryLightbox, repoGalleries, contextMenu, commandPaletteOpen]);
+  }, [activeTabId, editorTabs, notFoundPath, fileMenuOpen, galleryLightbox, repoGalleries, contextMenu, commandPaletteOpen]);
 
   useEffect(() => {
     const toggleTerminal = (event: KeyboardEvent) => {
@@ -1009,7 +1171,9 @@ export default function Home() {
       { path: "/home", id: "home" },
       { path: "/about", id: "about" },
       { path: "/projects", id: "work" },
+      { path: "/case-studies", id: "case-studies" },
       { path: "/experience", id: "experience" },
+      { path: "/activity", id: "activity" },
       { path: "/now", id: "now" },
       { path: "/changelog", id: "changelog" },
       { path: "/notes", id: "notes" },
@@ -1171,10 +1335,11 @@ export default function Home() {
 
   const openProject = (repo: GithubRepo, updateHistory = true) => {
     setNotFoundPath(null);
-    setActiveNoteSlug(null);
+    setActiveCaseStudy(null);
     setActiveSectionPath("/projects");
-    setActiveRepo(repo);
-    setOpenedRepos(current => current.some(item => item.id === repo.id) ? current : [...current, repo]);
+    // Reuse the existing tab for this entity; opening it twice never duplicates.
+    setEditorTabs(current => current.some(tab => tab.id === projectTabId(repo)) ? current : [...current, projectTab(repo)]);
+    setActiveTabId(projectTabId(repo));
     if (updateHistory) {
       const path = `/projects/${encodeURIComponent(repo.name)}`;
       if (window.location.pathname !== path) window.history.pushState({ project: repo.name }, "", path);
@@ -1187,31 +1352,133 @@ export default function Home() {
     void loadGallery(repo);
   };
 
-  const showHome = (updateHistory = true, scrollToTop = true) => {
+  /**
+   * Activates Home. Home is a singleton that is always present and never
+   * closable, and selecting it only changes which tab is active - every other
+   * editor tab stays open.
+   *
+   * `returnSection` belongs to the transition, not to global state: it is the
+   * Home section owned by the tab we are leaving, so a Project -> Home move can
+   * never be redirected to Notes by a Note that happens to be open.
+   */
+  const showHome = (updateHistory = true, scrollToTop = true, returnSection?: string) => {
     setNotFoundPath(null);
-    setActiveSectionPath("/home");
-    setActiveRepo(null);
-    setActiveNoteSlug(null);
+    setActiveCaseStudy(null);
+    setActiveTabId(HOME_TAB_ID);
     document.title = "Osameh Irandoust — Software Engineer";
     if (updateHistory && window.location.pathname !== "/") window.history.pushState({}, "", "/");
+    const section = returnSection && returnSection !== "/home" ? returnSection : null;
+    if (section) {
+      setActiveSectionPath(section);
+      // Same deterministic restoration the Notes path already uses: no timers,
+      // no guessed frame counts, and obsolete work is cancelled by user intent.
+      cancelSectionScroll();
+      scrollToSection(section === "/projects" ? "work" : section.slice(1), "auto", true);
+      return;
+    }
+    setActiveSectionPath("/home");
     if (scrollToTop) window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  /**
+   * Keeps the active editor tab visible in the horizontal strip.
+   *
+   * On narrow viewports the strip scrolls, so a newly activated tab could sit
+   * outside the visible area and had to be found by hand. This scrolls the
+   * container itself rather than calling scrollIntoView, which would also move
+   * the page vertically. It runs in a layout effect after the active tab has
+   * committed - no timers - and does nothing when the tab is already fully
+   * visible, so it never fights a deliberate horizontal scroll.
+   */
+  useLayoutEffect(() => {
+    const strip = tabsRowRef.current;
+    if (!strip) return;
+    const active = strip.querySelector<HTMLElement>(".editor-tab.active");
+    if (!active) return;
+    const margin = 12;
+    const stripBox = strip.getBoundingClientRect();
+    const tabBox = active.getBoundingClientRect();
+    let delta = 0;
+    if (tabBox.left < stripBox.left + margin) delta = tabBox.left - stripBox.left - margin;
+    else if (tabBox.right > stripBox.right - margin) delta = tabBox.right - stripBox.right + margin;
+    if (Math.abs(delta) < 1) return;
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    strip.scrollBy({ left: delta, behavior: reduceMotion ? "auto" : "smooth" });
+  }, [activeTabId, editorTabs.length, notFoundPath]);
+
+  /** The one close path for every editor tab, whatever triggered it. */
+  const closeTab = (tabId: string) => {
+    const closing = editorTabs.find(tab => tab.id === tabId);
+    if (!closing) return;
+    const previous = tabAfterClose(editorTabs, tabId);
+    setEditorTabs(current => current.filter(tab => tab.id !== tabId));
+    // Closing a tab that is not active must never steal focus from the active one.
+    if (activeTabId !== tabId) return;
+    cancelSectionScroll();
+    if (previous) {
+      setActiveTabId(previous.id);
+      setActiveSectionPath(previous.homeSection);
+      document.title = previous.kind === "project" ? `${previous.repo.name} — Osameh Irandoust` : "Osameh Irandoust — Software Engineer";
+      if (window.location.pathname !== previous.path) window.history.pushState({}, "", previous.path);
+      window.scrollTo({ top: 0, behavior: "auto" });
+      return;
+    }
+    // Home is the previous tab: restore the section this tab belongs to.
+    showHome(true, false, closing.homeSection);
+  };
+
+  useEffect(() => {
+    const cancelForModal = () => cancelSectionScroll();
+    window.addEventListener("portfolio:modal-open", cancelForModal);
+    return () => window.removeEventListener("portfolio:modal-open", cancelForModal);
+  }, [cancelSectionScroll]);
+
+  // Any real user navigation wins over delayed exact-scroll stabilization.
+  // This is especially important after closing a modal: wheel/touch/keyboard
+  // input must never be followed by an old timer pulling the workspace back.
+  useEffect(() => {
+    const cancelForUserIntent = () => cancelSectionScroll();
+    const cancelForKey = (event: KeyboardEvent) => {
+      if (["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "].includes(event.key)) cancelSectionScroll();
+    };
+    window.addEventListener("wheel", cancelForUserIntent, { passive: true });
+    window.addEventListener("touchstart", cancelForUserIntent, { passive: true });
+    window.addEventListener("pointerdown", cancelForUserIntent, { passive: true });
+    window.addEventListener("keydown", cancelForKey, true);
+    return () => {
+      window.removeEventListener("wheel", cancelForUserIntent);
+      window.removeEventListener("touchstart", cancelForUserIntent);
+      window.removeEventListener("pointerdown", cancelForUserIntent);
+      window.removeEventListener("keydown", cancelForKey, true);
+    };
+  }, [cancelSectionScroll]);
+
   const applySectionScroll = (request: { id: string; behavior: ScrollBehavior; exact: boolean; token: number }) => {
     if (request.token !== sectionScrollTokenRef.current) return false;
+    // Browser Back can fire while a modal is still in the layout-effect cleanup
+    // phase. Keep the request pending until the body scroll lock is released.
+    if (document.documentElement.dataset.modalOpen === "true") return false;
     const target = document.getElementById(request.id);
     if (!target) return false;
 
     const move = (behavior: ScrollBehavior) => {
-      if (request.token !== sectionScrollTokenRef.current) return;
+      if (request.token !== sectionScrollTokenRef.current || document.documentElement.dataset.modalOpen === "true") return;
+      const currentTarget = document.getElementById(request.id);
+      if (!currentTarget) return;
       const stickyOffset = window.innerWidth <= 720 ? 72 : 96;
-      const top = target.getBoundingClientRect().top + window.scrollY - stickyOffset;
+      const top = currentTarget.getBoundingClientRect().top + window.scrollY - stickyOffset;
       const destination = Math.max(0, top);
       if (request.exact) {
         const root = document.documentElement;
         const previousScrollBehavior = root.style.scrollBehavior;
         root.style.scrollBehavior = "auto";
-        window.scrollTo(0, destination);
+        // scrollIntoView establishes the element boundary using the browser's
+        // current layout, then a small deterministic correction exposes it
+        // below the fixed IDE chrome. This is more robust than a stale absolute
+        // document coordinate when content above the section is still settling.
+        currentTarget.scrollIntoView({ behavior: "auto", block: "start" });
+        const correction = currentTarget.getBoundingClientRect().top - stickyOffset;
+        if (Math.abs(correction) > 0.5) window.scrollBy(0, correction);
         root.style.scrollBehavior = previousScrollBehavior;
         return;
       }
@@ -1221,7 +1488,10 @@ export default function Home() {
     move(request.exact ? "auto" : request.behavior);
     if (request.exact) {
       sectionScrollTimersRef.current.forEach(timer => window.clearTimeout(timer));
-      sectionScrollTimersRef.current = [60, 220].map(delay => window.setTimeout(() => move("auto"), delay));
+      // Re-apply after async content/layout settles. 4.2.x used the first two
+      // passes; the later passes protect Notes/Case Studies from v5 content
+      // above the target changing height after Browser Back.
+      sectionScrollTimersRef.current = [60, 220, 500, 900].map(delay => window.setTimeout(() => move("auto"), delay));
     }
     if (pendingSectionScrollRef.current?.token === request.token) pendingSectionScrollRef.current = null;
     return true;
@@ -1230,14 +1500,18 @@ export default function Home() {
   const scrollToSection = (id: string, behavior: ScrollBehavior = "smooth", exact = false) => {
     const request = { id, behavior, exact, token: ++sectionScrollTokenRef.current };
     pendingSectionScrollRef.current = request;
+    // Exact route restoration must establish the anchor before the user can
+    // interact with controls inside the section. Repeated passes still cover
+    // late layout changes, but the first move is synchronous/deterministic.
+    if (exact && behavior === "auto" && document.documentElement.dataset.modalOpen !== "true") applySectionScroll(request);
     window.requestAnimationFrame(() => window.requestAnimationFrame(() => { applySectionScroll(request); }));
   };
 
   useLayoutEffect(() => {
     const request = pendingSectionScrollRef.current;
-    if (!request || activeRepo || activeNoteSlug || notFoundPath) return;
+    if (!request || activeRepo || activeNoteSlug || activeCaseStudy || notFoundPath || resumeOpen) return;
     applySectionScroll(request);
-  }, [activeRepo, activeNoteSlug, notFoundPath]);
+  }, [activeRepo, activeNoteSlug, activeCaseStudy, notFoundPath, resumeOpen]);
 
   useEffect(() => () => {
     sectionScrollTimersRef.current.forEach(timer => window.clearTimeout(timer));
@@ -1247,8 +1521,9 @@ export default function Home() {
     const note = engineeringNotes.find(item => item.slug === slug);
     if (!note) { setNotFoundPath(`/notes/${slug}`); return; }
     setNotFoundPath(null);
-    setActiveRepo(null);
-    setActiveNoteSlug(slug);
+    setActiveCaseStudy(null);
+    setEditorTabs(current => current.some(tab => tab.id === noteTabId(slug)) ? current : [...current, noteTab(slug)]);
+    setActiveTabId(noteTabId(slug));
     setActiveSectionPath("/notes");
     if (updateHistory) {
       const path = `/notes/${encodeURIComponent(slug)}`;
@@ -1261,36 +1536,91 @@ export default function Home() {
   };
 
   const closeNote = (returnToNotes = true) => {
-    setActiveNoteSlug(null);
-    document.title = "Osameh Irandoust — Software Engineer";
-    if (returnToNotes) {
-      setActiveSectionPath("/notes");
-      if (window.location.pathname !== "/notes") window.history.pushState({}, "", "/notes");
-      scrollToSection("notes", "auto", true);
-    } else {
-      setActiveSectionPath("/home");
-      if (window.location.pathname !== "/") window.history.pushState({}, "", "/");
-      window.scrollTo({ top: 0, behavior: "smooth" });
+    const slug = activeNoteSlug;
+    if (!slug) return;
+    if (!returnToNotes) {
+      setEditorTabs(current => current.filter(tab => tab.id !== noteTabId(slug)));
+      showHome(true, true);
+      return;
     }
+    // Closing the active Note follows the shared rule: activate the tab to its
+    // left. Only when that is Home does the Notes section get restored, which
+    // is the behavior this path already had.
+    closeTab(noteTabId(slug));
+  };
+
+  const openCaseStudy = (study: CaseStudy, updateHistory = true) => {
+    cancelSectionScroll();
+    if (updateHistory) {
+      // Never read window.scrollY here. Opening from the Command Palette (or any
+      // other dialog) means the body is already frozen and window.scrollY is 0,
+      // which would make closing this Case Study jump to the top of the page.
+      const origin = getWorkspaceScrollPosition();
+      caseStudyOriginRef.current = {
+        path: window.location.pathname,
+        sectionPath: activeSectionPath,
+        scrollX: origin.x,
+        scrollY: origin.y,
+      };
+    } else {
+      caseStudyOriginRef.current = null;
+    }
+    setNotFoundPath(null);
+    setActiveTabId(HOME_TAB_ID);
+    setActiveCaseStudy(study);
+    setActiveSectionPath("/case-studies");
+    document.title = `${study.title} — Case Study | Osameh Irandoust`;
+    if (updateHistory) {
+      const path = `/case-studies/${encodeURIComponent(study.id)}`;
+      if (window.location.pathname !== path) window.history.pushState({ caseStudy: study.id }, "", path);
+    }
+    trackEvent("case_study_open", study.id);
+  };
+
+  const closeCaseStudy = (returnToSection = true) => {
+    // Closing a dialog must restore the view it covered, not navigate the
+    // document. This prevents delayed section-scroll timers from pulling the
+    // user back to section 03 after Escape/mouse-close.
+    cancelSectionScroll();
+    const origin = caseStudyOriginRef.current;
+    caseStudyOriginRef.current = null;
+    setActiveCaseStudy(null);
+    document.title = "Osameh Irandoust — Software Engineer";
+    if (!returnToSection) return;
+
+    if (origin) {
+      setActiveSectionPath(origin.sectionPath);
+      if (window.location.pathname !== origin.path) {
+        window.history.replaceState({ restoredFromCaseStudy: true }, "", origin.path);
+      }
+      // useModalDialog restores the exact covered scroll position during
+      // the same React commit. Do not schedule any section scroll here.
+      return;
+    }
+
+    // A directly loaded /case-studies/:id URL has no covered workspace to
+    // restore, so closing it intentionally lands on the Case Studies index.
+    setActiveSectionPath("/case-studies");
+    if (window.location.pathname !== "/case-studies") window.history.replaceState({}, "", "/case-studies");
+    window.requestAnimationFrame(() => scrollToSection("case-studies", "auto", true));
   };
 
   const closeProject = (repo: GithubRepo, returnHome = false) => {
-    const remaining = openedRepos.filter(item => item.id !== repo.id);
-    setOpenedRepos(remaining);
     if (returnHome) {
-      setActiveSectionPath("/home");
-      setActiveRepo(null);
-      document.title = "Osameh Irandoust — Software Engineer";
-      if (window.location.pathname !== "/") window.history.pushState({}, "", "/");
-    } else if (activeRepo?.id === repo.id) {
-      const next = remaining[remaining.length - 1] || null;
-      setActiveRepo(next);
-      if (next) window.history.replaceState({ project: next.name }, "", `/projects/${encodeURIComponent(next.name)}`);
-      else { document.title = "Osameh Irandoust — Software Engineer"; window.history.replaceState({}, "", "/"); }
+      // "Back to Portfolio" with no tab to its left lands on Home at Projects.
+      setEditorTabs(current => current.filter(tab => tab.id !== projectTabId(repo)));
+      showHome(true, false, "/projects");
+      return;
     }
+    closeTab(projectTabId(repo));
   };
 
   const goTo = (result: SearchResult) => {
+    if (result.path.startsWith("/case-studies/") && result.path !== "/case-studies") {
+      const study = caseStudies.find(item => `/case-studies/${item.id}` === result.path);
+      if (study) openCaseStudy(study);
+      return;
+    }
     if (result.path.startsWith("/notes/") && result.path !== "/notes") {
       openNote(result.path.slice("/notes/".length));
       return;
@@ -1311,6 +1641,28 @@ export default function Home() {
   useEffect(() => {
     const handlePopState = () => {
       const path = window.location.pathname;
+      const coveredCaseStudyOrigin = caseStudyOriginRef.current;
+      if (activeCaseStudy && coveredCaseStudyOrigin && path === coveredCaseStudyOrigin.path) {
+        cancelSectionScroll();
+        caseStudyOriginRef.current = null;
+        setActiveCaseStudy(null);
+        document.title = "Osameh Irandoust — Software Engineer";
+        // Browser Back is navigation to the Case Studies index, so restore the
+        // canonical section anchor. Escape/close still restores the exact
+        // covered workspace position via useModalDialog.
+        if (coveredCaseStudyOrigin.path === "/case-studies") {
+          setActiveSectionPath("/case-studies");
+          scrollToSection("case-studies", "auto", true);
+        } else {
+          setActiveSectionPath(coveredCaseStudyOrigin.sectionPath);
+        }
+        return;
+      }
+      const caseStudyMatch = path.match(/^\/case-studies\/([a-z0-9-]+)\/?$/i);
+      if (caseStudyMatch) {
+        const study = caseStudies.find(item => item.id === caseStudyMatch[1].toLowerCase());
+        if (study) { openCaseStudy(study, false); return; }
+      }
       const noteMatch = path.match(/^\/notes\/([a-z0-9-]+)\/?$/i);
       if (noteMatch) {
         const slug = noteMatch[1].toLowerCase();
@@ -1328,7 +1680,8 @@ export default function Home() {
         showHome(false, false);
         setActiveSectionPath(section.path);
         const target = section.path === "/projects" ? "work" : section.path === "/home" ? "home" : section.path.slice(1);
-        scrollToSection(target, "auto", section.path === "/notes");
+        const exact = section.path === "/notes" || section.path === "/case-studies";
+        scrollToSection(target, "auto", exact);
         return;
       }
       if (path === "/") { showHome(false); return; }
@@ -1336,7 +1689,7 @@ export default function Home() {
     };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, [repos]);
+  }, [repos, activeCaseStudy, cancelSectionScroll]);
 
   const projectSearchText = (repo: GithubRepo) => {
     const meta = repoMetadata[repo.name];
@@ -1357,7 +1710,7 @@ export default function Home() {
 
   const terminalBaseCommands = [
     "help", "whoami", "ls", "exp", "skills", "projects", "contact", "version", "build", "neofetch",
-    "resume", "recruiter", "now", "changelog", "notes", "health", "status", "diagnostics", "install", "shortcuts", "theme",
+    "resume", "recruiter", "now", "activity", "changelog", "notes", "case-studies", "cases", "capabilities", "palette", "availability", "mood", "mood:list", "accessibility", "health", "status", "diagnostics", "install", "shortcuts", "theme",
     "clear", "sudo hire osameh", "sudo su", "cat welcome.txt",
     ...sections.map(item => item.path),
   ];
@@ -1370,10 +1723,11 @@ export default function Home() {
     if (lower.startsWith("cat note ")) candidates = engineeringNotes.map(note => `cat note ${note.slug}`);
     else if (lower.startsWith("cat ")) candidates = [...projectNames.map(name => `cat ${name}`), "cat note "];
     else if (lower.startsWith("notes ")) candidates = engineeringNotes.flatMap(note => [note.slug, ...note.tags]).map(term => `notes ${term}`);
+    else if (lower.startsWith("case ")) candidates = caseStudies.map(study => `case ${study.id}`);
     else if (lower.startsWith("share ")) candidates = projectNames.map(name => `share ${name}`);
     else if (lower.startsWith("open ")) candidates = ["github", "gitlab", "linkedin", "telegram", "instagram", "whatsapp", "mail", "business"].map(name => `open ${name}`);
     else if (lower.startsWith("search ")) candidates = [...projectTechOptions, ...projectNames].map(term => `search ${term}`);
-    else candidates = [...terminalBaseCommands, "cat ", "cat note ", "notes", "notes ", "health", "share ", "open ", "search "];
+    else candidates = [...terminalBaseCommands, "cat ", "cat note ", "notes", "notes ", "case ", "health", "share ", "open ", "search "];
     return Array.from(new Set(candidates)).filter(candidate => candidate.toLowerCase().startsWith(lower));
   };
 
@@ -1437,10 +1791,19 @@ export default function Home() {
         "resume        open the embedded CV",
         "recruiter     start the guided recruiter tour",
         "now           current focus",
+        "activity      recent GitHub repository activity",
         "changelog     portfolio release history",
         "notes         engineering notes index",
         "notes <text>  search engineering notes",
         "cat note <id> open an engineering note",
+        "case-studies  published client work + capabilities",
+        "case <id>     open a case study directly",
+        "capabilities  list what I can build",
+        "palette       open Command Palette (Ctrl/Cmd+Shift+P)",
+        "availability  current collaboration status",
+        "mood          current portfolio availability mood",
+        "mood:list     list the five availability presets",
+        "accessibility open accessibility controls",
         "health        live origin and GitHub health center",
         "status        local diagnostics",
         "install       install the PWA when available",
@@ -1455,7 +1818,7 @@ export default function Home() {
       return;
     }
     if (command === "version" || command === "--version") {
-      setTerminalLines(lines => [...lines, "› " + raw, `osameh.dev v${BUILD_VERSION}`]);
+      setTerminalLines(lines => [...lines, "› " + raw, `osameh.dev ${formatReleaseLabel(BUILD_VERSION, { uppercase: false })}`]);
       setSearchResults([]); return;
     }
     if (command === "build") {
@@ -1479,13 +1842,16 @@ export default function Home() {
     }
     if (command === "neofetch") {
       setTerminalLines(lines => [...lines, "› " + raw,
-        "        OI // OSAMEH.DEV",
+        "        OSAMEH.DEV // NEURAL CIPHER",
         "  -----------------------------",
         "  Role      Software Engineer",
         "  Focus     Backend · Full-Stack · Systems",
         "  Stack     .NET · C++ · Nuxt · PHP · SQL",
         `  Projects  ${repos.length} public repositories`,
         `  Build     ${BUILD_VERSION}`,
+        ...(BUILD_CODENAME ? [`  Codename  ${BUILD_CODENAME}`] : []),
+        `  Mood      ${availabilityConfig.activeStatus} · ${availabilityProfile.shortLabel}`,
+        `  Cases     ${caseStudies.length} published · ${capabilities.length} capabilities`,
         `  Theme     ${document.documentElement.dataset.theme || "dark"}`,
         `  Network   ${navigator.onLine ? "online" : "offline"}`,
         "  Status    Ready to build_",
@@ -1500,9 +1866,17 @@ export default function Home() {
     if (command === "recruiter" || command === "recruiter-mode") {
       setTerminalLines(lines => [...lines, "› " + raw, "starting recruiter-mode.tour…"]); setSearchResults([]); setRecruiterModeOpen(true); return;
     }
-    if (command === "now") { setTerminalLines(lines => [...lines, "› " + raw, "opening /now…"]); setSearchResults([]); goTo(sections[4]); return; }
-    if (command === "changelog") { setTerminalLines(lines => [...lines, "› " + raw, "opening /changelog…"]); setSearchResults([]); goTo(sections[5]); return; }
-    if (command === "notes") { setTerminalLines(lines => [...lines, "› " + raw, "opening /notes…"]); setSearchResults([]); goTo(sections[7]); return; }
+    if (command === "now") { setTerminalLines(lines => [...lines, "› " + raw, "opening /now…"]); setSearchResults([]); goTo(sectionByPath("/now")); return; }
+    if (command === "activity" || command === "github-activity") { setTerminalLines(lines => [...lines, "› " + raw, "opening /activity…"]); setSearchResults([]); goTo(sectionByPath("/activity")); return; }
+    if (command === "changelog") { setTerminalLines(lines => [...lines, "› " + raw, "opening /changelog…"]); setSearchResults([]); goTo(sectionByPath("/changelog")); return; }
+    if (command === "notes") { setTerminalLines(lines => [...lines, "› " + raw, "opening /notes…"]); setSearchResults([]); goTo(sectionByPath("/notes")); return; }
+    if (command === "case-studies" || command === "cases") { setTerminalLines(lines => [...lines, "› " + raw, `published case studies: ${caseStudies.length}`, ...caseStudies.map(study => `  ${study.id}  ${study.title}`), `capabilities: ${capabilities.length}`, "opening /case-studies…"]); setSearchResults([]); goTo(sectionByPath("/case-studies")); return; }
+    if (command.startsWith("case ")) { const id = raw.slice(5).trim().toLowerCase(); const study = caseStudies.find(item => item.id === id); if (study) { setTerminalLines(lines => [...lines, "› " + raw, `opening case-study/${study.id}.md…`]); setSearchResults([]); openCaseStudy(study); } else { setTerminalLines(lines => [...lines, "› " + raw, `case study not found: ${id}`, "Run `case-studies` to list published work."]); } return; }
+    if (command === "capabilities") { setTerminalLines(lines => [...lines, "› " + raw, `capabilities (${capabilities.length}):`, ...capabilities.map(item => `  ${item.title} — ${item.focus.slice(0, 2).join(" · ")}`)]); setSearchResults([]); return; }
+    if (command === "palette" || command === "command-palette") { setTerminalLines(lines => [...lines, "› " + raw, "opening Command Palette…"]); setSearchResults([]); openUniversalSearch(); return; }
+    if (command === "mood:list") { const statuses = Object.entries(availabilityConfig.profiles).flatMap(([id, profile]) => [`Preset: ${id}`, `  Short label: ${profile.shortLabel}`, `  Public header label: ${profile.label}`]); setTerminalLines(lines => [...lines, "› " + raw, ...statuses]); setSearchResults([]); return; }
+    if (command === "availability" || command === "mood") { setTerminalLines(lines => [...lines, "› " + raw, `mood: ${availabilityConfig.activeStatus}`, availabilityProfile.label]); setSearchResults([]); setAvailabilityOpen(true); return; }
+    if (command === "accessibility" || command === "a11y") { setTerminalLines(lines => [...lines, "› " + raw, "opening accessibility controls…"]); setSearchResults([]); setAccessibilityOpen(true); return; }
     if (command === "health" || command === "status-server") { setTerminalLines(lines => [...lines, "› " + raw, "opening live system health…"]); setSearchResults([]); window.dispatchEvent(new Event("portfolio:diagnostics")); return; }
     if (command.startsWith("cat note ")) { const slug = raw.slice(9).trim().toLowerCase(); const note = engineeringNotes.find(item => item.slug === slug); if (note) { setTerminalLines(lines => [...lines, "› " + raw, `opening ${slug}.md…`]); setSearchResults([]); openNote(note.slug); } else { setTerminalLines(lines => [...lines, "› " + raw, `note not found: ${slug}`]); } return; }
     if (command.startsWith("notes ")) { const noteQuery = raw.slice(6).trim().toLowerCase(); const matches = engineeringNotes.filter(note => `${note.title} ${note.summary} ${note.tags.join(" ")} ${note.slug}`.toLowerCase().includes(noteQuery)); setTerminalLines(lines => [...lines, "› " + raw, matches.length ? `Found ${matches.length} engineering note${matches.length === 1 ? "" : "s"}.` : `No notes match “${noteQuery}”.`]); setSearchResults(matches.map(note => ({ label: note.title, path: `/notes/${note.slug}`, kind: "section" as const }))); return; }
@@ -1526,8 +1900,9 @@ export default function Home() {
     }
     if (command === "ls") {
       const liveTabs = [
-        `${!activeRepo && !notFoundPath ? "*" : " "} ${code.file}  [home]`,
-        ...openedRepos.map(repo => `${activeRepo?.id === repo.id ? "*" : " "} ${repo.name}.md  [project]`),
+        `${activeTabId === HOME_TAB_ID && !activeCaseStudy && !notFoundPath ? "*" : " "} ${code.file}  [home]`,
+        ...editorTabs.map(tab => `${activeTabId === tab.id ? "*" : " "} ${tab.title}  [${tab.kind}]`),
+        ...(activeCaseStudy ? [`* case-study/${activeCaseStudy.id}.md  [case-study]`] : []),
         ...(notFoundPath ? ["* 404.md  [not found]"] : []),
       ];
       setTerminalLines(lines => [...lines, "› " + raw, `open tabs (${liveTabs.length}):`, ...liveTabs, "* = active tab"]);
@@ -1550,7 +1925,7 @@ export default function Home() {
     }
     if (command === "projects") {
       setTerminalLines(lines => [...lines, "› " + raw, `${repos.length} projects loaded from GitHub — scrolling down.`]);
-      setSearchResults([]); goTo(sections[2]); return;
+      setSearchResults([]); goTo(sectionByPath("/projects")); return;
     }
     if (command === "contact") {
       setTerminalLines(lines => [...lines, "› " + raw,
@@ -1619,7 +1994,9 @@ export default function Home() {
       "/home": "home portfolio software engineer",
       "/about": "about profile bio skills stack docker linux wpf dotnet nuxt backend full stack systems",
       "/projects": "projects work repositories github source architecture code technologies",
+      "/case-studies": "case studies client freelance amorella capabilities product delivery modernization communications",
       "/experience": "experience career jobs freelance backend full stack android wordpress",
+      "/activity": "github activity commits repository recent activity",
       "/now": "now current working learning focus",
       "/changelog": "changelog release versions updates history",
       "/notes": "notes engineering blog articles architecture devops security caching github",
@@ -1632,21 +2009,28 @@ export default function Home() {
     const noteMatches = engineeringNotes
       .filter(note => `${note.title} ${note.summary} ${note.tags.join(" ")} ${note.slug}`.toLowerCase().includes(query))
       .map(note => ({ label: note.title, path: `/notes/${note.slug}`, kind: "section" as const }));
-    const matches: SearchResult[] = [...sectionMatches, ...projectMatches, ...noteMatches].filter((item, index, all) => all.findIndex(other => other.kind === item.kind && other.path === item.path) === index);
+    const caseStudyMatches = caseStudies
+      .filter(study => `${study.title} ${study.client} ${study.industry} ${study.stack.join(" ")} ${study.summary}`.toLowerCase().includes(query))
+      .map(study => ({ label: study.title, path: `/case-studies/${study.id}`, kind: "section" as const }));
+    const matches: SearchResult[] = [...sectionMatches, ...projectMatches, ...noteMatches, ...caseStudyMatches].filter((item, index, all) => all.findIndex(other => other.kind === item.kind && other.path === item.path) === index);
     setTerminalLines(lines => [...lines, "› " + raw, matches.length ? "Found " + matches.length + " result" + (matches.length === 1 ? "." : "s.") : "No matches for “" + query + "”."]);
     setSearchResults(matches.slice(0, 10));
     if (!matches.length) showActionToast(`No matches for “${query}”.`, "info");
   };
 
   const paletteCommands: PaletteCommand[] = [
-    { id: "home", label: "Go to Home", hint: "/home", keywords: "home start portfolio", icon: "home", action: () => goTo(sections[0]) },
-    { id: "projects", label: "Go to Projects", hint: "/projects", keywords: "work repos github projects", icon: "code", action: () => goTo(sections[2]) },
-    { id: "about", label: "Go to About", hint: "/about", keywords: "about profile bio", icon: "about", action: () => goTo(sections[1]) },
-    { id: "experience", label: "Go to Experience", hint: "/experience", keywords: "experience jobs career", icon: "experience", action: () => goTo(sections[3]) },
-    { id: "contact", label: "Go to Contact", hint: "/contact", keywords: "contact email social", icon: "contact", action: () => goTo(sections[6]) },
-    { id: "now", label: "Go to Now", hint: "/now", keywords: "now current working learning", icon: "about", action: () => goTo(sections[4]) },
-    { id: "changelog", label: "Open Changelog", hint: "/changelog", keywords: "changelog releases versions updates", icon: "build", action: () => goTo(sections[5]) },
-    { id: "notes", label: "Open Engineering Notes", hint: "/notes", keywords: "notes blog articles engineering architecture devops", icon: "about", action: () => goTo(sections[7]) },
+    { id: "home", label: "Go to Home", hint: "/home", keywords: "home start portfolio", icon: "home", action: () => goTo(sectionByPath("/home")) },
+    { id: "projects", label: "Go to Projects", hint: "/projects", keywords: "work repos github projects", icon: "code", action: () => goTo(sectionByPath("/projects")) },
+    { id: "about", label: "Go to About", hint: "/about", keywords: "about profile bio", icon: "about", action: () => goTo(sectionByPath("/about")) },
+    { id: "experience", label: "Go to Experience", hint: "/experience", keywords: "experience jobs career", icon: "experience", action: () => goTo(sectionByPath("/experience")) },
+    { id: "activity", label: "Open GitHub Activity", hint: "/activity", keywords: "github activity commits repositories recent", icon: "github", action: () => goTo(sectionByPath("/activity")) },
+    { id: "contact", label: "Go to Contact", hint: "/contact", keywords: "contact email social", icon: "contact", action: () => goTo(sectionByPath("/contact")) },
+    { id: "now", label: "Go to Now", hint: "/now", keywords: "now current working learning", icon: "about", action: () => goTo(sectionByPath("/now")) },
+    { id: "changelog", label: "Open Changelog", hint: "/changelog", keywords: "changelog releases versions updates", icon: "build", action: () => goTo(sectionByPath("/changelog")) },
+    { id: "notes", label: "Open Engineering Notes", hint: "/notes", keywords: "notes blog articles engineering architecture devops", icon: "about", action: () => goTo(sectionByPath("/notes")) },
+    { id: "case-studies", label: "Open Case Studies", hint: "/case-studies", keywords: "case studies freelance client work outcomes architecture consulting", icon: "experience", action: () => goTo(sectionByPath("/case-studies")) },
+    { id: "availability", label: t("availabilityTitle"), hint: availabilityProfile.label, keywords: `availability hiring freelance opportunities work recruiter ${availabilityProfile.label}`, icon: "hire", action: () => setAvailabilityOpen(true) },
+    { id: "accessibility", label: t("accessibilityTitle"), hint: "preferences", keywords: "accessibility contrast motion focus larger text wcag", icon: "theme", action: () => setAccessibilityOpen(true) },
     { id: "resume", label: "Open Resume", hint: "resume.pdf", keywords: "resume cv download career", icon: "experience", action: () => window.dispatchEvent(new Event("portfolio:resume")) },
     { id: "recruiter", label: "Start Recruiter Mode", hint: "guided tour", keywords: "recruiter tour featured hiring shortlist", icon: "hire", action: () => setRecruiterModeOpen(true) },
     { id: "diagnostics", label: "System Health Center", hint: "/status", keywords: "status health diagnostics latency system pwa api build github", icon: "build", action: () => window.dispatchEvent(new Event("portfolio:diagnostics")) },
@@ -1661,15 +2045,26 @@ export default function Home() {
     { id: "hire", label: "sudo hire osameh", hint: "easter egg", keywords: "hire sudo easter egg terminal", icon: "hire", action: runHireEasterEgg },
     ...projectTechOptions.slice(0, 80).map((tech, index) => ({ id: `tech-${index}-${String(tech).toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, label: `Filter projects by ${tech}`, hint: "technology", keywords: `technology stack skill filter projects ${tech}`, icon: "code" as const, action: () => exploreTech(String(tech)) })),
     ...engineeringNotes.map(note => ({ id: `note-${note.slug}`, label: `Read note: ${note.title}`, hint: `${note.readingMinutes} min · ${note.tags[0]}`, keywords: `note article blog ${note.slug} ${note.summary} ${note.tags.join(" ")}`, icon: "about" as const, action: () => openNote(note.slug) })),
+    ...capabilities.map(capability => ({ id: `capability-${capability.id}`, label: `Capability: ${capability.title}`, hint: "What I can build", keywords: `capability services freelance ${capability.summary} ${capability.focus.join(" ")} ${capability.technologies.join(" ")}`, icon: "code" as const, action: () => goTo(sectionByPath("/case-studies")) })),
+    ...caseStudies.map(study => ({ id: `case-study-${study.id}`, label: `Case study: ${study.title}`, hint: study.industry, keywords: `case study client freelance ${study.summary} ${study.stack.join(" ")} ${study.relatedSkills.join(" ")}`, icon: "experience" as const, action: () => openCaseStudy(study) })),
+    ...skills.flatMap(([group, ...items]) => items.map((skill, index) => ({ id: `skill-${group}-${index}-${skill}`.toLowerCase().replace(/[^a-z0-9]+/g, "-"), label: `Skill: ${skill}`, hint: group, keywords: `skill technology stack ${group} ${skill}`, icon: "code" as const, action: () => exploreTech(skill) }))),
+    ...roles.map((role, index) => ({ id: `role-${index}`, label: `${role.role} @ ${role.company}`, hint: role.years, keywords: `experience career role company ${role.company} ${role.role} ${role.detail}`, icon: "experience" as const, action: () => goTo(sectionByPath("/experience")) })),
     ...repos.map(repo => ({ id: `project-${repo.id}`, label: `Open project: ${repoMetadata[repo.name]?.project.name || repo.name}`, hint: repoMetadata[repo.name]?.project.type || repo.language || "GitHub", keywords: `project repo ${projectSearchText(repo)}`, icon: "code" as const, action: () => openProject(repo) })),
   ];
   const normalizedCommandQuery = commandQuery.trim().toLowerCase();
-  const filteredPaletteCommands = paletteCommands.filter(item => !normalizedCommandQuery || `${item.label} ${item.hint} ${item.keywords}`.toLowerCase().includes(normalizedCommandQuery));
+  const filteredPaletteCommands = paletteCommands
+    .map(item => ({ item, score: universalSearchScore(normalizedCommandQuery, item) }))
+    .filter(entry => entry.score >= 0)
+    .sort((a, b) => b.score - a.score || a.item.label.localeCompare(b.item.label))
+    .map(entry => entry.item);
   const safeCommandIndex = filteredPaletteCommands.length ? Math.min(commandIndex, filteredPaletteCommands.length - 1) : 0;
   const runPaletteCommand = (item: PaletteCommand) => {
+    // Queue the destination rather than running it here. Behind a still-open
+    // palette a destination would read a frozen body, and its own scroll would
+    // then be overridden by the palette's restore on unlock.
+    pendingPaletteActionRef.current = item.action;
     setCommandPaletteOpen(false);
     setCommandQuery("");
-    item.action();
   };
   const paletteIcon = (icon: PaletteCommand["icon"]) => {
     if (icon === "home") return <HomeIcon size={16} />;
@@ -1686,7 +2081,11 @@ export default function Home() {
     return <Command size={16} />;
   };
   const contextRepo = contextMenu?.repoName ? repos.find(repo => repo.name.toLowerCase() === contextMenu.repoName?.toLowerCase()) || fallbackRepos.find(repo => repo.name.toLowerCase() === contextMenu.repoName?.toLowerCase()) || null : null;
+  const contextNote = contextMenu?.noteSlug ? engineeringNotes.find(note => note.slug === contextMenu.noteSlug) || null : null;
+  const contextCaseStudy = contextMenu?.caseStudyId ? caseStudies.find(study => study.id === contextMenu.caseStudyId) || null : null;
   const projectShareUrl = (repo: GithubRepo) => `${window.location.origin}/projects/${encodeURIComponent(repo.name)}`;
+  const noteShareUrl = (slug: string) => `${window.location.origin}/notes/${encodeURIComponent(slug)}`;
+  const caseStudyShareUrl = (id: string) => `${window.location.origin}/case-studies/${encodeURIComponent(id)}`;
   const runContextAction = (action: () => void) => { setContextMenu(null); action(); };
   const normalizedProjectQuery = projectQuery.trim().toLowerCase();
   const filteredRepos = [...repos].filter(repo => {
@@ -1712,7 +2111,7 @@ export default function Home() {
     // Filtering from the Command Palette should land on the actual filter controls,
     // not at the Featured/Recruiter block above them.
     setNotFoundPath(null);
-    setActiveRepo(null);
+    setActiveTabId(HOME_TAB_ID);
     setActiveSectionPath("/projects");
     setPanelOpen(false);
     document.title = "Osameh Irandoust — Software Engineer";
@@ -1723,7 +2122,7 @@ export default function Home() {
   return (
     <main>
       <header className="topbar">
-        <a href="#home" className="logo-link"><BrandMark /></a>
+        <a href="#home" className="logo-link" aria-label="Osameh Irandoust — home"><BrandMark /></a>
         <div className="ide-file-menu">
           <button className={fileMenuOpen ? "file-menu-trigger active" : "file-menu-trigger"} onClick={() => setFileMenuOpen(open => !open)} aria-expanded={fileMenuOpen} aria-haspopup="menu">File <ChevronDown size={12} /></button>
           {fileMenuOpen && <div className="file-menu-popover" role="menu">
@@ -1736,15 +2135,20 @@ export default function Home() {
             <div className="menu-group"><p><Code2 size={13} /> Programming language</p>
               {(Object.entries(codeProfiles) as [CodeLanguage, typeof code][]).map(([id, profile]) => <button key={id} onClick={() => setCodeLanguage(id)}><span><i className="language-dot" />{profile.label}</span>{codeLanguage === id && <Check size={14} />}</button>)}
             </div>
-            <div className="menu-foot">Preferences save automatically</div>
+            <div className="menu-group accessibility-menu-group"><p><AccessibilityIcon size={13} /> {t("accessibility")}</p>
+              <button onClick={() => { setFileMenuOpen(false); setAccessibilityOpen(true); }}><span><AccessibilityIcon size={14} />{t("accessibilityTitle")}</span><ChevronRight size={14} /></button>
+            </div>
+            <div className="menu-foot">{t("preferencesSaved")}</div>
           </div>}
         </div>
         <nav className={menuOpen ? "nav-links open" : "nav-links"} aria-label="Primary navigation">
-          {[{ label: "about", section: sections[1] }, { label: "work", section: sections[2] }, { label: "experience", section: sections[3] }, { label: "now", section: sections[4] }, { label: "notes", section: sections[7] }, { label: "contact", section: sections[6] }].map(item => <a href={item.section.path} key={item.label} onClick={event => { event.preventDefault(); setMenuOpen(false); goTo(item.section); }}>{item.label}</a>)}
+          {[{ label: t("navAbout"), section: sectionByPath("/about") }, { label: t("navWork"), section: sectionByPath("/projects") }, { label: t("navCaseStudies"), section: sectionByPath("/case-studies") }, { label: t("navExperience"), section: sectionByPath("/experience") }, { label: t("navNow"), section: sectionByPath("/now") }, { label: t("navNotes"), section: sectionByPath("/notes") }, { label: t("navContact"), section: sectionByPath("/contact") }].map(item => <a href={item.section.path} key={item.label} onClick={event => { event.preventDefault(); setMenuOpen(false); goTo(item.section); }}>{item.label}</a>)}
         </nav>
         <div className="header-actions">
           <PwaInstallControl />
-          <span className="availability"><i /> Available for meaningful work</span>
+          <button type="button" className="feature-icon-button universal-search-button" aria-label={t("universalSearch")} title={`${t("universalSearch")} (Ctrl/Cmd + Shift + P)`} onClick={openUniversalSearch}><Search size={16} aria-hidden="true" /></button>
+          <AccessibilityControlButton />
+          <AvailabilityBadge />
           <button className="menu-button" onClick={() => setMenuOpen(!menuOpen)} aria-label="Toggle menu">{menuOpen ? <X size={20} /> : <Menu size={20} />}</button>
         </div>
       </header>
@@ -1769,13 +2173,15 @@ export default function Home() {
           <p className="explorer-title">EXPLORER</p>
           <p className="folder"><ChevronDown size={14} /> OSAMEH-PORTFOLIO</p>
           <button className={activeSectionPath === "/home" && !activeRepo && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/home" && !activeRepo && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => showHome()}><FileCode2 size={15} /> {code.file}</button>
-          <button className={activeSectionPath === "/about" && !activeRepo && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/about" && !activeRepo && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => goTo(sections[1])}><Braces size={15} /> about.json</button>
-          <button className={activeSectionPath === "/projects" && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/projects" && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => goTo(sections[2])}><FileCode2 size={15} /> {code.projects}</button>
-          <button className={activeSectionPath === "/experience" && !activeRepo && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/experience" && !activeRepo && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => goTo(sections[3])}><ChevronRight size={14} /> experience</button>
-          <button className={activeSectionPath === "/now" && !activeRepo && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/now" && !activeRepo && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => goTo(sections[4])}><Zap size={14} /> now.md</button>
-          <button className={activeSectionPath === "/changelog" && !activeRepo && !activeNoteSlug && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/changelog" && !activeRepo && !activeNoteSlug && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => goTo(sections[5])}><RefreshCw size={14} /> changelog.md</button>
-          <button className={activeSectionPath === "/notes" && !activeRepo && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/notes" && !activeRepo && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => activeNoteSlug ? closeNote() : goTo(sections[7])}><Braces size={14} /> engineering-notes</button>
-          <button className={activeSectionPath === "/contact" && !activeRepo && !activeNoteSlug && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/contact" && !activeRepo && !activeNoteSlug && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => goTo(sections[6])}><Mail size={14} /> contact.md</button>
+          <button className={activeSectionPath === "/about" && !activeRepo && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/about" && !activeRepo && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => goTo(sectionByPath("/about"))}><Braces size={15} /> about.json</button>
+          <button className={activeSectionPath === "/projects" && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/projects" && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => goTo(sectionByPath("/projects"))}><FileCode2 size={15} /> {code.projects}</button>
+          <button className={activeSectionPath === "/case-studies" && !activeRepo && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/case-studies" && !activeRepo && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => goTo(sectionByPath("/case-studies"))}><FileCode2 size={14} /> case-studies</button>
+          <button className={activeSectionPath === "/experience" && !activeRepo && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/experience" && !activeRepo && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => goTo(sectionByPath("/experience"))}><ChevronRight size={14} /> experience</button>
+          <button className={activeSectionPath === "/activity" && !activeRepo && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/activity" && !activeRepo && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => goTo(sectionByPath("/activity"))}><Github size={14} /> github-activity</button>
+          <button className={activeSectionPath === "/now" && !activeRepo && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/now" && !activeRepo && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => goTo(sectionByPath("/now"))}><Zap size={14} /> now.md</button>
+          <button className={activeSectionPath === "/changelog" && !activeRepo && !activeNoteSlug && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/changelog" && !activeRepo && !activeNoteSlug && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => goTo(sectionByPath("/changelog"))}><RefreshCw size={14} /> changelog.md</button>
+          <button className={activeSectionPath === "/notes" && !activeRepo && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/notes" && !activeRepo && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => goTo(sectionByPath("/notes"))}><Braces size={14} /> engineering-notes</button>
+          <button className={activeSectionPath === "/contact" && !activeRepo && !activeNoteSlug && !notFoundPath && !resumeOpen ? "file active" : "file"} aria-current={activeSectionPath === "/contact" && !activeRepo && !activeNoteSlug && !notFoundPath && !resumeOpen ? "page" : undefined} onClick={() => goTo(sectionByPath("/contact"))}><Mail size={14} /> contact.md</button>
 
           <div className="explorer-plugins" aria-label="Portfolio tools">
             <p className="explorer-plugins-title"><PanelBottom size={13} /> PORTFOLIO PLUGINS</p>
@@ -1792,10 +2198,20 @@ export default function Home() {
         </aside>
 
         <div className="editor">
-          <div className="tabs-row">
-            <button className={activeRepo || activeNoteSlug || notFoundPath ? "editor-tab" : "editor-tab active"} onClick={() => showHome()}><FileCode2 size={14} /> {code.file}</button>
-            {openedRepos.map(repo => <button key={repo.id} className={activeRepo?.id === repo.id ? "editor-tab project-tab active" : "editor-tab project-tab"} onClick={() => openProject(repo)}><Code2 size={14} /><span>{repo.name}.md</span><X size={12} onClick={event => { event.stopPropagation(); closeProject(repo); }} /></button>)}
-            {activeNoteSlug && <button className="editor-tab project-tab active" onClick={() => openNote(activeNoteSlug, false)}><Braces size={14} /><span>{activeNoteSlug}.md</span><X size={12} onClick={event => { event.stopPropagation(); closeNote(); }} /></button>}
+          <div className="tabs-row" ref={tabsRowRef}>
+            <button aria-current={activeTabId === HOME_TAB_ID && !notFoundPath ? "page" : undefined} className={activeTabId !== HOME_TAB_ID || notFoundPath ? "editor-tab" : "editor-tab active"} onClick={() => showHome(true, true, activeTab?.homeSection)}><FileCode2 size={14} /> {code.file}</button>
+            {editorTabs.map(tab => <button
+              key={tab.id}
+              aria-current={activeTabId === tab.id && !notFoundPath ? "page" : undefined}
+              data-tab-id={tab.id}
+              data-tab-kind={tab.kind}
+              className={activeTabId === tab.id && !notFoundPath ? "editor-tab project-tab active" : "editor-tab project-tab"}
+              onClick={() => tab.kind === "project" ? openProject(tab.repo) : openNote(tab.slug)}
+            >
+              {tab.kind === "project" ? <Code2 size={14} /> : <Braces size={14} />}
+              <span>{tab.title}</span>
+              <X size={12} aria-label={`Close ${tab.title}`} onClick={event => { event.stopPropagation(); closeTab(tab.id); }} />
+            </button>)}
             {notFoundPath && <button className="editor-tab project-tab error-tab active"><FileCode2 size={14} /><span>404.md</span><X size={12} onClick={event => { event.stopPropagation(); showHome(); }} /></button>}
           </div>
 
@@ -1872,12 +2288,12 @@ export default function Home() {
           </section>
 
           <section id="about" className="about section-pad">
-            <div className="section-heading"><span>01</span><div><p>ABOUT.ME</p><h2>Engineering with range.</h2></div></div>
+            <div className="section-heading"><span>01</span><div><p>ABOUT.ME</p><h2>{t("aboutTitle")}</h2></div></div>
             <div className="about-grid">
               <div className="about-copy">
-                <p>I work comfortably across the stack — close to the metal in C++ and Qt, inside production backends with .NET, or crafting polished interfaces with Nuxt.</p>
-                <p>My focus is always the same: <strong>understand the real problem, choose the right level of complexity, and ship work that people can trust.</strong></p>
-                <div className="signal-row"><span><Zap size={15} /> 4+ years in production</span><span><MapPin size={15} /> Tehran, Iran</span></div>
+                <p>{t("aboutP1")}</p>
+                <p><strong>{t("aboutP2")}</strong></p>
+                <div className="signal-row"><span><Zap size={15} /> {t("productionYears")}</span><span><MapPin size={15} /> {t("location")}</span></div>
               </div>
               <div className="skills-viewer">
                 <div className="skills-view-toolbar"><div><button className={skillsView === "code" ? "active" : ""} onClick={() => setSkillsView("code")}><Code2 size={13} /> Code</button><button className={skillsView === "ui" ? "active" : ""} onClick={() => setSkillsView("ui")}><LayoutGrid size={13} /> Preview</button></div><span>{skillsView === "code" ? code.label + " source" : "Visual stack"}</span></div>
@@ -1893,8 +2309,8 @@ export default function Home() {
           </section>
 
           <section id="work" ref={projectsSectionRef} className="work section-pad">
-            <div className="section-heading"><span>02</span><div><p>{code.projects.toUpperCase()}</p><h2>Everything I’m building.</h2></div><div className="section-heading-actions"><button type="button" className="section-link section-link-button" onClick={() => setRecruiterModeOpen(true)}><Command size={15} /> Recruiter mode</button><a href="https://github.com/osameh15?tab=repositories" target="_blank" rel="noreferrer" className="section-link">GitHub profile <ArrowUpRight size={15} /></a></div></div>
-            <p className="projects-intro">A live view of public work enriched by repository-owned <code>portfolio.json</code> metadata. Archived repositories stay out of the way.</p>
+            <div className="section-heading"><span>02</span><div><p>{code.projects.toUpperCase()}</p><h2>{t("projectsTitle")}</h2></div><div className="section-heading-actions"><button type="button" className="section-link section-link-button" onClick={() => setRecruiterModeOpen(true)}><Command size={15} /> {t("recruiterMode")}</button><a href="https://github.com/osameh15?tab=repositories" target="_blank" rel="noreferrer" className="section-link">{t("githubProfile")} <ArrowUpRight size={15} /></a></div></div>
+            <p className="projects-intro">{t("projectsIntro")}</p>
             {metadataState === "loading" && <div className="metadata-loading"><LoaderCircle className="spin" size={14} /> Reading project metadata…</div>}
             <FeaturedProjects repos={repos} metadata={repoMetadata} onOpen={repo => { const full = repos.find(item => item.id === repo.id); if (full) openProject(full); }} onRecruiterMode={() => setRecruiterModeOpen(true)} />
             <div id="project-filter-panel" className="project-controls" aria-label="Project search and filters">
@@ -1924,8 +2340,10 @@ export default function Home() {
             </>}
           </section>
 
+          <CaseStudiesSection onOpen={openCaseStudy} />
+
           <section id="experience" className="experience section-pad">
-            <div className="section-heading"><span>03</span><div><p>EXPERIENCE/</p><h2>Built in the real world.</h2></div></div>
+            <div className="section-heading"><span>04</span><div><p>EXPERIENCE/</p><h2>{t("experienceTitle")}</h2></div></div>
             <div className="experience-layout">
               <div className="role-list">{roles.map((role, index) => <article className="role" key={role.company}>
                 <div className="role-marker"><Circle size={10} fill="currentColor" />{index < roles.length - 1 && <i />}</div>
@@ -1944,10 +2362,10 @@ export default function Home() {
           <EngineeringNotesSection onOpenNote={openNote} />
 
           <section id="contact" className="contact section-pad">
-            <div className="contact-icon"><ServerCog size={27} /></div><p className="eyebrow">READY FOR THE NEXT BUILD</p>
-            <h2>Have a difficult problem?<br /><em>Let’s make it simple.</em></h2>
-            <p>Open to thoughtful engineering roles, ambitious products, and conversations about how software should work.</p>
-            <a href="mailto:osirandoust@gmail.com" className="primary-btn">Start a conversation <Mail size={17} /></a>
+            <div className="contact-icon"><ServerCog size={27} /></div><p className="eyebrow">{t("contactEyebrow")}</p>
+            <h2>{t("contactTitleLead")}<br /><em>{t("contactTitleAccent")}</em></h2>
+            <p>{t("contactCopy")}</p>
+            <a href="mailto:osirandoust@gmail.com" className="primary-btn">{t("contact")} <Mail size={17} /></a>
             <ContactForm fileName={contactFiles[codeLanguage]} />
             <div className="email-options" aria-label="Email contacts">
               <a href="mailto:osirandoust@gmail.com"><span>Personal</span>osirandoust@gmail.com</a>
@@ -1966,7 +2384,7 @@ export default function Home() {
           </>}
         </div>
         {contextMenu && <div className="custom-context-menu" ref={contextMenuRef} role="menu" aria-label="Portfolio context menu">
-          <div className="context-menu-head"><span><Command size={13} /> osameh.dev</span><code>{contextRepo ? contextRepo.name : contextMenu.imageUrl ? "image" : contextMenu.linkUrl ? "link" : "workspace"}</code></div>
+          <div className="context-menu-head"><span><Command size={13} /> osameh.dev</span><code>{contextRepo ? contextRepo.name : contextNote ? `note/${contextNote.slug}` : contextCaseStudy ? `case/${contextCaseStudy.id}` : contextMenu.imageUrl ? "image" : contextMenu.linkUrl ? "link" : "workspace"}</code></div>
           {contextMenu.selection && <div className="context-menu-group"><button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => { void copyText(contextMenu.selection || "", "Selection copied"); })}><Copy size={15} /><span>Copy selection</span><kbd>⌘C</kbd></button></div>}
           {contextMenu.imageUrl && <div className="context-menu-group"><p>IMAGE</p>
             {contextRepo && contextMenu.imageIndex !== undefined && contextMenu.imageIndex >= 0 && <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => setGalleryLightbox({ repo: contextRepo.name, index: contextMenu.imageIndex || 0 }))}><ImageIcon size={15} /><span>Open fullscreen</span><small>Gallery</small></button>}
@@ -1978,25 +2396,38 @@ export default function Home() {
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => window.open(`https://github.com/${GITHUB_OWNER}/${contextRepo.name}`, "_blank", "noopener,noreferrer"))}><Github size={15} /><span>View on GitHub</span><small>Source</small></button>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => { void shareProject(contextRepo).then(ok => showActionToast(ok ? "Project shared" : "Share cancelled")); })}><Send size={15} /><span>Share project</span><small>Native share</small></button>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => { void copyText(projectShareUrl(contextRepo), "Project link copied"); })}><Link2 size={15} /><span>Copy project link</span></button>
-            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => { openProject(contextRepo); window.setTimeout(() => document.getElementById(`gallery-${contextRepo.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 120); })}><ImageIcon size={15} /><span>Open gallery</span><small>{repoGalleries[contextRepo.name]?.length || "Auto"}</small></button>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => { openProject(contextRepo); window.setTimeout(() => document.getElementById(`gallery-${contextRepo.name}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 120); })}><ImageIcon size={15} /><span>Open gallery</span><small>{repoGalleries[contextRepo.name]?.length || "Auto"}</small></button>
           </div>}
-          {contextMenu.linkUrl && <div className="context-menu-group"><p>LINK</p>
+          {contextNote && <div className="context-menu-group"><p>ENGINEERING NOTE</p>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => openNote(contextNote.slug))}><Braces size={15} /><span>Open note</span><small>{contextNote.slug}.md</small></button>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => { void copyText(noteShareUrl(contextNote.slug), "Note link copied"); })}><Link2 size={15} /><span>Copy note link</span></button>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => { if (navigator.share) void navigator.share({ title: contextNote.title, url: noteShareUrl(contextNote.slug) }).catch(() => undefined); else void copyText(noteShareUrl(contextNote.slug), "Note link copied"); })}><Send size={15} /><span>Share note</span><small>{contextNote.readingMinutes} min read</small></button>
+          </div>}
+          {contextCaseStudy && <div className="context-menu-group"><p>CASE STUDY</p>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => openCaseStudy(contextCaseStudy))}><FileCode2 size={15} /><span>Open case study</span><small>{contextCaseStudy.client}</small></button>
+            {contextCaseStudy.siteUrl && <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => window.open(contextCaseStudy.siteUrl, "_blank", "noopener,noreferrer"))}><ExternalLink size={15} /><span>Visit live site</span><small>Client work</small></button>}
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => { if (navigator.share) void navigator.share({ title: contextCaseStudy.title, url: caseStudyShareUrl(contextCaseStudy.id) }).catch(() => undefined); else void copyText(caseStudyShareUrl(contextCaseStudy.id), "Case study link copied"); })}><Send size={15} /><span>Share case study</span><small>Native share</small></button>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => { void copyText(caseStudyShareUrl(contextCaseStudy.id), "Case study link copied"); })}><Link2 size={15} /><span>Copy case study link</span></button>
+          </div>}
+          {contextMenu.linkUrl && !contextNote && !contextCaseStudy && <div className="context-menu-group"><p>LINK</p>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => { window.location.href = contextMenu.linkUrl || "#"; })}><ExternalLink size={15} /><span>Open link</span><small>{contextMenu.linkLabel?.slice(0, 20)}</small></button>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => window.open(contextMenu.linkUrl || "", "_blank", "noopener,noreferrer"))}><ExternalLink size={15} /><span>Open in new tab</span></button>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => { void copyText(contextMenu.linkUrl || "", "Link copied"); })}><Copy size={15} /><span>Copy link</span></button>
           </div>}
-          {!contextRepo && !contextMenu.imageUrl && !contextMenu.linkUrl && <div className="context-menu-group"><p>NAVIGATE</p>
-            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => goTo(sections[0]))}><HomeIcon size={15} /><span>Home</span><small>/home</small></button>
-            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => goTo(sections[2]))}><Code2 size={15} /><span>Projects</span><small>/projects</small></button>
-            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => goTo(sections[1]))}><Braces size={15} /><span>About</span><small>/about</small></button>
-            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => goTo(sections[3]))}><FileCode2 size={15} /><span>Experience</span><small>/experience</small></button>
-            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => goTo(sections[4]))}><Zap size={15} /><span>Now</span><small>/now</small></button>
-            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => goTo(sections[5]))}><RefreshCw size={15} /><span>Changelog</span><small>/changelog</small></button>
-            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => goTo(sections[7]))}><Braces size={15} /><span>Engineering Notes</span><small>/notes</small></button>
-            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => goTo(sections[6]))}><Mail size={15} /><span>Contact</span><small>/contact</small></button>
+          {!contextRepo && !contextNote && !contextCaseStudy && !contextMenu.imageUrl && !contextMenu.linkUrl && <div className="context-menu-group"><p>NAVIGATE</p>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => goTo(sectionByPath("/home")))}><HomeIcon size={15} /><span>Home</span><small>/home</small></button>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => goTo(sectionByPath("/about")))}><Braces size={15} /><span>About</span><small>/about</small></button>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => goTo(sectionByPath("/projects")))}><Code2 size={15} /><span>Projects</span><small>/projects</small></button>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => goTo(sectionByPath("/case-studies")))}><FileCode2 size={15} /><span>Case Studies</span><small>/case-studies</small></button>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => goTo(sectionByPath("/experience")))}><FileCode2 size={15} /><span>Experience</span><small>/experience</small></button>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => goTo(sectionByPath("/activity")))}><Github size={15} /><span>GitHub Activity</span><small>/activity</small></button>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => goTo(sectionByPath("/now")))}><Zap size={15} /><span>Now</span><small>/now</small></button>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => goTo(sectionByPath("/changelog")))}><RefreshCw size={15} /><span>Changelog</span><small>/changelog</small></button>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => goTo(sectionByPath("/notes")))}><Braces size={15} /><span>Engineering Notes</span><small>/notes</small></button>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => goTo(sectionByPath("/contact")))}><Mail size={15} /><span>Contact</span><small>/contact</small></button>
           </div>}
           <div className="context-menu-group"><p>WORKSPACE</p>
-            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => { setCommandQuery(""); setCommandIndex(0); setCommandPaletteOpen(true); })}><Command size={15} /><span>Command Palette</span><kbd>⌘K</kbd></button>
+            <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(openUniversalSearch)}><Command size={15} /><span>Command Palette</span><kbd>⇧⌘P</kbd></button>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => openTerminal())}><Terminal size={15} /><span>Open Terminal</span><kbd>`</kbd></button>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => window.dispatchEvent(new Event("portfolio:resume")))}><FileCode2 size={15} /><span>Open Resume</span><small>PDF</small></button>
             <button className="context-menu-item" role="menuitem" onClick={() => runContextAction(() => setRecruiterModeOpen(true))}><Command size={15} /><span>Recruiter mode</span><small>tour</small></button>
@@ -2011,17 +2442,17 @@ export default function Home() {
           <div className="context-menu-foot"><span>{BUILD_DISPLAY}</span><span><kbd>↑↓</kbd> navigate · <kbd>Esc</kbd> close</span></div>
         </div>}
         {commandPaletteOpen && <div className="command-palette-backdrop" role="presentation" onMouseDown={() => setCommandPaletteOpen(false)}>
-          <section className="command-palette" role="dialog" aria-modal="true" aria-label="Command Palette" onMouseDown={event => event.stopPropagation()}>
-            <div className="command-palette-search"><Search size={17} /><input ref={commandPaletteInputRef} value={commandQuery} onChange={event => setCommandQuery(event.target.value)} onKeyDown={event => {
+          <section ref={commandPaletteDialogRef} tabIndex={-1} className="command-palette" role="dialog" aria-modal="true" aria-label={t("universalSearch")} onMouseDown={event => event.stopPropagation()}>
+            <div className="command-palette-search"><Search size={17} /><input ref={commandPaletteInputRef} value={commandQuery} onChange={event => { setCommandQuery(event.target.value); setCommandIndex(0); }} onKeyDown={event => {
               if (event.key === "Escape") { event.preventDefault(); setCommandPaletteOpen(false); return; }
               if (event.key === "ArrowDown") { event.preventDefault(); if (filteredPaletteCommands.length) setCommandIndex(index => (Math.min(index, filteredPaletteCommands.length - 1) + 1) % filteredPaletteCommands.length); return; }
               if (event.key === "ArrowUp") { event.preventDefault(); if (filteredPaletteCommands.length) setCommandIndex(index => (Math.min(index, filteredPaletteCommands.length - 1) - 1 + filteredPaletteCommands.length) % filteredPaletteCommands.length); return; }
               if (event.key === "Enter" && filteredPaletteCommands[safeCommandIndex]) { event.preventDefault(); runPaletteCommand(filteredPaletteCommands[safeCommandIndex]); }
-            }} placeholder="Search commands, projects, technologies…" aria-label="Search commands" autoComplete="off" /><kbd>ESC</kbd></div>
-            <div ref={commandPaletteListRef} className="command-palette-list" role="listbox" aria-label="Available commands">
-              {filteredPaletteCommands.length ? filteredPaletteCommands.map((item, index) => <button key={item.id} className={index === safeCommandIndex ? "active" : ""} role="option" aria-selected={index === safeCommandIndex} onMouseEnter={() => setCommandIndex(index)} onClick={() => runPaletteCommand(item)}><span className="command-palette-icon">{paletteIcon(item.icon)}</span><span><b>{item.label}</b><small>{item.hint}</small></span><CornerDownLeft size={13} /></button>) : <div className="command-palette-empty"><Search size={18} /><span>No command matches “{commandQuery}”.</span></div>}
+            }} placeholder={t("universalSearchPlaceholder")} aria-label={t("universalSearch")} autoComplete="off" /><kbd>ESC</kbd></div>
+            <div ref={commandPaletteListRef} className="command-palette-list modal-scroll-viewport" role="listbox" aria-label="Available commands">
+              {filteredPaletteCommands.length ? filteredPaletteCommands.map((item, index) => <button key={item.id} className={index === safeCommandIndex ? "active" : ""} role="option" aria-selected={index === safeCommandIndex} onMouseEnter={() => setCommandIndex(index)} onClick={() => runPaletteCommand(item)}><span className="command-palette-icon">{paletteIcon(item.icon)}</span><span><b>{item.label}</b><small>{item.hint}</small></span><CornerDownLeft size={13} /></button>) : <div className="command-palette-empty"><Search size={18} /><span>{t("noResults")} {commandQuery && <>“{commandQuery}”</>}</span></div>}
             </div>
-            <div className="command-palette-foot"><span><kbd>↑</kbd><kbd>↓</kbd> navigate</span><span><kbd>↵</kbd> run</span><span><kbd>esc</kbd> close</span><code>{BUILD_VERSION}</code></div>
+            <div className="command-palette-foot"><span><kbd>↑</kbd><kbd>↓</kbd> navigate</span><span><kbd>↵</kbd> run</span><span><kbd>esc</kbd> close</span><code>{formatReleaseLabel(BUILD_VERSION)}</code></div>
           </section>
         </div>}
         {actionToast && <div className={`action-toast ${actionToast.kind}`} role={actionToast.kind === "error" ? "alert" : "status"} aria-live={actionToast.kind === "error" ? "assertive" : "polite"}>
@@ -2029,6 +2460,12 @@ export default function Home() {
           <span>{actionToast.message}</span>
         </div>}
         {compareRepos.length > 0 && <div className="compare-bar"><span><Code2 size={14} /> Compare queue</span><div>{compareRepos.map(repo => <button key={repo.id} onClick={() => toggleCompareRepo(repo)}>{repo.name} <X size={12} /></button>)}</div><button className="compare-run" disabled={compareRepos.length !== 2} onClick={() => { if (compareRepos.length === 2) { setCompareModalOpen(true); trackEvent("project_compare", compareRepos.map(repo => repo.name).join(" vs ")); } }}>{compareRepos.length === 2 ? "Compare 2 projects" : "Select one more"}</button></div>}
+        <CaseStudyModal
+          study={activeCaseStudy}
+          onClose={() => closeCaseStudy()}
+          restorePosition={caseStudyOriginRef.current ? { x: caseStudyOriginRef.current.scrollX, y: caseStudyOriginRef.current.scrollY } : undefined}
+        />
+        <PortfolioFeatureModals />
         <RecruiterMode open={recruiterModeOpen} repos={repos} metadata={repoMetadata} onClose={() => setRecruiterModeOpen(false)} onOpenProject={repo => { const full = repos.find(item => item.id === repo.id); if (full) openProject(full); }} />
         <ResumeViewer onOpenChange={setResumeOpen} />
         <BuildInfoModal />
@@ -2040,7 +2477,7 @@ export default function Home() {
           const image = gallery[galleryLightbox.index];
           if (!image) return null;
           const move = (direction: number) => setGalleryLightbox(current => current ? { ...current, index: (current.index + direction + gallery.length) % gallery.length } : current);
-          return <div className="gallery-lightbox" role="dialog" aria-modal="true" aria-label={`${galleryLightbox.repo} image gallery`} onClick={() => setGalleryLightbox(null)}>
+          return <div ref={galleryDialogRef} tabIndex={-1} className="gallery-lightbox" role="dialog" aria-modal="true" aria-label={`${galleryLightbox.repo} image gallery`} onClick={() => setGalleryLightbox(null)}>
             <button type="button" className="gallery-lightbox-close" onClick={() => setGalleryLightbox(null)} aria-label="Close gallery"><X size={20} /></button>
             {gallery.length > 1 && <button type="button" className="gallery-lightbox-nav previous" onClick={event => { event.stopPropagation(); move(-1); }} aria-label="Previous image"><ChevronLeft size={24} /></button>}
             <figure onClick={event => event.stopPropagation()}>
@@ -2088,7 +2525,7 @@ export default function Home() {
           </div>}
         </section>}
         <div className="status-bar">
-          <span><Github size={12} /> main*</span><button type="button" className="status-build status-build-button" title={`${BUILD_ID} · built ${BUILD_TIME}`} onClick={() => window.dispatchEvent(new Event("portfolio:build"))}>{BUILD_VERSION}</button><span className="status-online"><i /> {code.label} mode</span>
+          <span><Github size={12} /> main*</span><button type="button" className="status-build status-build-button" title={`${BUILD_ID} · built ${BUILD_TIME}`} onClick={() => window.dispatchEvent(new Event("portfolio:build"))}>v{BUILD_VERSION}{BUILD_CODENAME && <> · <b>{BUILD_CODENAME.toUpperCase()}</b></>}</button><span className="status-online"><i /> {code.label} mode</span>
           <button onClick={() => { if (panelOpen) setPanelOpen(false); else openTerminal(); }}><PanelBottom size={13} /> {panelOpen ? "Close panel" : "Open panel"}</button>
         </div>
       </div>

@@ -228,10 +228,8 @@ function serveSourceFile(string $repo, string $requestedPath): never
     $repository = repositoryRecord($repo);
     if ($repository === null) respondJson(['error' => 'Repository not found'], 404);
 
-    $path = trim(rawurldecode($requestedPath));
-    $path = str_replace('\\', '/', $path);
-    $path = ltrim($path, '/');
-    if ($path === '' || str_contains($path, "\0") || preg_match('#(^|/)\.\.(/|$)#', $path)) {
+    $path = normalizeRepositoryRelativePath($requestedPath);
+    if ($path === null) {
         respondJson(['error' => 'Invalid source path'], 400);
     }
 
@@ -395,6 +393,37 @@ function sourceLanguage(string $path): string
         'sh', 'ps1', 'bat', 'cmd' => 'shell',
         default => $extension !== '' ? $extension : 'text',
     };
+}
+
+/**
+ * Normalizes a repository-relative path and rejects anything that is not one.
+ *
+ * A leading dot is a normal repository directory (.idea, .github, .vscode) and
+ * must be allowed; only a path segment that is exactly ".." is traversal. The
+ * value arrives already percent-decoded once, by PHP for a query parameter or
+ * by mod_rewrite for a path segment, so it is deliberately NOT decoded again
+ * here: a second decode would let a double-encoded "%252e%252e" become "..".
+ *
+ * Returns the normalized path, or null when the input is not usable.
+ */
+function normalizeRepositoryRelativePath(string $raw): ?string
+{
+    $path = str_replace('\\', '/', trim($raw));
+    if ($path === '') return null;
+    // Null bytes and any other C0/C1 control character.
+    if (preg_match('/[\x00-\x1F\x7F]/', $path)) return null;
+    // Absolute filesystem paths, Windows drive letters and protocol/host
+    // injection can never be repository-relative.
+    if (str_starts_with($path, '/') || preg_match('#^[A-Za-z][A-Za-z0-9+.\-]*:#', $path)) return null;
+
+    $segments = [];
+    foreach (explode('/', $path) as $segment) {
+        if ($segment === '' || $segment === '.') continue;
+        if ($segment === '..') return null;
+        $segments[] = $segment;
+    }
+    if (!$segments) return null;
+    return implode('/', $segments);
 }
 
 function encodeRepositoryPath(string $path): string

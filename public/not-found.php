@@ -1,13 +1,13 @@
 <?php
 declare(strict_types=1);
 
-// ParsPack CDN replaces upstream 404 bodies with its own error document.
-// Return 200 so the SPA shell reaches the browser, while explicit noindex
-// headers/meta keep unknown routes out of search indexes. React still renders
-// the IDE-style 404 workspace based on window.location.pathname.
-http_response_code(200);
+// A genuine 404 status carrying our own IDE-style shell as the body. The edge
+// passes origin errors through, so the browser keeps the original URL and React
+// renders the 404 workspace from window.location.pathname. Unknown routes are
+// never cached: they are invalid by definition and may become valid later.
+http_response_code(404);
 header('Content-Type: text/html; charset=utf-8');
-header('Cache-Control: no-cache, must-revalidate');
+header('Cache-Control: no-store, max-age=0');
 header('X-Robots-Tag: noindex, nofollow');
 header('X-Portfolio-Route-Status: 404');
 

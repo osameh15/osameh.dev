@@ -16,7 +16,12 @@ A production portfolio for **Osameh Irandoust**, designed as an IDE-inspired wor
 - Per-project architecture viewer and same-origin public source explorer
 - Live project metrics with language percentages, license, repository size, update signals, and latest release data
 - Metadata-driven project case studies, search, technology filters, sorting, and two-project comparison
-- Context-aware custom context menu and `Ctrl/Cmd + K` Command Palette
+- Published freelance/client case studies with deep links and crawler metadata, plus a separate “What I can build” capability layer
+- Central availability status surfaced in the header and Terminal, driven by one config file with five preset states and an optional manual GitHub Actions updater
+- Accessibility Control Center with persistent motion, contrast, text-size, and focus preferences
+- Ranked Command Palette search integrated into the IDE command surface, with one visible header action and one `Ctrl/Cmd + Shift + P` shortcut
+- English-only product interface with a fixed `lang="en"` / `dir="ltr"` document contract
+- Context-aware custom context menu and IDE-style ranked Command Palette
 - Interactive terminal with the backtick (`) shortcut, autofocus, resize/maximize support, and developer commands
 - Built-in resume viewer and packaged PDF CV
 - Installable PWA with offline shell and service worker
@@ -203,6 +208,10 @@ ls
 exp
 skills
 projects
+case-studies
+activity
+availability
+accessibility
 cat <repo>
 contact
 open <service>
@@ -230,7 +239,7 @@ The terminal panel can be vertically resized by dragging its top handle, maximiz
 ## Keyboard navigation
 
 ```text
-Ctrl/Cmd + K   Command Palette
+Ctrl/Cmd + Shift + P   Command Palette
 `              Toggle terminal
 G then H       Home
 G then A       About
@@ -301,7 +310,7 @@ A read-only fine-grained token scoped to public repository contents is sufficien
 
 Requirements:
 
-- Node.js 20+
+- Node.js >=20.19.0 or >=22.12.0
 - npm
 - PHP 8+ for local API testing
 
@@ -323,6 +332,15 @@ Create the production build:
 npm run build
 ```
 
+Run the browser regression suite locally:
+
+```bash
+npm run test:e2e:install   # one-time Chromium + OS dependencies
+npm run test:e2e
+```
+
+Playwright Test is pinned as a project devDependency, so local and CI runs use the same test-runner version instead of downloading an ephemeral `npx playwright` CLI.
+
 The build pipeline:
 
 1. generates the current build ID and timestamp
@@ -334,15 +352,25 @@ The build pipeline:
 
 ## Dynamic SEO and discovery
 
-Project deep links are rendered through a small PHP metadata layer before React starts. Each `/projects/<repo>` response can include repository-owned title/description data, project-specific Open Graph metadata, `SoftwareSourceCode` / `SoftwareApplication` structured data, and breadcrumbs. Engineering-note deep links receive `TechArticle` structured data.
+Project deep links are rendered through a small PHP metadata layer before React starts. Each `/projects/<repo>` response can include repository-owned title/description data, project-specific Open Graph metadata, `SoftwareSourceCode` / `SoftwareApplication` structured data, and breadcrumbs. Engineering-note deep links receive `TechArticle` structured data. Professional case-study deep links receive privacy-safe Article/breadcrumb metadata through the same server-rendered discovery layer.
 
-`/sitemap.xml` is generated dynamically from the current public GitHub repositories plus the note manifest, with a checked-in static sitemap retained as a fallback.
+`/sitemap.xml` is generated dynamically from the current public GitHub repositories, Engineering Notes, and case-study manifest, with a checked-in static sitemap retained as a fallback.
 
 ## Staging and quality gates
 
-Production remains tied to `main`. The `develop` branch has a dedicated `staging.yml` workflow for `staging.osameh.dev`; the staging bundle removes canonical/OG URL metadata from the base document and forces `noindex,nofollow,noarchive` through both HTML/robots and response headers.
+Production and staging are deliberately isolated deployment channels:
 
-Quality gates now cover repository metadata, PHP syntax, TypeScript, deployment-bundle verification, local-link checks, browser E2E smoke, baseline accessibility assertions, and Lighthouse accessibility/best-practices/SEO thresholds.
+```text
+feature/* → develop → quality/E2E/Lighthouse → staging.osameh.dev
+                                      ↓ approved promotion
+                                    main → quality/E2E/Lighthouse → osameh.dev
+```
+
+`develop` uses `.github/workflows/staging.yml` and **only** the five `STAGING_FTP_*` secrets. `main` uses `.github/workflows/deploy.yml` and **only** the five production `FTP_*` secrets. Both call the reusable `quality.yml` workflow first. The deploy job cannot start until that quality job passes, and it downloads the exact `dist/` artifact that already passed build verification, Playwright E2E, and Lighthouse. The five names are intentionally asymmetric and must stay exactly as configured: staging uses `STAGING_FTP_HOST`, `STAGING_FTP_PORT`, `STAGING_FTP_USERNAME`, `STAGING_FTP_PASSWORD`, `STAGING_FTP_CERT_FINGERPRINT`; production uses `FTP_HOST`, `FTP_PORT`, `FTP_USERNAME`, `FTP_PASSWORD`, `FTP_CERT_FINGERPRINT`.
+
+The staging bundle removes canonical/OG URL metadata from the base document and forces `noindex,nofollow,noarchive` through HTML, `robots.txt`, and response headers. Production remains indexable.
+
+Quality gates cover repository metadata, availability configuration, PHP syntax, TypeScript, deployment-bundle verification, local-link checks, browser E2E smoke, accessibility behavior, modal-scroll regressions, navigation ordering, and Lighthouse accessibility/best-practices/SEO thresholds.
 
 ## System Health Center
 
@@ -353,6 +381,45 @@ Quality gates now cover repository metadata, PHP syntax, TypeScript, deployment-
 Notes are stored as Markdown under `public/notes-content/` and indexed by `public/notes-index.json`. The index renders notes in batches of six as the library grows. Each article provides reading time, tags, deep links, a scroll-synchronized table of contents with active-section state, copyable code blocks, and sharing. Notes are also discoverable from Command Palette and Terminal (`notes`, `notes <text>`, `cat note <slug>`).
 
 On tablet and mobile, the table of contents becomes a sticky horizontal navigation strip instead of disappearing. Returning from an article restores the Engineering Notes index at its section anchor.
+
+## v5 product layer
+
+Version 5.0.0 expands the portfolio with four product-facing capabilities built on top of the 4.2.2 IDE shell and semantic theme system:
+
+- **Freelance / Client Case Studies** — public, verifiable client work is separated from capability cards. The first published case study is **Amorella Beauty** (`https://amorellabeauty.ir/`); three experience-backed capability areas describe the kinds of systems I can build without presenting them as named client projects.
+- **Portfolio Mood / Availability Control** — one central availability configuration drives the header status, recruiter-facing availability details, Terminal/Search metadata, and contact CTA.
+- **Accessibility Control Center** — persistent reduced-motion, increased-contrast, larger-text, and enhanced-focus preferences with OS reduced-motion support.
+- **Ranked search** — the IDE Command Palette ranks navigation, projects, notes, case studies, skills, experience, and settings instead of relying on raw substring filtering.
+
+Accessibility preferences are centralized in `FeaturePreferencesProvider`, while availability is driven by the repository-owned mood configuration described below.
+
+### Changing Portfolio Mood
+
+Availability is intentionally data-driven. The UI does not need to be edited when your status changes. The single source of truth is:
+
+```text
+config/availability.json
+```
+
+The built-in profiles are:
+
+```text
+open            Open to opportunities
+selective       Open to selected opportunities
+freelance       Available for freelance work
+focused         Heads down — limited availability
+unavailable     Not currently available
+```
+
+Change it locally with:
+
+```bash
+npm run mood -- freelance
+```
+
+Or run **Actions → Set portfolio mood** and choose a preset. The workflow commits only `config/availability.json` to `develop`; the normal staging quality/deploy pipeline then verifies the change on `staging.osameh.dev`. Production still requires the normal `develop → main` promotion.
+
+The active profile controls the header badge, Availability modal, Terminal/Command Palette status, CTA visibility, description, opportunity types, work modes, and timezone from the same config. To see all presets locally, run `npm run mood:list`. Legacy commands `open-selective` and `limited` are accepted as aliases for `selective` and `focused`. Every generated `build-info.json` also exposes `availabilityMood`, so staging/production can be checked to confirm which mood is actually deployed.
 
 ## Deployment
 
@@ -372,9 +439,11 @@ public_html/
 │   └── health.php
 ├── notes-content/
 ├── notes-index.json
+├── case-studies-index.json
+├── case-study.php
 ├── icons/
 ├── resume/
-├── favicon.svg
+├── og-cover-social.jpg
 ├── manifest.webmanifest
 ├── sw.js
 ├── robots.txt
@@ -434,74 +503,67 @@ The site also includes an in-app resume viewer and download/open controls.
 
 ## Release history
 
-The most recent releases are summarized here. See **[CHANGELOG.md](CHANGELOG.md)** for the complete production history.
+The **six most recent releases** are summarized here. See **[CHANGELOG.md](docs/CHANGELOG.md)** for the complete production history. This section is intentionally capped at six releases.
 
-### v4.2.2 — Contrast-test reliability patch
+### v5.2.0 — Cipher
 
-- Corrected the Engineering Notes contrast selector to match the real Notes index markup.
-- Added fail-fast visibility assertions for every contrast target so CI reports the missing surface directly instead of timing out after 30 seconds.
+- New **Neural Cipher** visual identity across the header, favicons, Apple touch icon, PWA install icons, and the Resume Viewer.
+- Release codenames under the **Cyber Noir** theme. Starting with 5.2, each official major/minor family receives one codename, so every 5.2.x patch is Cipher. The version and codename appear in the status bar, Build Information, and Terminal.
+- Refreshed social sharing artwork.
+- Editor tabs now scroll the active tab into view on narrow screens instead of leaving it off-strip.
 
-### v4.2.1 — Release-test & navigation polish
+### v5.1.1 — Editor tabs, Source Explorer, Service Worker, 404 & mobile tour hotfix
 
-- Fixed the Playwright strict-mode collision between Skills Preview and the Resume Viewer preview plugin.
-- The automatically active Gallery control now scrolls fully into view in the mobile project toolbar.
-- Engineering Note return navigation now lands at the Notes index immediately instead of animating through Changelog.
+- Hardened GitHub repository path normalization so dot-prefixed directories stay previewable while traversal, absolute paths, and protocol injection remain blocked.
+- Source Explorer now recovers from a failed or stale file request: the tree stays usable, the failure is shown inline with a retry, and a late response can no longer replace the file you selected.
+- Fixed the Service Worker `Response.clone()` failure and kept `/api/` responses out of the cache entirely.
+- Made the Recruiter Mode tour fully usable on 320-412px mobile viewports.
+- Unknown URLs return a real HTTP 404 while keeping the custom IDE 404 UI.
+- Unified the editor-tab lifecycle: projects and Engineering Notes coexist as independent tabs, selecting Home no longer closes them, closing a tab activates the one to its left, and returning Home restores the section that tab came from.
+- Closing a project returns to the Projects section.
+- The build-information panel reports the environment it is actually running in.
 
-### v4.2.0 — Cohesive light-theme redesign
+### v5.1.0 — Interaction reliability & developer UX
 
-- Semantic light-theme tokens now govern canvases, surfaces, text, accents and borders.
-- Hero, Skills Preview, tabs, projects, Notes, Recruiter Mode, 404 and modal surfaces were redesigned as one coherent light system.
-- Compare controls and the floating queue now use explicit high-contrast selected and interactive states.
-- Browser coverage checks representative foreground/background pairs against WCAG contrast thresholds.
+- standardizes the Install, Command Palette, Accessibility, and Portfolio Mood header controls, including true vertical icon/label centering
+- consolidates site-wide ranked search into a single **Command Palette** with one `Ctrl/Cmd + Shift + P` shortcut
+- shows the full active Portfolio Mood message in the header (for example, `Open to selected opportunities`)
+- unifies scrollbars across the IDE with transparent tracks, low-opacity thumbs that become fully visible on hover, removes reserved modal scrollbar gutters, and keeps modal title dividers/content margins edge-to-edge and symmetric
+- adds dedicated right-click actions for Engineering Notes and Case Studies
+- expands Terminal commands for Case Studies, capabilities, GitHub Activity, Portfolio Mood, Accessibility, and the Command Palette
+- hardens the new v5 surfaces against Light Theme transition drift, mobile Gallery end-state flakiness, and context-menu/route-scroll races
 
-### v4.1.2 — Mobile toolbar finishing pass
+### v5.0.0 — Portfolio product layer
 
-- centered the PWA download glyph through a dedicated square icon frame instead of font-size-based label hiding
-- made Gallery activate automatically in the mobile project toolbar at the end of the document
-- positioned the sticky Engineering Notes navigation below both the app header and editor tabs on tablet/mobile
-- added focused responsive regression coverage for all three behaviors
+- adds published freelance/client Case Studies, beginning with Amorella Beauty, plus a separate **What I can build** capability layer
+- introduces a five-state **Portfolio Mood** system for availability, editable from `config/availability.json`, local npm commands, or the **Set portfolio mood** GitHub Action
+- adds an Accessibility Control Center with persistent Reduce Motion, Increased Contrast, Larger Text, and Enhanced Focus preferences
+- upgrades the IDE command surface into ranked search across projects, Engineering Notes, case studies, skills, experience, navigation, and settings
+- adds GitHub Activity to Explorer/Outline navigation in the same sequence as the document and extends the v4.2 semantic light-theme system across every new v5 surface
+- separates staging and production deployment credentials while requiring the reusable quality pipeline and tested artifact before either environment can deploy
 
-### v4.1.1 — Notes navigation stabilization
+### v4.2.2 — Specter · Light-theme regression hardening
 
-- made Engineering Note return positioning commit-aware and resistant to browser scroll restoration/layout shifts
-- scoped article heading IDs and TOC queries so the sidebar cannot collide with the surrounding IDE shell
-- stabilized repeated TOC selection during smooth scrolling while preserving immediate manual-scroll tracking
-- vertically centered the compact mobile download/install icon and added focused browser regression coverage
+- keeps the 4.2 semantic light-theme redesign protected by stricter Engineering Notes and primary-surface contrast regressions
+- follows the 4.2.1 mobile gallery/notes restoration fixes and the 4.2.0 cross-shell light-theme redesign
 
-### v4.1.0 — Responsive polish & notes navigation
+### v4.2.1 — Light-theme and mobile regressions
 
-- strengthened light-theme contrast across activity, Notes, Source Explorer, Health Center, Changelog, and modal surfaces
-- Engineering Notes render six at a time and article TOC selection now follows scrolling/clicks reliably
-- fixed note-return scroll position, Health Center incomplete-row background, and release-node selection behavior
-- modals are capped to a scrollable 75vh and project quick access becomes a mobile bottom navigation rail
+- tightened light-theme Skills Preview contrast checks
+- kept the mobile project Gallery quick-access item visible when active at the end of the document
+- made Engineering Notes restoration deterministic by bypassing smooth scrolling on return
 
-### v4.0.0 — Production engineering layer
 
-- added dynamic project/note structured data and a runtime sitemap covering public repositories and engineering notes
-- added `develop` → `staging.osameh.dev` delivery with explicit noindex protection
-- added CI quality gates, Playwright browser smoke, accessibility checks, bundle/link validation, and Lighthouse thresholds
-- upgraded System Diagnostics into a live privacy-safe Health Center backed by `/api/health`
-- added Markdown Engineering Notes with deep links, TOC, code copy, share, Terminal search, and Command Palette access
+## Documentation
 
-### v3.1.1 — Alignment & source status polish
-
-- aligned the changelog intro label with its adjacent explanatory copy
-- fixed Source Explorer footer clipping and vertically centered language, file size, and line count
-- added subtle status separators with dark/light theme support
-
-### v3.1.0 — Interactive hero & source polish
-
-- added subtle pointer parallax, animated counters, mini-terminal status, and language-aware Stack Surface content to the custom hero showcase
-- Source Explorer gives the repository tree its own visible scroll area and shows a dedicated loading state while file content is fetched
-- project quick-access rail is masked behind opaque icon pads so the vertical line never crosses through toolbar icons
-
-### v3.0.5 — Hero showcase redesign
-
-- replaced the generic orbit-style hero graphic with a custom engineering showcase
-- added workflow, impact, stack, and build-rhythm panels tailored to the portfolio’s engineering identity
-- introduced dedicated dark/light styling for the new first-screen experience
-
-**Full history:** [CHANGELOG.md](CHANGELOG.md)
+| Document | Contents |
+| --- | --- |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Runtime architecture — request path, routing and the true-404 contract, CDN contracts, GitHub proxy, Service Worker, shared modal foundation |
+| [`docs/CI-CD.md`](docs/CI-CD.md) | CI/CD pipeline reference — workflow inputs, step ordering, artifact phases, indexing contracts, quality gates, deployment gating |
+| [`docs/TESTING.md`](docs/TESTING.md) | What each command verifies, local vs CI vs staging boundaries, Playwright coverage, staging acceptance checklist |
+| [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | Hosting, CDN, DNS, FTPS credentials, 404 behavior, smoke tests, operational troubleshooting |
+| [`docs/PROJECT-UNDERSTANDING.md`](docs/PROJECT-UNDERSTANDING.md) | Feature-level onboarding — application structure, feature layers, fragile areas, current priorities |
+| [`docs/CHANGELOG.md`](docs/CHANGELOG.md) | Full release history. README summarizes only the six latest releases |
 
 ## License
 
@@ -509,8 +571,27 @@ Choose and add a license before publishing if you want to explicitly define reus
 
 ## Continuous deployment
 
-Production delivery is automated with GitHub Actions. A push to `main` runs the TypeScript/Vite production build, validates the deployment bundle, uploads `dist/` to a dedicated ParsPack `public_html` FTP account over FTPS, and checks the public `build-info.json` fingerprint after deployment.
+CI/CD uses three separate responsibilities instead of mixing build/test/deploy credentials:
 
-Deployment credentials are stored as GitHub Actions repository secrets and the hosting account is scoped only to the web root. Runtime secrets such as the GitHub API token remain server-side outside `public_html` and are never copied by CI.
+1. `.github/workflows/quality.yml` — reusable **secret-free** quality gate: repository validation → TypeScript/PHP → one indexable build → bundle verification → Playwright → Lighthouse → environment packaging and indexing-policy verification → verified artifact.
+2. `.github/workflows/staging.yml` — runs only for `develop`, waits for the quality job, then deploys the verified staging artifact with staging-only credentials.
+3. `.github/workflows/deploy.yml` — runs only for `main`, waits for the quality job, then deploys the verified production artifact with production-only credentials.
 
-See [`DEPLOYMENT.md`](DEPLOYMENT.md) for the required secrets and rollout procedure.
+The application is built **once** as a normal indexable bundle, and every check runs against it. Environment indexing policy is applied afterwards into a separate `dist-<env>/` directory, so a strict SEO audit can never grade a deliberately non-indexable staging document. Full technical reference: [`docs/CI-CD.md`](docs/CI-CD.md).
+
+The ten deployment secrets stay separated:
+
+```text
+Production                         Staging
+FTP_HOST                           STAGING_FTP_HOST
+FTP_PORT                           STAGING_FTP_PORT
+FTP_USERNAME                       STAGING_FTP_USERNAME
+FTP_PASSWORD                       STAGING_FTP_PASSWORD
+FTP_CERT_FINGERPRINT               STAGING_FTP_CERT_FINGERPRINT
+```
+
+Neither deployment job falls back to credentials from the other environment. Both validate the FTPS certificate fingerprint and perform a dedicated login preflight before `mirror --reverse`. This makes a `530 Login incorrect` failure explicit: verify the username/password/host for that environment in GitHub Actions; a remote-directory mistake occurs only *after* authentication and does not produce 530.
+
+Runtime secrets such as the GitHub API token remain server-side outside `public_html` and are never copied by CI.
+
+See [`DEPLOYMENT.md`](docs/DEPLOYMENT.md) for rollout, staging protection, secret setup, FTPS troubleshooting, and rollback.

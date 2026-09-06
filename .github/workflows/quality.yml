@@ -3,50 +3,104 @@ name: Quality gates
 on:
   pull_request:
     branches: [main, develop]
-  push:
-    branches: [develop]
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      deploy_env:
+        description: Environment bundle to package after validation (staging or production)
+        required: false
+        type: string
+        default: ""
+      artifact_name:
+        description: Optional name for the tested dist artifact
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: read
 
 jobs:
   quality:
-    name: Static checks → build → browser smoke
+    name: Static checks → build → E2E → Lighthouse
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
+
       - name: Install dependencies
-        run: npm ci --no-audit --no-fund
+        shell: bash
+        run: |
+          set -euo pipefail
+          playwright_version="$(node -p "require('./package.json').devDependencies['@playwright/test'] || ''")"
+          lock_playwright_version=""
+          if [[ -f package-lock.json ]]; then
+            lock_playwright_version="$(node -e "const l=require('./package-lock.json'); process.stdout.write(l.packages?.['node_modules/@playwright/test']?.version || '')")"
+          fi
+
+          if [[ -f package-lock.json && -n "$playwright_version" && "$lock_playwright_version" == "$playwright_version" ]]; then
+            npm ci --include=dev --no-audit --no-fund
+          else
+            if [[ -f package-lock.json ]]; then
+              echo "::warning::package-lock.json does not contain @playwright/test ${playwright_version}; using npm install so CI can reconcile the stale lockfile. Commit the regenerated lockfile after the next local install."
+            else
+              echo "::warning::package-lock.json is missing; using npm install. Commit the lockfile for reproducible CI."
+            fi
+            npm install --include=dev --no-audit --no-fund
+          fi
+
+          npm ls --depth=0 "@playwright/test@${playwright_version}"
+
       - name: Repository quality gates
         run: npm run quality
+
       - name: TypeScript
         run: npm run typecheck
+
       - name: PHP lint
         shell: bash
         run: |
           set -euo pipefail
           find public -name '*.php' -print0 | xargs -0 -n1 php -l
-      - name: Production build
+
+      # One build for every environment. It is a normal, indexable
+      # production-like bundle, which is what verify:dist, Playwright and the
+      # strict Lighthouse SEO audit below all run against. Environment indexing
+      # policy is applied afterwards, into a separate directory.
+      - name: Build tested application bundle
         run: npm run build
+
       - name: Verify deployment bundle and local links
         run: npm run verify:dist
-      - name: Install Playwright test runner without changing lockfile
-        run: npm install --no-save --no-package-lock @playwright/test@1.55.0
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+
+      - name: Install Playwright browser
+        run: npm run test:e2e:install
+
       - name: Browser E2E and accessibility smoke
-        run: npx playwright test
+        run: npm run test:e2e
+
+      - name: Upload Playwright diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-diagnostics-${{ inputs.deploy_env || 'application' }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 5
+
       - name: Lighthouse quality report
         shell: bash
         run: |
           set -euo pipefail
-          npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/portfolio-preview.log 2>&1 &
+          npm run preview -- --host 127.0.0.1 --port 4173 > portfolio-preview.log 2>&1 &
           server_pid=$!
           trap 'kill $server_pid 2>/dev/null || true' EXIT
           ready=0
@@ -54,26 +108,80 @@ jobs:
             if curl -fsS http://127.0.0.1:4173/ >/dev/null 2>&1; then ready=1; break; fi
             if ! kill -0 "$server_pid" 2>/dev/null; then
               echo "::error::Vite preview exited before Lighthouse could start."
-              cat /tmp/portfolio-preview.log
+              cat portfolio-preview.log
               exit 1
             fi
             sleep 1
           done
           if [[ "$ready" -ne 1 ]]; then
             echo "::error::Vite preview did not become ready on 127.0.0.1:4173."
-            cat /tmp/portfolio-preview.log
+            cat portfolio-preview.log
             exit 1
           fi
+          # Audited target: the indexable dist/ bundle served by vite preview.
+          # No staging indexing policy has been applied at this point, so the
+          # SEO category measures the real application rather than an
+          # artificially non-indexable document.
           npx --yes lighthouse@12.8.2 http://127.0.0.1:4173/ \
             --quiet --chrome-flags='--headless --no-sandbox' \
             --only-categories=accessibility,best-practices,seo \
-            --output=json --output-path=/tmp/lighthouse.json
+            --output=json --output=html \
+            --output-path=lighthouse-report
           node - <<'NODE'
-          const r=require('/tmp/lighthouse.json');
+          const r=require('./lighthouse-report.report.json');
           const min={accessibility:.9,'best-practices':.9,seo:.9};
+          let failed=false;
           for(const [k,v] of Object.entries(min)){
             const score=r.categories[k].score;
-            console.log(`${k}: ${Math.round(score*100)}`);
-            if(score<v) process.exitCode=1;
+            console.log(`${k}: ${Math.round(score*100)} (min ${Math.round(v*100)})`);
+            if(score<v){
+              failed=true;
+              for(const ref of r.categories[k].auditRefs){
+                const a=r.audits[ref.id];
+                if(a.score===1||a.score===null) continue;
+                console.log(`::error::${k} audit failed: ${ref.id} - ${a.title}`);
+              }
+            }
           }
+          if(failed) process.exitCode=1;
           NODE
+
+      - name: Upload Lighthouse report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-report-${{ inputs.deploy_env || 'application' }}
+          path: |
+            lighthouse-report.report.json
+            lighthouse-report.report.html
+            portfolio-preview.log
+          if-no-files-found: ignore
+          retention-days: 5
+
+      # Environment packaging runs only after every application-level check
+      # above has passed, so a failing audit can never produce a deploy bundle.
+      - name: Package staging bundle and verify it is not indexable
+        if: ${{ inputs.deploy_env == 'staging' }}
+        run: |
+          npm run package:staging
+          npm run verify:staging
+
+      - name: Package production bundle and verify it stays indexable
+        if: ${{ inputs.deploy_env == 'production' }}
+        run: |
+          npm run package:production
+          npm run verify:production
+
+      - name: Upload verified environment bundle
+        if: ${{ inputs.artifact_name != '' && inputs.deploy_env != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact_name }}
+          path: dist-${{ inputs.deploy_env }}/
+          # The bundle ships .htaccess, which carries the rewrite rules, security
+          # headers and the staging X-Robots-Tag. upload-artifact excludes hidden
+          # files by default, which would silently drop it from the artifact and
+          # let a deploy mirror delete it from the server.
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 3

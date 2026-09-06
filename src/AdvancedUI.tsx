@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Activity, ArrowUpRight, Check, ChevronDown, ChevronUp, Code2, Download, ExternalLink, FileText, GitBranch, HardDrive, Keyboard, Laptop, LoaderCircle, Mail, MonitorCheck, PackageCheck, RefreshCw, Send, Share2, ShieldCheck, Sparkles, Terminal, Wifi, WifiOff, X } from "lucide-react";
-import { BUILD_ID, BUILD_TIME, BUILD_VERSION } from "./generated/build";
+import { BUILD_CODENAME, BUILD_ID, BUILD_TIME, BUILD_VERSION } from "./generated/build";
+import { RELEASE_THEME, formatReleaseLabel, getReleaseCodename } from "./releaseMetadata";
 import { notify } from "./toast";
+import { useModalDialog } from "./modalScroll";
 import { caseStudyFor, changelog, nowItems, resumeSummary, type RepoLike } from "./portfolioData";
 
 export function trackEvent(event: string, label = "") {
@@ -45,7 +47,7 @@ export function GithubActivity() {
     return () => { live = false; };
   }, []);
   return <section id="activity" className="activity-feed section-pad">
-    <div className="section-heading"><span>04</span><div><p>GITHUB.ACTIVITY</p><h2>Recent repository activity.</h2></div><a href="https://github.com/osameh15" target="_blank" rel="noreferrer" className="section-link">Open GitHub <ArrowUpRight size={15} /></a></div>
+    <div className="section-heading"><span>05</span><div><p>GITHUB.ACTIVITY</p><h2>Recent repository activity.</h2></div><a href="https://github.com/osameh15" target="_blank" rel="noreferrer" className="section-link">Open GitHub <ArrowUpRight size={15} /></a></div>
     {state === "loading" ? <div className="repo-status"><LoaderCircle className="spin" size={18} /> Reading public activity…</div> : state === "error" ? <div className="muted-card"><GitBranch size={18} /> Recent activity is temporarily unavailable.</div> : <div className="activity-timeline">
       {items.length ? items.map(item => <a key={item.id} href={item.url} target="_blank" rel="noreferrer"><span className="activity-node"><GitBranch size={14} /></span><div><b>{item.repo}</b><p>{item.message}</p><small>{new Date(item.created_at).toLocaleString("en", { month: "short", day: "numeric", year: "numeric" })}</small></div><ExternalLink size={14} /></a>) : <p className="muted-card">No public repository activity in the last 30 days.</p>}
     </div>}
@@ -54,7 +56,7 @@ export function GithubActivity() {
 
 export function NowSection() {
   return <section id="now" className="now-section section-pad">
-    <div className="section-heading"><span>05</span><div><p>NOW.MD</p><h2>What I’m focused on now.</h2></div></div>
+    <div className="section-heading"><span>06</span><div><p>NOW.MD</p><h2>What I’m focused on now.</h2></div></div>
     <div className="now-grid">{nowItems.map((item, index) => <article key={item.label}><span>{String(index + 1).padStart(2, "0")}</span><small>{item.label}</small><p>{item.value}</p></article>)}</div>
   </section>;
 }
@@ -76,7 +78,7 @@ export function ChangelogSection() {
   const selectedIndex = selected ? changelog.findIndex(item => item.version === selected.version) : 0;
 
   return <section id="changelog" className="changelog-section section-pad">
-    <div className="section-heading"><span>06</span><div><p>CHANGELOG.MD</p><h2>This portfolio ships like software.</h2></div></div>
+    <div className="section-heading"><span>07</span><div><p>CHANGELOG.MD</p><h2>This portfolio ships like software.</h2></div></div>
     <div className="changelog-graph-shell">
       <div className="changelog-graph-intro">
         <div>
@@ -111,6 +113,7 @@ export function ChangelogSection() {
               <span className="changelog-node-content">
                 <small>{index === 0 ? "LATEST" : !expanded ? "RECENT" : index < initialVisible ? "RECENT" : "ARCHIVE"}</small>
                 <strong>{item.title}</strong>
+                {getReleaseCodename(item.version) && <em className="release-codename" title={`${RELEASE_THEME} release family`}>{getReleaseCodename(item.version)}</em>}
               </span>
             </button>;
           })}
@@ -121,6 +124,7 @@ export function ChangelogSection() {
             <div>
               <p className="eyebrow">SELECTED RELEASE</p>
               <h3>{selected.title}</h3>
+              {getReleaseCodename(selected.version) && <p className="release-codename-line"><em className="release-codename">{getReleaseCodename(selected.version)}</em><span>{RELEASE_THEME} release family</span></p>}
             </div>
             <code>v{selected.version}</code>
           </div>
@@ -149,21 +153,25 @@ export function ChangelogSection() {
 export function ResumeViewer({ onOpenChange }: { onOpenChange?: (open: boolean) => void } = {}) {
   const [open, setOpen] = useState(false);
   const changeOpen = (next: boolean) => { setOpen(next); onOpenChange?.(next); };
+  const dialogRef = useModalDialog<HTMLElement>(open, () => changeOpen(false));
   useEffect(() => {
     const listener = () => { changeOpen(true); trackEvent("resume_open"); };
     window.addEventListener("portfolio:resume", listener);
     return () => window.removeEventListener("portfolio:resume", listener);
   }, [onOpenChange]);
-  useEffect(() => { if (!open) return; const close = (e: KeyboardEvent) => { if (e.key === "Escape") changeOpen(false); }; document.addEventListener("keydown", close); return () => document.removeEventListener("keydown", close); }, [open, onOpenChange]);
   if (!open) return null;
-  return <div className="advanced-modal-backdrop" onMouseDown={() => changeOpen(false)}><section className="advanced-modal resume-modal" role="dialog" aria-modal="true" aria-label="Resume viewer" onMouseDown={e => e.stopPropagation()}>
+  return <div className="advanced-modal-backdrop" onMouseDown={() => changeOpen(false)}><section ref={dialogRef} tabIndex={-1} className="advanced-modal resume-modal" role="dialog" aria-modal="true" aria-label="Resume viewer" onMouseDown={e => e.stopPropagation()}>
     <header><div><FileText size={17} /><span>resume.pdf</span></div><div className="resume-header-actions"><a href="/resume/Osameh_Irandoust_CV.pdf" target="_blank" rel="noreferrer" className="icon-text-btn"><ExternalLink size={14} /> Open PDF</a><a href="/resume/Osameh_Irandoust_CV.pdf" download className="icon-text-btn"><Download size={14} /> Download</a><button onClick={() => changeOpen(false)} aria-label="Close resume"><X size={17} /></button></div></header>
-    <div className="resume-summary"><div><p className="eyebrow">CV / QUICK VIEW</p><h2>{resumeSummary.headline}</h2><p>{resumeSummary.profile}</p><small>{resumeSummary.education}</small></div><div className="resume-skill-cloud">{resumeSummary.skills.map(skill => <span key={skill}>{skill}</span>)}</div></div>
-    <div className="resume-document">
-      <article><small>PROFILE</small><p>{resumeSummary.profile}</p></article>
-      <article><small>EDUCATION</small><p>{resumeSummary.education}</p></article>
-      <article><small>LANGUAGES</small><p>{resumeSummary.languages.join(" · ")}</p></article>
-      <article><small>FULL PDF</small><p>The complete PDF is packaged with the portfolio. Use the Open PDF or Download controls in the viewer header.</p></article>
+    <div className="modal-scroll-viewport">
+      <div className="modal-content">
+        <div className="resume-summary"><div><div className="resume-identity"><span className="resume-brand"><img src="/icons/icon-128x128.png" srcSet="/icons/icon-128x128.png 1x, /icons/icon-256x256.png 2x" width={56} height={56} alt="" aria-hidden="true" decoding="async" /></span><div><p className="eyebrow">CV / QUICK VIEW</p><h2>{resumeSummary.headline}</h2></div></div><p>{resumeSummary.profile}</p><small>{resumeSummary.education}</small></div><div className="resume-skill-cloud">{resumeSummary.skills.map(skill => <span key={skill}>{skill}</span>)}</div></div>
+        <div className="resume-document">
+          <article><small>PROFILE</small><p>{resumeSummary.profile}</p></article>
+          <article><small>EDUCATION</small><p>{resumeSummary.education}</p></article>
+          <article><small>LANGUAGES</small><p>{resumeSummary.languages.join(" · ")}</p></article>
+          <article><small>FULL PDF</small><p>The complete PDF is packaged with the portfolio. Use the Open PDF or Download controls in the viewer header.</p></article>
+        </div>
+      </div>
     </div>
   </section></div>;
 }
@@ -171,6 +179,8 @@ export function ResumeViewer({ onOpenChange }: { onOpenChange?: (open: boolean) 
 export function BuildInfoModal() {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [buildEnvironment, setBuildEnvironment] = useState<string | null>(null);
+  const dialogRef = useModalDialog<HTMLElement>(open, () => setOpen(false));
 
   useEffect(() => {
     const listener = () => {
@@ -181,13 +191,18 @@ export function BuildInfoModal() {
     return () => window.removeEventListener("portfolio:build", listener);
   }, []);
 
+  // The environment cannot be baked into the JS bundle: one indexable bundle is
+  // built and the staging/production bundles are derived from it afterwards, so
+  // the same JS ships to both. build-info.json is stamped per environment at
+  // packaging time and is the only truthful source at runtime.
   useEffect(() => {
     if (!open) return;
-    const close = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("keydown", close);
-    return () => document.removeEventListener("keydown", close);
+    const controller = new AbortController();
+    fetch("/build-info.json", { headers: { Accept: "application/json" }, cache: "no-store", signal: controller.signal })
+      .then(response => response.ok ? response.json() : null)
+      .then(payload => { if (typeof payload?.environment === "string") setBuildEnvironment(payload.environment); })
+      .catch(() => undefined);
+    return () => controller.abort();
   }, [open]);
 
   const copyBuildId = async () => {
@@ -204,27 +219,32 @@ export function BuildInfoModal() {
   if (!open) return null;
 
   return <div className="advanced-modal-backdrop" onMouseDown={() => setOpen(false)}>
-    <section className="advanced-modal build-info-modal" role="dialog" aria-modal="true" aria-labelledby="build-info-title" onMouseDown={event => event.stopPropagation()}>
+    <section ref={dialogRef} tabIndex={-1} className="advanced-modal build-info-modal" role="dialog" aria-modal="true" aria-labelledby="build-info-title" onMouseDown={event => event.stopPropagation()}>
       <header>
         <div><PackageCheck size={17} /><span>build-info.json</span></div>
         <button onClick={() => setOpen(false)} aria-label="Close build information"><X size={17} /></button>
       </header>
-      <div className="build-info-hero">
-        <span className="build-info-badge">PRODUCTION BUILD</span>
-        <h2 id="build-info-title">osameh.dev <code>v{BUILD_VERSION}</code></h2>
-        <p>This is the exact build currently rendered by the browser. Use the build ID to confirm whether a CDN edge or browser cache is serving the latest deployment.</p>
+      <div className="modal-scroll-viewport">
+        <div className="modal-content">
+          <div className="build-info-hero">
+            <span className="build-info-badge">{(buildEnvironment || "production").toUpperCase()} BUILD</span>
+            <h2 id="build-info-title">osameh.dev <code>{formatReleaseLabel(BUILD_VERSION)}</code></h2>
+            <p>This is the exact build currently rendered by the browser. Use the build ID to confirm whether a CDN edge or browser cache is serving the latest deployment.</p>
+          </div>
+          <div className="build-info-grid">
+            <article><small>VERSION</small><strong>{formatReleaseLabel(BUILD_VERSION)}</strong><span>semantic release</span></article>
+            {BUILD_CODENAME && <article><small>CODENAME</small><strong>{BUILD_CODENAME}</strong><span>{RELEASE_THEME} release family</span></article>}
+            <article><small>BUILD ID</small><strong className="build-info-id">{BUILD_ID}</strong><span>unique deployment fingerprint</span></article>
+            <article><small>BUILT AT</small><strong>{new Date(BUILD_TIME).toLocaleString()}</strong><span>{BUILD_TIME}</span></article>
+            <article><small>ENVIRONMENT</small><strong>{buildEnvironment || "production"}</strong><span>Vite · ParsPack CDN</span></article>
+          </div>
+          <div className="build-info-actions">
+            <button className="primary-btn" onClick={() => { void copyBuildId(); }}><Check size={15} /> {copied ? "Build ID copied" : "Copy build ID"}</button>
+            <button className="secondary-btn" onClick={() => { setOpen(false); window.dispatchEvent(new Event("portfolio:diagnostics")); }}><MonitorCheck size={15} /> System Health</button>
+          </div>
+          <p className="build-info-tip"><code>version</code> prints the version in Terminal. <code>build</code> opens this panel.</p>
+        </div>
       </div>
-      <div className="build-info-grid">
-        <article><small>VERSION</small><strong>v{BUILD_VERSION}</strong><span>semantic release</span></article>
-        <article><small>BUILD ID</small><strong className="build-info-id">{BUILD_ID}</strong><span>unique deployment fingerprint</span></article>
-        <article><small>BUILT AT</small><strong>{new Date(BUILD_TIME).toLocaleString()}</strong><span>{BUILD_TIME}</span></article>
-        <article><small>ENVIRONMENT</small><strong>production</strong><span>Vite · ParsPack CDN</span></article>
-      </div>
-      <div className="build-info-actions">
-        <button className="primary-btn" onClick={() => { void copyBuildId(); }}><Check size={15} /> {copied ? "Build ID copied" : "Copy build ID"}</button>
-        <button className="secondary-btn" onClick={() => { setOpen(false); window.dispatchEvent(new Event("portfolio:diagnostics")); }}><MonitorCheck size={15} /> System Health</button>
-      </div>
-      <p className="build-info-tip"><code>version</code> prints the version in Terminal. <code>build</code> opens this panel.</p>
     </section>
   </div>;
 }
@@ -234,6 +254,7 @@ type HealthPayload = { status: "operational" | "degraded"; generatedAt: string; 
 
 export function SystemDiagnostics() {
   const [open, setOpen] = useState(false);
+  const dialogRef = useModalDialog<HTMLElement>(open, () => setOpen(false));
   const [state, setState] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [health, setHealth] = useState<HealthPayload | null>(null);
   const [sw, setSw] = useState("Not registered");
@@ -281,37 +302,42 @@ export function SystemDiagnostics() {
   const maxLatency = Math.max(1, ...latencyHistory);
   const overall = state === "error" ? "Unavailable" : state === "loading" && !health ? "Checking" : health?.status === "degraded" ? "Degraded" : "Operational";
 
-  return <div className="advanced-modal-backdrop" onMouseDown={() => setOpen(false)}><section className="advanced-modal diagnostics-modal health-center-modal" role="dialog" aria-modal="true" aria-labelledby="health-center-title" onMouseDown={e => e.stopPropagation()}>
+  return <div className="advanced-modal-backdrop" onMouseDown={() => setOpen(false)}><section ref={dialogRef} tabIndex={-1} className="advanced-modal diagnostics-modal health-center-modal" role="dialog" aria-modal="true" aria-labelledby="health-center-title" onMouseDown={e => e.stopPropagation()}>
     <header><div><MonitorCheck size={17} /><span>system-health.json</span></div><div className="health-header-actions"><button onClick={() => void refresh()} disabled={state === "loading"} aria-label="Refresh system health"><RefreshCw className={state === "loading" ? "spin" : ""} size={16} /></button><button onClick={() => setOpen(false)} aria-label="Close"><X size={17} /></button></div></header>
-    <div className="health-hero">
-      <div><p className="eyebrow">LIVE / SYSTEM HEALTH</p><h2 id="health-center-title">Production signals, without exposing internals.</h2><p>The browser measures the round trip to a same-origin health endpoint. The server checks only safe operational dependencies and never returns credentials, filesystem paths, raw IPs, or environment secrets.</p></div>
-      <div className={`health-overall ${overall.toLowerCase()}`}><span><i />{overall}</span><strong>{requestLatency ? `${requestLatency} ms` : "—"}</strong><small>browser → origin</small></div>
+    <div className="modal-scroll-viewport">
+      <div className="modal-content">
+        <div className="health-hero">
+          <div><p className="eyebrow">LIVE / SYSTEM HEALTH</p><h2 id="health-center-title">Production signals, without exposing internals.</h2><p>The browser measures the round trip to a same-origin health endpoint. The server checks only safe operational dependencies and never returns credentials, filesystem paths, raw IPs, or environment secrets.</p></div>
+          <div className={`health-overall ${overall.toLowerCase()}`}><span><i />{overall}</span><strong>{requestLatency ? `${requestLatency} ms` : "—"}</strong><small>browser → origin</small></div>
+        </div>
+        <div className="health-latency-strip" aria-label="Recent health request latency">
+          <div><small>RECENT ORIGIN LATENCY</small><b>{latencyHistory.length ? `${latencyHistory[latencyHistory.length - 1]} ms` : "collecting…"}</b></div>
+          <div className="health-sparkline">{latencyHistory.length ? latencyHistory.map((value, index) => <i key={`${value}-${index}`} style={{ height: `${Math.max(12, Math.round((value / maxLatency) * 100))}%` }} title={`${value} ms`} />) : Array.from({ length: 8 }).map((_, index) => <i key={index} className="placeholder" />)}</div>
+        </div>
+        <div className="health-check-grid">
+          {(health?.checks || []).map(item => <article key={item.id} className={`health-check ${item.status}`}><div><span className="health-dot" /><small>{item.label}</small></div><b>{item.status === "operational" ? "Operational" : item.status === "degraded" ? "Degraded" : "Down"}</b><p>{item.detail}</p><code>{item.latencyMs !== null ? `${Math.round(item.latencyMs)} ms` : "local check"}</code></article>)}
+          {!health && state === "loading" && Array.from({ length: 6 }).map((_, index) => <article key={index} className="health-check health-skeleton"><span /><span /><span /></article>)}
+          {state === "error" && <article className="health-check down"><div><span className="health-dot" /><small>Health endpoint</small></div><b>Unavailable</b><p>The local health endpoint did not return a valid response.</p><code>retry available</code></article>}
+        </div>
+        <div className="health-client-grid">
+          <article>{navigator.onLine ? <Wifi size={18} /> : <WifiOff size={18} />}<small>CLIENT NETWORK</small><b>{navigator.onLine ? "Online" : "Offline"}</b><span>browser connectivity</span></article>
+          <article><ShieldCheck size={18} /><small>SERVICE WORKER</small><b>{sw}</b><span>offline shell</span></article>
+          <article><Laptop size={18} /><small>CLIENT</small><b>{browser}</b><span>{window.innerWidth}×{window.innerHeight} · {window.devicePixelRatio}x</span></article>
+          <article><PackageCheck size={18} /><small>BUILD</small><b>{formatReleaseLabel(health?.build.version || BUILD_VERSION)}</b><span>{health?.build.environment || "production"}</span></article>
+        </div>
+        <p className="diagnostics-note">Generated {health?.generatedAt ? new Date(health.generatedAt).toLocaleTimeString() : "on refresh"}. Diagnostics are ephemeral and privacy-friendly.</p>
+      </div>
     </div>
-    <div className="health-latency-strip" aria-label="Recent health request latency">
-      <div><small>RECENT ORIGIN LATENCY</small><b>{latencyHistory.length ? `${latencyHistory[latencyHistory.length - 1]} ms` : "collecting…"}</b></div>
-      <div className="health-sparkline">{latencyHistory.length ? latencyHistory.map((value, index) => <i key={`${value}-${index}`} style={{ height: `${Math.max(12, Math.round((value / maxLatency) * 100))}%` }} title={`${value} ms`} />) : Array.from({ length: 8 }).map((_, index) => <i key={index} className="placeholder" />)}</div>
-    </div>
-    <div className="health-check-grid">
-      {(health?.checks || []).map(item => <article key={item.id} className={`health-check ${item.status}`}><div><span className="health-dot" /><small>{item.label}</small></div><b>{item.status === "operational" ? "Operational" : item.status === "degraded" ? "Degraded" : "Down"}</b><p>{item.detail}</p><code>{item.latencyMs !== null ? `${Math.round(item.latencyMs)} ms` : "local check"}</code></article>)}
-      {!health && state === "loading" && Array.from({ length: 6 }).map((_, index) => <article key={index} className="health-check health-skeleton"><span /><span /><span /></article>)}
-      {state === "error" && <article className="health-check down"><div><span className="health-dot" /><small>Health endpoint</small></div><b>Unavailable</b><p>The local health endpoint did not return a valid response.</p><code>retry available</code></article>}
-    </div>
-    <div className="health-client-grid">
-      <article>{navigator.onLine ? <Wifi size={18} /> : <WifiOff size={18} />}<small>CLIENT NETWORK</small><b>{navigator.onLine ? "Online" : "Offline"}</b><span>browser connectivity</span></article>
-      <article><ShieldCheck size={18} /><small>SERVICE WORKER</small><b>{sw}</b><span>offline shell</span></article>
-      <article><Laptop size={18} /><small>CLIENT</small><b>{browser}</b><span>{window.innerWidth}×{window.innerHeight} · {window.devicePixelRatio}x</span></article>
-      <article><PackageCheck size={18} /><small>BUILD</small><b>v{health?.build.version || BUILD_VERSION}</b><span>{health?.build.environment || "production"}</span></article>
-    </div>
-    <p className="diagnostics-note">Generated {health?.generatedAt ? new Date(health.generatedAt).toLocaleTimeString() : "on refresh"}. Diagnostics are ephemeral and privacy-friendly.</p>
   </section></div>;
 }
 
 export function ShortcutGuide() {
   const [open, setOpen] = useState(false);
+  const dialogRef = useModalDialog<HTMLElement>(open, () => setOpen(false));
   useEffect(() => { const listener = () => setOpen(true); window.addEventListener("portfolio:shortcuts", listener); return () => window.removeEventListener("portfolio:shortcuts", listener); }, []);
   if (!open) return null;
-  const rows = [["Ctrl/Cmd + K", "Command Palette"], ["`", "Toggle terminal"], ["Tab", "Terminal autocomplete"], ["Shift + Tab", "Previous autocomplete suggestion"], ["G then P", "Projects"], ["G then A", "About"], ["G then E", "Experience"], ["G then N", "Now"], ["G then C", "Contact"], ["/", "Focus project search"], ["?", "Keyboard shortcuts"], ["Esc", "Close active modal/tab"]];
-  return <div className="advanced-modal-backdrop" onMouseDown={() => setOpen(false)}><section className="advanced-modal shortcuts-modal" role="dialog" aria-modal="true" onMouseDown={e => e.stopPropagation()}><header><div><Keyboard size={17} /><span>keyboard-shortcuts.md</span></div><button onClick={() => setOpen(false)}><X size={17} /></button></header><div className="shortcut-grid">{rows.map(([keys, action]) => <div key={keys}><kbd>{keys}</kbd><span>{action}</span></div>)}</div></section></div>;
+  const rows = [["Ctrl/Cmd + Shift + P", "Command Palette"], ["`", "Toggle terminal"], ["Tab", "Terminal autocomplete"], ["Shift + Tab", "Previous autocomplete suggestion"], ["G then P", "Projects"], ["G then A", "About"], ["G then E", "Experience"], ["G then N", "Now"], ["G then C", "Contact"], ["/", "Focus project search"], ["?", "Keyboard shortcuts"], ["Esc", "Close active modal/tab"]];
+  return <div className="advanced-modal-backdrop" onMouseDown={() => setOpen(false)}><section ref={dialogRef} tabIndex={-1} className="advanced-modal shortcuts-modal" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts" onMouseDown={e => e.stopPropagation()}><header><div><Keyboard size={17} /><span>keyboard-shortcuts.md</span></div><button onClick={() => setOpen(false)} aria-label="Close keyboard shortcuts"><X size={17} /></button></header><div className="modal-scroll-viewport"><div className="modal-content"><div className="shortcut-grid">{rows.map(([keys, action]) => <div key={keys}><kbd>{keys}</kbd><span>{action}</span></div>)}</div></div></div></section></div>;
 }
 
 export function PwaInstallControl() {
@@ -351,10 +377,7 @@ export function PwaInstallControl() {
     return () => { window.removeEventListener("beforeinstallprompt", before as EventListener); window.removeEventListener("appinstalled", appInstalled); window.removeEventListener("portfolio:install", install); };
   }, [prompt]);
   if (installed || !prompt) return null;
-  return <button className="pwa-install" onClick={() => window.dispatchEvent(new Event("portfolio:install"))} aria-label="Install app">
-    <span className="pwa-install-icon" aria-hidden="true"><Download size={14} /></span>
-    <span className="pwa-install-label">Install app</span>
-  </button>;
+  return <button type="button" className="pwa-install" aria-label="Install app" onClick={() => window.dispatchEvent(new Event("portfolio:install"))}><Download size={14} aria-hidden="true" /> <span>Install app</span></button>;
 }
 
 export function ContactForm({ fileName = "send-message.ts" }: { fileName?: string }) {
@@ -456,8 +479,9 @@ export function ContactForm({ fileName = "send-message.ts" }: { fileName?: strin
 }
 
 export function ProjectCompare({ repos, onClose }: { repos: RepoLike[]; onClose: () => void }) {
+  const dialogRef = useModalDialog<HTMLElement>(repos.length === 2, onClose);
   if (repos.length !== 2) return null;
-  return <div className="advanced-modal-backdrop" onMouseDown={onClose}><section className="advanced-modal compare-modal" role="dialog" aria-modal="true" onMouseDown={e => e.stopPropagation()}><header><div><Code2 size={17} /><span>compare-projects.diff</span></div><button onClick={onClose}><X size={17} /></button></header><div className="compare-grid"><div className="compare-labels"><span>Project</span><span>Language</span><span>Stars</span><span>Forks</span><span>Last update</span><span>Topics</span><span>Summary</span></div>{repos.map(repo => <article key={repo.id}><h3>{repo.name}</h3><b>{repo.language || "Mixed"}</b><b>{repo.stargazers_count}</b><b>{repo.forks_count}</b><b>{new Date(repo.updated_at).toLocaleDateString()}</b><div className="compare-tags">{repo.topics.slice(0, 5).map(topic => <span key={topic}>{topic}</span>)}</div><p>{repo.description || "No public description."}</p></article>)}</div></section></div>;
+  return <div className="advanced-modal-backdrop" onMouseDown={onClose}><section ref={dialogRef} tabIndex={-1} className="advanced-modal compare-modal" role="dialog" aria-modal="true" aria-label="Compare projects" onMouseDown={e => e.stopPropagation()}><header><div><Code2 size={17} /><span>compare-projects.diff</span></div><button onClick={onClose} aria-label="Close project comparison"><X size={17} /></button></header><div className="modal-scroll-viewport"><div className="modal-content"><div className="compare-grid"><div className="compare-labels"><span>Project</span><span>Language</span><span>Stars</span><span>Forks</span><span>Last update</span><span>Topics</span><span>Summary</span></div>{repos.map(repo => <article key={repo.id}><h3>{repo.name}</h3><b>{repo.language || "Mixed"}</b><b>{repo.stargazers_count}</b><b>{repo.forks_count}</b><b>{new Date(repo.updated_at).toLocaleDateString()}</b><div className="compare-tags">{repo.topics.slice(0, 5).map(topic => <span key={topic}>{topic}</span>)}</div><p>{repo.description || "No public description."}</p></article>)}</div></div></div></section></div>;
 }
 
 export async function shareProject(repo: RepoLike) {

@@ -91,7 +91,12 @@
       "Staging environment",
       "CI quality gates",
       "Live health checks",
-      "Engineering notes"
+      "Engineering notes",
+      "Published client case studies and capability areas",
+      "Availability control",
+      "English-only product interface",
+      "Accessibility preferences",
+      "Universal search"
     ]
   },
   "caseStudy": {
@@ -113,7 +118,12 @@
       "Dynamic project/note structured data and runtime sitemap generation",
       "Staging deployment channel with noindex protection and CI quality gates",
       "Live privacy-safe health center plus Markdown engineering notes",
-      "Responsive mobile project navigation, viewport-capped modals, and scroll-synchronized Engineering Notes"
+      "Responsive mobile project navigation, viewport-capped modals, and scroll-synchronized Engineering Notes",
+      "Published freelance/client case studies with deep-link SEO metadata plus a separate experience-backed capability layer",
+      "Central availability configuration integrated with header, Terminal and recruiter-facing flows",
+      "English-only interface contract with fixed en/LTR document metadata and no locale-switching state",
+      "Accessibility Control Center with reduced motion, contrast, text scale and enhanced focus preferences",
+      "Ranked Command Palette search across projects, notes, case studies, skills, experience and settings"
     ],
     "challenges": [
       {
@@ -321,13 +331,16 @@
       "public/api/",
       ".github/workflows/deploy.yml",
       "README.md",
-      "CHANGELOG.md",
+      "docs/CHANGELOG.md",
       "src/EngineeringNotes.tsx",
       "src/notesData.ts",
       "public/api/health.php",
       "public/sitemap.php",
       ".github/workflows/quality.yml",
-      ".github/workflows/staging.yml"
+      ".github/workflows/staging.yml",
+      "src/PortfolioFeatures.tsx",
+      "src/caseStudiesData.ts",
+      "public/case-study.php"
     ]
   },
   "recruiter": {
@@ -347,7 +360,11 @@
       "Metadata-driven architecture",
       "Source code tooling",
       "Responsive UI engineering",
-      "Accessibility-aware navigation"
+      "Accessibility-aware navigation",
+      "Internationalization architecture",
+      "Accessibility preferences",
+      "Universal search",
+      "Case-study storytelling"
     ],
     "talkingPoints": [
       "Repository-owned portfolio.json files drive case studies, featured work, architecture and source-explorer behavior",

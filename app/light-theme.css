@@ -10,7 +10,6 @@ html[data-theme="light"]{
 }
 html[data-theme="light"] body,html[data-theme="light"] .workspace,html[data-theme="light"] .editor{background:var(--light-canvas);color:var(--light-text)}
 html[data-theme="light"] ::selection{background:#b9dfc2;color:#102418}
-
 /* IDE shell, navigation and tabs */
 html[data-theme="light"] .topbar{background:rgba(250,252,250,.94);border-color:var(--light-border);box-shadow:0 1px 0 rgba(29,52,36,.04)}
 html[data-theme="light"] .brand-mark{border-color:#718476;background:var(--light-surface)}
@@ -35,7 +34,6 @@ html[data-theme="light"] .editor-tab{background:#edf3ee;border-color:var(--light
 html[data-theme="light"] .editor-tab:hover{background:#f8faf8;color:#263b2e}
 html[data-theme="light"] .editor-tab.active{background:var(--light-surface);border-top-color:var(--light-accent);color:#183924}
 html[data-theme="light"] .error-tab.active{border-top-color:var(--light-danger)}
-
 /* Shared typography and controls */
 html[data-theme="light"] .eyebrow,html[data-theme="light"] .section-heading>span,html[data-theme="light"] .section-heading p,html[data-theme="light"] .note-toc p{color:var(--light-accent-strong)}
 html[data-theme="light"] .section-heading h2,html[data-theme="light"] h1,html[data-theme="light"] h2,html[data-theme="light"] h3{color:var(--light-text)}
@@ -49,7 +47,6 @@ html[data-theme="light"] .secondary-btn:hover{background:var(--light-accent-soft
 html[data-theme="light"] .text-btn{color:#344a3c}
 html[data-theme="light"] .text-btn span{background:var(--light-surface);border-color:#aab9ad;color:#52665a}
 html[data-theme="light"] :focus-visible{outline-color:#2d7244}
-
 /* Hero engineering showcase */
 html[data-theme="light"] .hero{background:radial-gradient(circle at 82% 24%,#dceadf 0,transparent 36%),linear-gradient(135deg,#fbfdfb,#edf3ee 64%)}
 html[data-theme="light"] .hero:before{opacity:.5;background-image:linear-gradient(#d3ded5 1px,transparent 1px),linear-gradient(90deg,#d3ded5 1px,transparent 1px)}
@@ -72,7 +69,6 @@ html[data-theme="light"] .showcase-metrics strong{color:var(--light-accent-stron
 html[data-theme="light"] .showcase-terminal-lines span{background:#e9f1eb;border-color:#bdccc0;color:#263c2e}
 html[data-theme="light"] .showcase-terminal-lines i{color:#236a3c}
 html[data-theme="light"] .showcase-chip-cloud span{background:#e4eee6;border-color:#aec1b2;color:#284233}
-
 /* About and skills */
 html[data-theme="light"] .about{background:#f7faf7}
 html[data-theme="light"] .about-copy>p{color:#405448}
@@ -102,7 +98,6 @@ html[data-theme="light"] .skill-card h3{color:#20352a}
 html[data-theme="light"] .skill-card:hover h3{color:var(--light-accent-strong)}
 html[data-theme="light"] .skill-card>div span,html[data-theme="light"] .skills-preview article>div button{background:#edf3ee;border-color:#c0cec3;color:#334b3c}
 html[data-theme="light"] .skills-preview article>div button:hover{background:#dcebe0;border-color:#79a285;color:var(--light-accent-strong)}
-
 /* Portfolio sections and project controls */
 html[data-theme="light"] .work,html[data-theme="light"] .experience,html[data-theme="light"] .activity-feed,html[data-theme="light"] .now-section,html[data-theme="light"] .changelog-section{background:var(--light-canvas)}
 html[data-theme="light"] .project-card,html[data-theme="light"] .featured-projects,html[data-theme="light"] .case-study-grid article,html[data-theme="light"] .now-grid article{background:#fff;border-color:#c6d2c8;color:var(--light-text)}
@@ -126,7 +121,6 @@ html[data-theme="light"] .terminal-body p{color:#344a3c}
 html[data-theme="light"] .terminal-body b,html[data-theme="light"] .terminal-body span{color:var(--light-accent-strong)}
 html[data-theme="light"] .contact{background:radial-gradient(circle at 50% 50%,#dceae0,transparent 47%),#f7faf7}
 html[data-theme="light"] .contact>p:not(.eyebrow),html[data-theme="light"] .social-row a{color:#4b6053}
-
 /* Every opened route: project details, Notes and 404 */
 html[data-theme="light"] .detail-shell,html[data-theme="light"] .ide-project-view{background:radial-gradient(circle at 85% 18%,#dceae0 0,transparent 31%),var(--light-canvas);color:var(--light-text)}
 html[data-theme="light"] .detail-nav{color:#52675a;border-color:var(--light-border)}
@@ -162,7 +156,6 @@ html[data-theme="light"] .not-found-view>p:not(.eyebrow){color:#405448}
 html[data-theme="light"] .not-found-terminal{background:#fff;border-color:#bdcabe;border-left-color:#a83b3b;color:#405448;box-shadow:12px 12px 0 #dfe7e1}
 html[data-theme="light"] .not-found-terminal span{color:#245f38}
 html[data-theme="light"] .not-found-terminal b{color:#8f3030}
-
 /* Modals, command surfaces, compare queue and bottom panel */
 html[data-theme="light"] .advanced-modal-backdrop,html[data-theme="light"] .command-palette-backdrop{background:rgba(31,47,36,.34)}
 html[data-theme="light"] .advanced-modal,html[data-theme="light"] .command-palette,html[data-theme="light"] .recruiter-mode{background:#fbfdfb;border-color:#aebfb2;color:var(--light-text);box-shadow:0 30px 90px rgba(35,55,41,.22)}
@@ -206,7 +199,6 @@ html[data-theme="light"] .panel-tabs button{color:#4f6356}
 html[data-theme="light"] .panel-tabs button.active{color:#173a25;border-bottom-color:var(--light-accent)}
 html[data-theme="light"] .panel-close{color:#52665a}
 html[data-theme="light"] .panel-close:hover{background:#dfe9e1;color:#183b27}
-
 /* Project quick navigation */
 html[data-theme="light"] .project-quick-access{background:rgba(250,252,250,.96);border-color:#a9baac;box-shadow:0 14px 36px rgba(36,57,42,.16)}
 html[data-theme="light"] .project-quick-access-rail{background:linear-gradient(transparent,#a9bbaa 10%,#a9bbaa 90%,transparent)}

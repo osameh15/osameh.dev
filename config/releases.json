@@ -1,0 +1,19 @@
+{
+  "theme": "Cyber Noir",
+  "description": "Cyber Noir names official osameh.dev releases. Historical releases use exact-version metadata; starting with 5.2, each official major/minor family receives one codename inherited by every patch. Git tags stay plain SemVer; GitHub Release titles carry the codename.",
+  "historical": {
+    "2.2.4": { "codename": "Pixel" },
+    "3.1.0": { "codename": "Shadow" },
+    "4.2.2": { "codename": "Specter" }
+  },
+  "families": {
+    "5.2": { "codename": "Cipher" }
+  },
+  "reserved": {
+    "5.3": "Vanta",
+    "5.4": "Phantom",
+    "5.5": "Null",
+    "5.6": "Raven",
+    "6.0": "Obsidian"
+  }
+}

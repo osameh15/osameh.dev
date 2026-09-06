@@ -18,13 +18,13 @@ export function EngineeringNotesSection({ onOpenNote }: { onOpenNote: (slug: str
 
   return <section id="notes" className="engineering-notes section-pad" aria-labelledby="engineering-notes-title">
     <div className="section-heading">
-      <span>07</span>
+      <span>08</span>
       <div><p>ENGINEERING.NOTES/</p><h2 id="engineering-notes-title">Notes from the workbench.</h2></div>
       <span className="notes-count">{engineeringNotes.length} notes</span>
     </div>
     <p className="notes-intro">Architecture decisions, deployment lessons, performance trade-offs, and implementation details from software I actually build and operate.</p>
     <div className="notes-grid">
-      {visibleNotes.map((note, index) => <article key={note.slug} className="note-card">
+      {visibleNotes.map((note, index) => <article key={note.slug} className="note-card" data-note-slug={note.slug}>
         <header><span>{String(index + 1).padStart(2, "0")}</span><BookOpen size={17} /></header>
         <div className="note-card-meta"><span><Clock3 size={12} /> {note.readingMinutes} min</span><span><CalendarDays size={12} /> {noteDate(note.publishedAt)}</span></div>
         <h3>{note.title}</h3>
@@ -45,12 +45,11 @@ type TocItem = { id: string; label: string; level: number };
 
 function prepareNoteHtml(markdown: string, namespace: string) {
   const raw = marked.parse(markdown, { gfm: true, breaks: false }) as string;
-  const clean = DOMPurify.sanitize(raw, {
-    USE_PROFILES: { html: true },
-    FORBID_TAGS: ["script", "style", "iframe", "object", "embed", "form", "input", "textarea", "select"],
-    FORBID_ATTR: ["style", "srcset", "onerror", "onclick"],
-  });
-  const doc = new DOMParser().parseFromString(`<article>${clean}</article>`, "text/html");
+  // Transform first, sanitize last. DOMParser produces an inert document, so
+  // nothing here executes; sanitizing before the parse/re-serialize round trip
+  // would instead let the parser reconstruct markup that DOMPurify had already
+  // inspected. DOMPurify must be the last thing the markup passes through.
+  const doc = new DOMParser().parseFromString(`<article>${raw}</article>`, "text/html");
   const toc: TocItem[] = [];
   doc.querySelectorAll("h2,h3").forEach((heading, index) => {
     const label = heading.textContent?.trim() || `Section ${index + 1}`;
@@ -63,6 +62,9 @@ function prepareNoteHtml(markdown: string, namespace: string) {
     const href = link.getAttribute("href") || "";
     if (/^https:\/\//i.test(href)) {
       link.setAttribute("target", "_blank");
+      // The final DOMPurify pass normalizes this to rel="noreferrer" on any
+      // target="_blank" link, which implies noopener. Set both anyway so the
+      // intent survives if the sanitizer configuration ever changes.
       link.setAttribute("rel", "noopener noreferrer");
     }
   });
@@ -75,7 +77,12 @@ function prepareNoteHtml(markdown: string, namespace: string) {
     button.textContent = "Copy";
     pre.insertBefore(button, pre.firstChild);
   });
-  return { html: doc.body.firstElementChild?.innerHTML || clean, toc };
+  const html = DOMPurify.sanitize(doc.body.firstElementChild?.innerHTML || "", {
+    USE_PROFILES: { html: true },
+    FORBID_TAGS: ["script", "style", "iframe", "object", "embed", "form", "input", "textarea", "select"],
+    FORBID_ATTR: ["style", "srcset", "onerror", "onclick"],
+  });
+  return { html, toc };
 }
 
 export function EngineeringNoteView({ slug, onClose }: { slug: string; onClose: () => void }) {
@@ -119,7 +126,19 @@ export function EngineeringNoteView({ slug, onClose }: { slug: string; onClose: 
       frame = 0;
       const root = articleRef.current;
       if (!root) return;
-      const probe = Math.max(110, Math.min(window.innerHeight * .24, 190));
+      const tabsBottom = document.querySelector<HTMLElement>(".tabs-row")?.getBoundingClientRect().bottom ?? (window.innerWidth <= 720 ? 90 : 94);
+      const mobileTocHeight = window.innerWidth <= 1000 ? (tocRef.current?.getBoundingClientRect().height ?? 48) : 0;
+      const tocGap = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--note-toc-gap")) || 8;
+      const probe = window.innerWidth <= 1000
+        ? Math.ceil(tabsBottom + tocGap + mobileTocHeight + 12)
+        : Math.max(110, Math.min(window.innerHeight * .24, 190));
+      const atDocumentEnd = window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 4;
+      if (atDocumentEnd) {
+        navigationTargetRef.current = "";
+        const last = toc[toc.length - 1]?.id || "";
+        setActiveTocId(value => value === last ? value : last);
+        return;
+      }
       const navigationTarget = navigationTargetRef.current ? headingFor(navigationTargetRef.current) : null;
       if (navigationTarget && navigationTarget.getBoundingClientRect().top > probe + 8) return;
       navigationTargetRef.current = "";
@@ -168,7 +187,10 @@ export function EngineeringNoteView({ slug, onClose }: { slug: string; onClose: 
     if (!heading) return;
     navigationTargetRef.current = id;
     setActiveTocId(id);
-    const stickyOffset = window.innerWidth <= 720 ? 72 : 102;
+    const tabsBottom = document.querySelector<HTMLElement>(".tabs-row")?.getBoundingClientRect().bottom ?? (window.innerWidth <= 720 ? 90 : 94);
+    const tocHeight = window.innerWidth <= 1000 ? (tocRef.current?.getBoundingClientRect().height ?? 48) : 0;
+    const tocGap = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--note-toc-gap")) || 8;
+    const stickyOffset = window.innerWidth <= 1000 ? Math.ceil(tabsBottom + tocGap + tocHeight + 12) : 116;
     const top = heading.getBoundingClientRect().top + window.scrollY - stickyOffset;
     window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
     if (navigationTimerRef.current) window.clearTimeout(navigationTimerRef.current);
@@ -207,7 +229,7 @@ export function EngineeringNoteView({ slug, onClose }: { slug: string; onClose: 
 
   if (!note) return <section className="note-detail note-detail-error"><h1>Note not found.</h1><button className="secondary-btn" onClick={onClose}><ArrowLeft size={15} /> Back to notes</button></section>;
 
-  return <section className="note-detail" aria-labelledby="note-detail-title">
+  return <section className="note-detail" data-note-slug={note.slug} aria-labelledby="note-detail-title">
     <header className="note-detail-hero">
       <div className="note-detail-breadcrumb"><button type="button" onClick={onClose}><ArrowLeft size={14} /> Engineering Notes</button><span>/</span><code>{note.slug}.md</code></div>
       <p className="eyebrow">ENGINEERING NOTE / {note.tags[0]?.toUpperCase()}</p>
@@ -217,7 +239,7 @@ export function EngineeringNoteView({ slug, onClose }: { slug: string; onClose: 
       <div className="note-detail-actions"><button className="secondary-btn" onClick={() => void share()}><Share2 size={14} /> Share note</button><button className="secondary-btn" onClick={() => void copyUrl()}>{copied ? <Check size={14} /> : <Copy size={14} />} {copied ? "Copied" : "Copy link"}</button></div>
     </header>
     <div className="note-reading-layout">
-      <aside ref={tocRef} className="note-toc"><p>ON THIS PAGE</p>{toc.length ? toc.map(item => <button key={item.id} type="button" data-toc-id={item.id} className={`${item.level === 3 ? "nested " : ""}${activeTocId === item.id ? "active" : ""}`.trim()} onClick={() => jumpToHeading(item.id)} aria-current={activeTocId === item.id ? "location" : undefined}>{item.label}</button>) : <span>Table of contents appears after the note loads.</span>}</aside>
+      <aside ref={tocRef} className="note-toc"><p>ON THIS PAGE</p>{toc.length ? toc.map(item => <button key={item.id} type="button" data-toc-id={item.id} aria-controls={item.id} className={`${item.level === 3 ? "nested " : ""}${activeTocId === item.id ? "active" : ""}`.trim()} onClick={() => jumpToHeading(item.id)} aria-current={activeTocId === item.id ? "location" : undefined}>{item.label}</button>) : <span>Table of contents appears after the note loads.</span>}</aside>
       <main className="note-reading-pane">
         {state === "loading" ? <div className="note-loading"><LoaderCircle className="spin" size={20} /><span>Loading note.md…</span></div> : state === "error" ? <div className="note-loading error"><span>This note could not be loaded.</span></div> : <article ref={articleRef} className="note-markdown" onClick={handleArticleClick} dangerouslySetInnerHTML={{ __html: html }} />}
       </main>

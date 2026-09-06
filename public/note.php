@@ -21,10 +21,10 @@ foreach (is_array($notes) ? $notes : [] as $item) {
 }
 
 if (!is_array($note)) {
-    http_response_code(200);
+    http_response_code(404);
     header('X-Robots-Tag: noindex, nofollow');
     header('X-Portfolio-Route-Status: 404');
-    header('Cache-Control: no-cache, must-revalidate');
+    header('Cache-Control: no-store, max-age=0');
     $html = preg_replace('~<title>.*?</title>~is', '<title>404 — Note not found | Osameh Irandoust</title>', $html, 1) ?: $html;
     $html = preg_replace('/<link\s+rel=["\']canonical["\'][^>]*>/i', '', $html) ?: $html;
     $html = preg_replace('/<meta\s+name=["\']robots["\'][^>]*>/i', '<meta name="robots" content="noindex,nofollow">', $html) ?: $html;

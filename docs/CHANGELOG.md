@@ -4,56 +4,127 @@ All notable changes to **osameh.dev** are documented here.
 
 The project follows [Semantic Versioning](https://semver.org/). The early production releases were shipped in rapid succession while the portfolio was moved from its hosted prototype to the current ParsPack/CDN deployment.
 
-## 4.2.2 - 2026-09-02
+## 5.2.0 - 2026-09-06 — Cipher
+
+First release in the **Cyber Noir** codename line.
+
+### Added
+- **Neural Cipher visual identity.** A new brand mark replaces the previous monogram across the header, and a complete icon pack ships for favicons, Apple touch, PWA install, and in-app use.
+- Release **codenames**. A codename identifies a release family, so every patch in the family inherits it: 5.2.0, 5.2.1 and later 5.2.x releases are all **Cipher**. The current release and its codename now appear in the status bar, Build Information panel, and Terminal.
+- The Resume Viewer carries the Neural Cipher mark in its profile block.
+
+### Changed
+- Favicons now use a multi-size `favicon.ico` plus 16/32/48 px PNGs, replacing the previous monogram favicon.
+- The PWA manifest installs the new 192 px and 512 px icons.
+- Social sharing artwork was refreshed; the 1200x630 card remains the canonical Open Graph and Twitter image.
+- Editor tabs scroll the active tab into view automatically. On narrow screens an activated tab could previously sit outside the visible strip and had to be found by hand; the strip now scrolls only when the tab is not already fully visible, and respects reduced-motion preferences.
 
 ### Fixed
-- Updated the Engineering Notes light-theme contrast regression to target the section label that is actually rendered by the Notes index instead of the article-only eyebrow selector.
-- Contrast targets now assert visibility with a focused five-second failure message before evaluating computed colors, avoiding opaque full-test timeouts when markup changes.
+- The deployment bundle no longer ships icon authoring assets (design source, 1024 px master, duplicate variants), removing roughly 5 MB from every deploy.
+
+## 5.1.1 - 2026-09-05
+
+### Fixed
+- A **GitHub Source Explorer** file that cannot be loaded no longer leaves the panel stuck: the repository tree stays usable, the failure is reported in place with a retry action, and selecting another file recovers immediately.
+- A slow or failed source request can no longer overwrite a file the reader has since selected; each request is now matched to the selection that started it.
+- Corrected **Service Worker** response handling. A cached copy is now taken before the response body is consumed, which removes the `Failed to execute 'clone' on 'Response'` error, and a failed cache write can no longer disturb an otherwise successful request.
+- **Recruiter Mode** tour is usable on mobile. The panel stays inside the viewport with symmetric margins at 320-412px widths, the footer no longer wraps its navigation off-screen, and the close button, progress bar, and Back/Next actions stay reachable.
+- Unknown URLs now return a real **HTTP 404** while still rendering the custom IDE-style 404 workspace, instead of answering 200 for a page that does not exist. Invalid Engineering Note, Case Study, and project routes return 404 as well.
+- Closing a project now returns to the **Projects** section of the workspace instead of an arbitrary position, matching how closing an Engineering Note already returned to Notes.
+- Editor tabs behave consistently for every view type. Projects and Engineering Notes can now be open side by side as independent tabs, and selecting Home no longer closes the Note or project you were reading — it simply switches to Home and restores the section that tab belongs to.
+- Closing an editor tab now activates the tab to its left rather than jumping to Home, and closing a tab you are not currently viewing no longer changes which tab is active.
+- The build-information panel reports the environment it is actually running in, so staging identifies itself as **staging** instead of always reading production.
+
+### Security
+- Repository source paths are validated by normalized path segments. A leading dot is treated as an ordinary directory name, so `.idea/`, `.github/`, and `.vscode/` files remain previewable, while traversal, absolute paths, protocol injection, and control characters are rejected. The path is no longer decoded a second time after the server has already decoded it, which also stops a literal `%` in a filename from being corrupted.
+
+### Changed
+- The Service Worker leaves `/api/` requests entirely to the network, so a transient GitHub failure or rate-limit response can never be replayed from cache.
+- Source Explorer availability was verified end to end after an edge cache configuration change corrected the handling of client query strings. The Source Explorer outage was caused by that edge behaviour, not by the application's repository path validation, which had always accepted dot-prefixed directories.
+- 404 responses are sent with `Cache-Control: no-store` so an invalid route is never cached by the browser or the CDN.
+
+## 5.1.0 - 2026-09-02
+
+### Added
+- Dedicated right-click context actions for **Engineering Notes** and **Case Studies**, including open, copy/share-link, and live-site actions where appropriate.
+- Terminal commands for `activity`, `case-studies`, `case <id>`, `capabilities`, `palette`, `mood:list`, availability/mood status, and Accessibility controls so the v5 product layer is reachable from the IDE terminal.
+
+### Changed
+- Consolidated the site-wide ranked search experience into a single **Command Palette** surface with one `Ctrl/Cmd + Shift + P` shortcut; the redundant application-level `Ctrl/Cmd + K` alias was removed.
+- Standardized Header utility controls to one 34px control height, including **Install app**, Command Palette, Accessibility, and Portfolio Mood actions, with explicit icon/label vertical centering.
+- Portfolio Mood now shows the full active availability message in the Header (for example, `Open to selected opportunities`) instead of a shortened status word.
+- Portfolio Mood CLI output now distinguishes the preset key, short label, and full public Header label without duplicating availability configuration.
+- Documented the exact Vite 8 runtime floor: Node.js >=20.19.0 or >=22.12.0; CI remains on Node.js 22.
+- Scroll behavior is unified across the IDE: transparent tracks, low-opacity thumbs that become fully visible on hover, no permanent scrollbar gutters, and measured native-width compensation so modal cards keep equal visual left/right spacing.
+
+### Fixed
+- Closing a Case Study now restores the exact covered workspace without scheduling a later section-03 scroll; delayed initial route timers were removed, the pre-modal position is restored explicitly, and real wheel/touch/pointer/keyboard navigation cancels stale section-restoration work.
+- Browser Back from an open Case Study restores the canonical Case Studies index anchor, while Escape/close preserves the exact covered workspace position.
+- Added `/activity` to first-class Apache routing and both sitemap implementations so direct GitHub Activity navigation and SEO discovery match the SPA.
+- Allowed the exact staging origin to exercise the Contact API without weakening the production/staging allowlist or accepting arbitrary origins.
+- Project context-menu Gallery navigation now targets the rendered repository-name identifier instead of the unrelated numeric repository ID.
+- All dialog consumers now share Escape close, focus trapping, focus return, background locking, and deterministic scroll restoration behavior.
+- Modal chrome now stays edge-to-edge across feature, diagnostics, resume, compare, and Recruiter Mode dialogs; title dividers/progress lines no longer stop short because of a reserved right scrollbar gutter.
+- Explicit semantic Light Theme surfaces now cover Case Study, capability, Accessibility, Availability, and Command Palette surfaces consistently with the 4.2 redesign, without transient dark-to-light card interpolation.
+- Removed an accidental duplicate local declaration in project-tab close logic and expanded regression coverage around route-anchor restoration, modal scroll restoration, header sizing/centering, context menus, modal gutter symmetry, mobile Gallery pinning, and Light Theme stability.
+
+## 5.0.0 - 2026-09-02
+
+### Added
+- Published **Freelance / Client Case Studies** with stable deep links, crawler metadata, structured data, sitemap coverage, and live-site links. **Amorella Beauty** is the first public client case study.
+- A separate **What I can build** capability layer for real-time communications, business-platform modernization, and marketplace/mobile product delivery, without presenting capability examples as named client work.
+- A five-state **Portfolio Mood** system for availability: `open`, `selective`, `freelance`, `focused`, and `unavailable`. One repository-owned `config/availability.json` value drives the header status, Availability modal, Terminal/Search metadata, CTA behavior, opportunity types, work modes, and timezone.
+- Local mood commands (`npm run mood -- <preset>` and `npm run mood:list`) plus a manual **Set portfolio mood** GitHub Action that updates `develop` and follows the normal staging verification flow before production promotion.
+- `availabilityMood` in generated `build-info.json` so the deployed mood can be verified independently on staging and production.
+- **Accessibility Control Center** with persistent Reduce Motion, Increased Contrast, Larger Text, and Enhanced Focus preferences, including operating-system reduced-motion support and accessible switch semantics.
+- Ranked **Universal Search** across navigation, projects, Engineering Notes, published case studies, capabilities, skills, experience, and portfolio settings, available from a visible header action and the conflict-safe `Ctrl/Cmd + Shift + P` shortcut.
+- Terminal integration for case studies, GitHub Activity, availability/mood status, and accessibility controls.
+
+### Changed
+- Extended the v4.2 semantic Light Theme system to all v5 surfaces, including Case Studies, capability cards, Portfolio Mood/Availability, Accessibility, Universal Search, dialogs, interactive states, and focus treatments.
+- Explorer and Outline navigation now follow the document sequence consistently: Projects → Case Studies → Experience → GitHub Activity → Now → Changelog → Engineering Notes.
+- GitHub Activity is now a first-class navigation destination in the left-side workspace navigation instead of being reachable only by scrolling the page.
+- Availability is managed as operational portfolio state rather than duplicated UI copy, so one mood change updates every relevant surface consistently.
+- Staging and production deployment remain fully isolated: `develop` uses only the five `STAGING_FTP_*` secrets, `main` uses only the five production `FTP_*` secrets, and both deploy only after the reusable quality workflow has passed and produced the tested artifact.
+
+### Security
+- Published case-study content is limited to client work that is safe to identify publicly. Capability cards are explicitly separated from client claims, and no private metrics, secrets, deployment credentials, or confidential implementation details are exposed.
+- The existing private GitHub API token boundary, staging `noindex` behavior, CSP, API protections, and environment-specific deployment-secret isolation remain intact.
+
+## 4.2.2 - 2026-09-02 — Specter
+
+### Fixed
+- Hardened the Engineering Notes light-theme contrast regression selector and visibility assertion used by the browser quality suite.
 
 ## 4.2.1 - 2026-09-02
 
 ### Fixed
-- Made the Skills Preview contrast test use an exact accessible-name match, preventing the Resume Viewer preview plugin from triggering a Playwright strict-mode collision.
-- The mobile project toolbar now scrolls horizontally to keep the automatically selected Gallery control fully visible at the end of the document.
-- Returning from an Engineering Note now bypasses the global smooth-scroll rule and lands at the Notes index immediately.
+- Tightened light-theme Skills Preview contrast checks.
+- Kept the mobile project Gallery quick-access item fully visible when it becomes active at the end of the document.
+- Returning from Engineering Notes bypasses smooth scrolling for deterministic restoration.
 
-### Tests
-- Tightened the Notes return regression to reject multi-second smooth scrolling.
-- Extended the mobile Gallery regression to verify both selected state and full toolbar visibility.
+### Changed
+- Expanded browser regressions around light-theme contrast and mobile project-navigation visibility.
 
 ## 4.2.0 - 2026-09-02
 
 ### Changed
-- Rebuilt the light theme around semantic canvas, surface, text, accent and border tokens so new feature styles cannot silently restore dark surfaces.
-- Redesigned the Hero engineering showcase, including Primary lanes, metrics, terminal output and stack chips, for strong light-theme readability.
-- Converted Skills Preview and Skills Code into cohesive light workbench surfaces with clear hover and active states.
-- Unified light-theme styling across the IDE shell, tabs, project routes, Engineering Notes, Recruiter Mode, 404, command surfaces, modals and project navigation.
-- Reworked Compare, selected Compare chips and the floating compare queue to remove dark-on-dark controls.
+- Rebuilt Light Theme around semantic canvas, surface, text, accent, and border behavior across the IDE shell.
+- Redesigned the light Hero/workbench treatment and unified light styling for projects, Notes, Recruiter Mode, 404, compare, command surfaces, modals, and navigation states.
+- Improved hover, selected, focus, and disabled-state contrast across primary interactive surfaces.
 
-### Quality
-- Added contrast-ratio regression checks for the Hero, Skills Preview, Notes, project tabs, 404 and floating Compare UI.
-
-## 4.1.2 - 2026-09-01
+## 4.1.1 - 2026-09-02
 
 ### Fixed
-- Rebuilt the compact PWA install control with a dedicated square icon frame so the download glyph is geometrically centered inside both its button and the mobile header.
-- The mobile project quick-access toolbar now selects Gallery automatically when the document reaches its end, even when the final section cannot cross the normal scroll-spy probe line.
-- The Engineering Note toolbar now sticks below the complete top-bar and editor-tab stack (`94px` on tablet and `90px` on mobile) instead of being obscured beneath the tabs.
+- Engineering Note close and browser Back navigation now restore the exact Engineering Notes anchor only after the portfolio DOM has committed, eliminating the mixed Changelog/Notes landing position.
+- Browser history scroll restoration is controlled by the SPA while mounted so native history restoration cannot overwrite the final Notes position.
+- Engineering Note TOC selection stays pinned to the clicked destination during smooth scrolling and resumes live scroll-spy tracking after the jump or any manual wheel, touch, pointer, or keyboard navigation.
+- TOC heading lookup is scoped to the active note article and duplicate generated heading IDs are de-duplicated, preventing unstable selections and accidental jumps.
+- Header PWA install/download action no longer wraps with the availability label and its Lucide icon uses explicit block/flex centering on desktop, tablet, and mobile.
 
 ### Changed
-- Added responsive browser regressions for PWA icon geometry, Gallery end-of-document selection, and Notes toolbar stacking.
-
-## 4.1.1 - 2026-09-01
-
-### Fixed
-- Engineering Note return navigation now runs after the portfolio DOM is committed and corrects late layout shifts, so both the in-page back control and browser Back land at the beginning of Engineering Notes.
-- Browser history scroll restoration can no longer override the application’s section navigation with the previous article position.
-- Engineering Note heading IDs are namespaced per article and TOC queries are scoped to the rendered Markdown, eliminating collisions with the surrounding IDE shell.
-- Repeated TOC clicks keep the selected entry stable throughout smooth scrolling; manual wheel/touch navigation immediately returns control to scroll-based selection.
-- The compact PWA download/install control now occupies the header alignment context and centers its icon vertically on narrow screens.
-
-### Changed
-- Added browser regression scenarios for exact Notes restoration, repeated TOC selection, and mobile header icon centering.
+- Mobile/tablet Engineering Note TOC automatically keeps the active chip visible inside its horizontal scroller without moving the document itself.
+- Expanded Playwright coverage for repeated TOC jumps, manual scroll-spy updates, exact note-return positioning, and browser Back behavior.
 
 ## 4.1.0 - 2026-09-01
 
@@ -104,7 +175,7 @@ The project follows [Semantic Versioning](https://semver.org/). The early produc
 - Fixed Source Explorer status-bar clipping so language, file size, and line count remain vertically centered and fully visible.
 - Added subtle status separators that remain consistent in dark and light themes.
 
-## 3.1.0 - 2026-09-01
+## 3.1.0 - 2026-09-01 — Shadow
 
 ### Added
 - Pointer-responsive parallax for the custom engineering showcase on the home screen.
@@ -196,7 +267,7 @@ The project follows [Semantic Versioning](https://semver.org/). The early produc
 - Source paths reject traversal, generated/dependency trees, configured exclusions, binary content, and files above each repository's preview limit.
 - GitHub credentials remain server-side; the browser only talks to same-origin PHP endpoints.
 
-## 2.2.4 - 2026-08-31
+## 2.2.4 - 2026-08-31 — Pixel
 
 ### Fixed
 - Restored the IDE-style 404 workspace for unknown routes behind ParsPack CDN.
@@ -226,7 +297,7 @@ The project follows [Semantic Versioning](https://semver.org/). The early produc
 
 ### Changed
 - Finalized CI/CD documentation for the dedicated ParsPack deployment account.
-- Documentation-only changes, including `CHANGELOG.md`, no longer trigger a production deployment workflow.
+- Documentation-only changes, including `docs/CHANGELOG.md`, no longer trigger a production deployment workflow.
 
 ## 2.2.1 - 2026-08-31
 
