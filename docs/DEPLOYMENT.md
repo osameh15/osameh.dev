@@ -266,7 +266,20 @@ They should not be web-accessible.
 
 ## 8. Security checks
 
-Confirm response headers on the root document include:
+HSTS is owned exclusively by the ParsPack CDN edge. The current edge policy is:
+
+```text
+Strict-Transport-Security: max-age=31536000;preload
+```
+
+TLS terminates at the CDN edge, which may generate or cache responses independently
+of the origin. `public/.htaccess` deliberately does not emit
+`Strict-Transport-Security`, ensuring one browser-facing HSTS source and avoiding
+the duplicate values previously seen on origin/error responses. Do not infer that
+`includeSubDomains` is enabled or that `osameh.dev` is enrolled in browser preload
+lists from this policy.
+
+Confirm response headers on the root document include the CDN HSTS header and:
 
 ```text
 Strict-Transport-Security
