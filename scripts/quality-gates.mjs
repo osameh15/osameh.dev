@@ -99,6 +99,17 @@ const packageVersion = JSON.parse(readFileSync(resolve("package.json"), "utf8"))
 if (!readme.includes(`### v${packageVersion}`) || !readFileSync(resolve("docs/CHANGELOG.md"), "utf8").includes(`## ${packageVersion} -`)) fail("Current package version is not represented in README/docs/CHANGELOG release history");
 else pass(`Documentation includes current release v${packageVersion}`);
 
+// The site renders its own curated release array; docs/CHANGELOG.md is the detailed
+// record. Wording may differ, but a release existing in one and not the other is drift.
+const changelogMarkdown = readFileSync(resolve("docs/CHANGELOG.md"), "utf8");
+const siteChangelogVersions = new Set([...readFileSync(resolve("src/portfolioData.ts"), "utf8").matchAll(/\{ version: "([\d.]+)"/g)].map(match => match[1]));
+const documentedVersions = [...changelogMarkdown.matchAll(/^## ([\d.]+)/gm)].map(match => match[1]);
+if (documentedVersions[0] !== packageVersion) fail(`docs/CHANGELOG.md newest release is ${documentedVersions[0]}, expected ${packageVersion}`);
+if (!siteChangelogVersions.has(packageVersion)) fail(`src/portfolioData.ts changelog is missing the released version ${packageVersion}`);
+const undocumentedOnSite = documentedVersions.filter(version => !siteChangelogVersions.has(version));
+if (undocumentedOnSite.length) fail(`Releases documented but missing from the site changelog: ${undocumentedOnSite.join(", ")}`);
+else pass(`Site changelog covers all ${documentedVersions.length} documented releases`);
+
 const advancedSource = readFileSync(resolve("src/AdvancedUI.tsx"), "utf8");
 // One bundle serves both environments, so a hardcoded environment literal in the
 // build modal would misreport staging as production.
