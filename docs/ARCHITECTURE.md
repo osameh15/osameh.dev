@@ -1,6 +1,6 @@
 # Runtime Architecture
 
-**Applies to:** v5.2.0
+**Applies to:** v5.2.3
 **Scope:** how the deployed system behaves at runtime — request path, routing,
 server-side metadata, the SPA shell, the GitHub proxy, the Service Worker, and
 the shared UI invariants.
@@ -243,6 +243,22 @@ The proxy fronts repository listings, activity, metrics, repository metadata,
 README, source tree, source file and image discovery. Responses are cached to disk
 with per-endpoint lifetimes, and stale cache is served when GitHub is unavailable
 so the portfolio degrades rather than breaking.
+
+### README asset URLs
+
+A README references assets in three shapes, and each must be encoded **exactly
+once**: a repository-relative path, a path whose reserved characters the author
+already percent-encoded, and another project's absolute URL. Encoding an
+already-encoded path a second time turns `%20` into `%2520` and the asset 404s,
+so normalization is idempotent by construction — segments are decoded, then
+encoded once, and `normalize(normalize(path)) === normalize(path)`.
+
+Two rules keep that safe. Splitting on `/` happens **before** decoding, so an
+encoded slash stays inside its own segment instead of being promoted into path
+structure. And a well-formed `raw.githubusercontent.com` URL — owner, repository,
+ref, path — is left untouched whoever owns it; only genuinely prefix-less legacy
+paths are repaired against this repository. Rewriting a third party's asset onto
+our own repository produces a URL that cannot resolve.
 
 Project identity and base cards come from checked-in fallback data and render before
 the repository request completes. GitHub repository and metric responses are

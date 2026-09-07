@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { verifyServiceWorker } from "./verify-sw.mjs";
 import { verifyBrandAssets } from "./verify-brand-assets.mjs";
+import { verifyReadmeAssetUrls } from "./verify-readme-assets.mjs";
 import { resolveReleaseCodename } from "../src/releaseMetadataCore.js";
 
 const failures = [];
@@ -289,6 +290,12 @@ if (!failures.some(item => item.includes("hardcodes the release codename"))) pas
 const brandFailures = verifyBrandAssets();
 for (const failure of brandFailures) fail(failure);
 if (!brandFailures.length) pass("Neural Cipher icon pack, manifest icons, and social artwork verified");
+
+// README asset URLs must be encoded exactly once. A second encoding pass turns
+// "%20" into "%2520" and 404s the image.
+const readmeAssetFailures = verifyReadmeAssetUrls();
+for (const failure of readmeAssetFailures) fail(failure);
+if (!readmeAssetFailures.length) pass("README asset URLs normalize exactly once and preserve third-party hosts");
 
 // The service worker only registers over HTTPS, so no local browser run loads
 // it. Execute it against a minimal worker environment here instead.

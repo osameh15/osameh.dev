@@ -1,6 +1,6 @@
 {
   "name": "osameh-portfolio",
-  "version": "5.2.2",
+  "version": "5.2.3",
   "private": true,
   "type": "module",
   "scripts": {
@@ -20,7 +20,8 @@
     "mood": "node scripts/set-availability.mjs",
     "mood:list": "node scripts/set-availability.mjs --list",
     "test:e2e": "playwright test",
-    "test:e2e:install": "playwright install --with-deps chromium"
+    "test:e2e:install": "playwright install --with-deps chromium",
+    "verify:readme": "node scripts/verify-readme-assets.mjs"
   },
   "dependencies": {
     "dompurify": "^3.2.6",

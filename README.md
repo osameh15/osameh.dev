@@ -505,6 +505,12 @@ The site also includes an in-app resume viewer and download/open controls.
 
 The **six most recent releases** are summarized here. See **[CHANGELOG.md](docs/CHANGELOG.md)** for the complete production history. This section is intentionally capped at six releases.
 
+### v5.2.3 — Cipher
+
+- Fixed double URL-encoding of GitHub README asset paths, which returned HTTP 404 for filenames containing spaces or existing percent escapes.
+- Stopped rewriting third-party `raw.githubusercontent.com` assets onto this repository; well-formed raw URLs keep their own owner, repository and ref.
+- Added idempotent, segment-safe path normalization covering Unicode, reserved characters, malformed escapes, and encoded slashes.
+
 ### v5.2.2 — Cipher
 
 - Added crawlable native links for Projects, Engineering Notes, and the Amorella Beauty Case Study while preserving SPA/editor-tab behavior; **Explore my work** now consistently opens Projects.
@@ -546,15 +552,6 @@ The **six most recent releases** are summarized here. See **[CHANGELOG.md](docs/
 - adds dedicated right-click actions for Engineering Notes and Case Studies
 - expands Terminal commands for Case Studies, capabilities, GitHub Activity, Portfolio Mood, Accessibility, and the Command Palette
 - hardens the new v5 surfaces against Light Theme transition drift, mobile Gallery end-state flakiness, and context-menu/route-scroll races
-
-### v5.0.0 — Portfolio product layer
-
-- adds published freelance/client Case Studies, beginning with Amorella Beauty, plus a separate **What I can build** capability layer
-- introduces a five-state **Portfolio Mood** system for availability, editable from `config/availability.json`, local npm commands, or the **Set portfolio mood** GitHub Action
-- adds an Accessibility Control Center with persistent Reduce Motion, Increased Contrast, Larger Text, and Enhanced Focus preferences
-- upgrades the IDE command surface into ranked search across projects, Engineering Notes, case studies, skills, experience, navigation, and settings
-- adds GitHub Activity to Explorer/Outline navigation in the same sequence as the document and extends the v4.2 semantic light-theme system across every new v5 surface
-- separates staging and production deployment credentials while requiring the reusable quality pipeline and tested artifact before either environment can deploy
 
 ## Documentation
 

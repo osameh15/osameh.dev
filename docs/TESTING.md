@@ -1,6 +1,6 @@
 # Testing Reference
 
-**Applies to:** v5.2.0
+**Applies to:** v5.2.3
 **Scope:** what is tested, which command proves which contract, and — most
 importantly — what can be trusted locally versus what requires CI or staging.
 
@@ -26,6 +26,7 @@ Every command below exists in `package.json`.
 | `npm run package:production` | Derives `dist-production/` from the same tested `dist/`, applying no indexing policy. |
 | `npm run verify:production` | Production bundle stayed indexable and inherited no staging policy: indexable robots meta, no `Disallow: /`, no global noindex header, production canonical and `og:url`, valid sitemap. |
 | `npm run verify:brand` | Neural Cipher icon pack presence and pixel dimensions, manifest icon validity, 1200x630 social card, and absence of retired asset references. Also invoked by `npm run quality`. |
+| `npm run verify:readme` | README asset URL normalization: encoded exactly once, idempotent, segment-safe for Unicode, percent, reserved characters, malformed escapes and encoded slashes, and third-party raw hosts preserved. Also invoked by `npm run quality`. |
 | `npm run verify:sw` | Service Worker response-ownership and caching rules (see §5). Also invoked by `npm run quality`. |
 | `npm run test:e2e:install` | Installs the pinned Playwright browser. Run once. |
 | `npm run test:e2e` | The browser regression suite (see §4). |
@@ -123,7 +124,7 @@ never surface as uncaught exceptions, unhandled rejections or React errors.
 
 ## 4. Playwright coverage
 
-Baseline: **76 passing tests** in `tests/e2e/portfolio.spec.ts`. Treat this as a
+Baseline: **78 passing tests** in `tests/e2e/portfolio.spec.ts`. Treat this as a
 floor that grows with each release, not as the contract itself — the contract is
 the coverage areas below.
 

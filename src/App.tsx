@@ -19,6 +19,7 @@ import { engineeringNotes } from "./notesData";
 import { AccessibilityControlButton, AvailabilityBadge, CaseStudiesSection, CaseStudyModal, PortfolioFeatureModals, availabilityConfig, availabilityProfile, capabilities, caseStudies, usePortfolioFeatures } from "./PortfolioFeatures";
 import type { CaseStudy } from "./caseStudiesData";
 import { getWorkspaceScrollPosition, useModalDialog } from "./modalScroll";
+import { encodePathSegments, normalizeReadmeAssetUrl } from "./githubAssetUrlCore.js";
 
 // Shared editor-tab model. Every tab-backed view uses one lifecycle: activating a
 // tab never removes another, closing the active tab activates the tab to its
@@ -179,50 +180,8 @@ const sectionByPath = (path: string) => sections.find(section => section.path ==
 
 const GITHUB_OWNER = "osameh15";
 
-function encodePathSegments(value: string) {
-  return value.split("/").filter(Boolean).map(segment => encodeURIComponent(segment)).join("/");
-}
-
-function normalizeReadmeAssetUrl(source: string, repo: GithubRepo) {
-  const value = source.replace(/&amp;/g, "&").trim();
-  if (!value) return "";
-  if (value.startsWith("data:image/")) return value;
-  if (value.startsWith("//")) return "https:" + value;
-
-  if (/^https:\/\//i.test(value)) {
-    // GitHub blob links are HTML pages, not image resources. Convert the common form to raw content.
-    const blob = value.match(/^https:\/\/github\.com\/([^/]+)\/([^/]+)\/blob\/([^/]+)\/(.+)$/i);
-    if (blob && blob[1].toLowerCase() === GITHUB_OWNER.toLowerCase() && blob[2].toLowerCase() === repo.name.toLowerCase()) {
-      return `https://raw.githubusercontent.com/${encodeURIComponent(blob[1])}/${encodeURIComponent(blob[2])}/${encodePathSegments(blob[3])}/${encodePathSegments(blob[4])}`;
-    }
-
-    // Repair legacy malformed raw.githubusercontent.com paths that omit owner/repo/branch.
-    try {
-      const absolute = new URL(value);
-      if (absolute.hostname.toLowerCase() === "raw.githubusercontent.com") {
-        const parts = absolute.pathname.split("/").filter(Boolean);
-        const alreadyCanonical = parts.length >= 4 && parts[0].toLowerCase() === GITHUB_OWNER.toLowerCase() && parts[1].toLowerCase() === repo.name.toLowerCase();
-        if (!alreadyCanonical && parts.length) {
-          return `https://raw.githubusercontent.com/${GITHUB_OWNER}/${encodeURIComponent(repo.name)}/${encodePathSegments(repo.default_branch)}/${encodePathSegments(parts.join("/"))}`;
-        }
-      }
-    } catch {
-      return "";
-    }
-    return value;
-  }
-
-  if (/^[a-z][a-z0-9+.-]*:/i.test(value)) return "";
-
-  const clean = value.split("#")[0].split("?")[0].replace(/^\.\//, "").replace(/^\/+/, "");
-  if (!clean) return "";
-  const base = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${encodeURIComponent(repo.name)}/${encodePathSegments(repo.default_branch)}/`;
-  try {
-    return new URL(clean, base).href;
-  } catch {
-    return "";
-  }
-}
+/** Repository identity for README asset resolution. */
+const readmeRepoRef = (repo: GithubRepo) => ({ owner: GITHUB_OWNER, repoName: repo.name, defaultBranch: repo.default_branch });
 
 type MarkdownTools = {
   marked: typeof import("marked").marked;
@@ -279,7 +238,7 @@ function readmeImages(markdown: string, repo: GithubRepo): RepoGalleryImage[] {
 
   const images: RepoGalleryImage[] = [];
   for (const candidate of usable) {
-    const normalized = normalizeReadmeAssetUrl(candidate.source, repo);
+    const normalized = normalizeReadmeAssetUrl(candidate.source, readmeRepoRef(repo));
     if (!normalized || seenUrl.has(normalized)) continue;
     seenUrl.add(normalized);
     const rawPath = candidate.source.split("#")[0].split("?")[0].replace(/^\.\//, "").replace(/^\/+/, "");
@@ -317,7 +276,7 @@ async function renderMarkdown(markdown: string, repo: GithubRepo) {
   const documentNode = new DOMParser().parseFromString(sanitized, "text/html");
 
   documentNode.querySelectorAll("img").forEach(image => {
-    const safeSource = normalizeReadmeAssetUrl(image.getAttribute("src") || "", repo);
+    const safeSource = normalizeReadmeAssetUrl(image.getAttribute("src") || "", readmeRepoRef(repo));
     if (!safeSource) image.remove();
     else {
       image.src = safeSource;
