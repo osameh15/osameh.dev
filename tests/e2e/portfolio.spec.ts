@@ -1081,22 +1081,32 @@ test("valid first-class routes still render their own workspace", async ({ page 
 // tab to its left, and Home restores the section owned by the tab it replaced.
 // ---------------------------------------------------------------------------
 
-const PROJECT_A = "open project: osameh";
-const PROJECT_B = "open project: Mizekar";
-const NOTE_A = "read note: repository-driven";
+// A palette target carries the exact destination it must reach. "Any project"
+// is not a usable post-condition: once one project is open it is already true,
+// so the helper would stop waiting before the requested tab existed.
+const PROJECT_A = { query: "open project: osameh", path: "/projects/osameh.dev", tab: "osameh.dev.md" };
+const PROJECT_B = { query: "open project: Mizekar", path: "/projects/Mizekar", tab: "Mizekar.md" };
+const NOTE_A = { query: "read note: repository-driven", path: "/notes/repository-driven-portfolio", tab: "repository-driven-portfolio.md" };
+type PaletteTarget = typeof PROJECT_A;
 
-async function runPalette(page: import("@playwright/test").Page, query: string) {
+async function runPalette(page: import("@playwright/test").Page, target: PaletteTarget) {
   await page.evaluate(openPaletteShortcut);
   const palette = page.getByRole("dialog", { name: "Command Palette" });
   await expect(palette).toBeVisible();
-  await palette.getByRole("textbox").fill(query);
+  await palette.getByRole("textbox").fill(target.query);
   await expect(palette.getByRole("option").first()).toBeVisible();
   await palette.getByRole("textbox").press("Enter");
   await expect(palette).toBeHidden();
-  const destination = query.toLowerCase().startsWith("open project") ? "projects" : "notes";
-  await expect(page).toHaveURL(new RegExp(`/${destination}/[^/]+$`));
-  await expect.poll(() => page.locator(`.editor-tab[data-tab-id^="${destination === "projects" ? "project" : "note"}:"]`).count()).toBeGreaterThan(0);
+  // The open handler pushes history synchronously, so a matching URL alone is
+  // not evidence that the tab has rendered. Wait for the entity this call asked
+  // for: its exact route, and its own tab actually active in the strip.
+  await expect.poll(() => new URL(page.url()).pathname).toBe(target.path);
+  await expect(page.locator(".editor-tab.active")).toHaveText(target.tab);
 }
+
+/** Title of the active tab, so a failure names the tab instead of a count. */
+const activeTabTitle = (page: import("@playwright/test").Page) =>
+  page.evaluate(() => (document.querySelector(".editor-tab.active") as HTMLElement | null)?.textContent?.trim() || null);
 const tabIds = (page: import("@playwright/test").Page) =>
   page.evaluate(() => [...document.querySelectorAll(".editor-tab")].map(tab => (tab as HTMLElement).dataset.tabId || "home"));
 const activeTabId = (page: import("@playwright/test").Page) =>
@@ -1160,6 +1170,7 @@ test("mixed project and note tabs coexist, switch and never duplicate", async ({
   await runPalette(page, NOTE_A);
   await runPalette(page, PROJECT_B);
   let ids = await tabIds(page);
+  expect(await activeTabTitle(page)).toBe(PROJECT_B.tab);
   expect(ids.filter(id => id.startsWith("project:"))).toHaveLength(2);
   expect(ids.filter(id => id.startsWith("note:"))).toHaveLength(1);
   expect(ids[0]).toBe("home");
@@ -1377,6 +1388,11 @@ for (const viewport of tabScrollViewports) {
     await runPalette(page, NOTE_A);
     await runPalette(page, PROJECT_B);
     const ids = await tabIds(page);
+    // Diagnose before counting: a bare count says "3 != 4" without saying which
+    // tab never arrived.
+    expect(await activeTabTitle(page)).toBe(PROJECT_B.tab);
+    expect(ids.filter(id => id.startsWith("project:"))).toHaveLength(2);
+    expect(ids.filter(id => id.startsWith("note:"))).toHaveLength(1);
     expect(ids.length).toBeGreaterThanOrEqual(4);
 
     // Scrolling is smooth, so poll until it settles rather than sampling once.
