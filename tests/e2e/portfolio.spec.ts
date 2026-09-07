@@ -1428,6 +1428,56 @@ for (const viewport of tabScrollViewports) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// README asset URLs. A README may reference an asset with a raw space, with the
+// space already percent-encoded, or as a third party's absolute raw URL. Each
+// must be encoded exactly once - a second pass turns "%20" into "%2520" and
+// 404s the image - and a third party's URL must never be rewritten onto ours.
+// ---------------------------------------------------------------------------
+
+const README_FIXTURE = [
+  "# Fixture",
+  "",
+  "![Raw space](<docs/My Image.png>)",
+  "![Encoded space](docs/My%20Encoded.png)",
+  "![Unicode](docs/تصویر.png)",
+  "![Nested](<docs/screenshots/Deep Folder/Shot One.png>)",
+  '<img src="docs/Html Image.png" alt="Html">',
+  "![Third party](https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg)",
+  "",
+  "[Relative doc link](<docs/Some Doc.md>)",
+].join("\n");
+
+test("README assets are encoded exactly once and third-party hosts are preserved", async ({ page }) => {
+  await stubFeaturedProjects(page);
+  await page.route("**/api/github/readme/**", route => route.fulfill({ status: 200, contentType: "text/markdown", body: README_FIXTURE }));
+  await page.goto("/");
+  await runPalette(page, PROJECT_A);
+
+  const preview = page.locator(".markdown-preview");
+  await expect(preview).toBeVisible();
+  const sources = await preview.locator("img").evaluateAll(nodes => nodes.map(node => node.getAttribute("src") || ""));
+  expect(sources.length).toBeGreaterThanOrEqual(6);
+
+  // The defect this release fixes: no asset URL may carry a double encoding.
+  for (const source of sources) expect(source).not.toContain("%2520");
+
+  const root = "https://raw.githubusercontent.com/osameh15/osameh.dev/main/";
+  expect(sources).toContain(root + "docs/My%20Image.png");
+  expect(sources).toContain(root + "docs/My%20Encoded.png");
+  expect(sources).toContain(root + "docs/" + encodeURIComponent("تصویر.png"));
+  expect(sources).toContain(root + "docs/screenshots/Deep%20Folder/Shot%20One.png");
+  expect(sources).toContain(root + "docs/Html%20Image.png");
+  // A third party's asset stays on its own repository, byte for byte.
+  expect(sources).toContain("https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg");
+
+  // Sanitization and the tab lifecycle are unaffected by the transform.
+  expect(await preview.locator("script").count()).toBe(0);
+  const links = await preview.locator("a").evaluateAll(nodes => nodes.map(node => node.getAttribute("href") || ""));
+  for (const href of links) expect(href).not.toContain("%2520");
+  expect(await activeTabTitle(page)).toBe(PROJECT_A.tab);
+});
+
 test("tab auto-scroll leaves an already-visible active tab alone", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await stubFeaturedProjects(page);

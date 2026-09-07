@@ -4,6 +4,18 @@ All notable changes to **osameh.dev** are documented here.
 
 The project follows [Semantic Versioning](https://semver.org/). The early production releases were shipped in rapid succession while the portfolio was moved from its hosted prototype to the current ParsPack/CDN deployment.
 
+## 5.2.3 - 2026-09-07 — Cipher
+
+Patch release in the **Cipher** family, correcting GitHub README asset resolution.
+
+### Fixed
+- README assets whose paths contain spaces or existing percent escapes are now encoded exactly once. A second encoding pass previously turned `%20` into `%2520`, so those images returned HTTP 404.
+- A README image hosted on another account's `raw.githubusercontent.com` path is no longer rewritten onto this repository. Any well-formed raw URL now keeps its own owner, repository and ref; only genuinely prefix-less legacy paths are still repaired.
+
+### Added
+- Path normalization that is idempotent by construction and covers Unicode filenames, literal percent characters, reserved characters, malformed escapes, and encoded slashes, which are never promoted into path structure.
+- A repository quality gate and browser regression coverage for README asset and link URLs.
+
 ## 5.2.2 - 2026-09-07 — Cipher
 
 ### SEO discovery
