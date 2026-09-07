@@ -4,6 +4,31 @@ All notable changes to **osameh.dev** are documented here.
 
 The project follows [Semantic Versioning](https://semver.org/). The early production releases were shipped in rapid succession while the portfolio was moved from its hosted prototype to the current ParsPack/CDN deployment.
 
+## 5.2.2 - 2026-09-07 — Cipher
+
+### SEO discovery
+
+- Project, Engineering Note, and Case Study cards now expose native crawlable links while preserving SPA navigation and editor-tab behavior.
+- The hero's **Explore my work** link now navigates reliably to the Projects route from every section deep link.
+- The static and dynamic sitemaps now list only independently indexable detail documents whose canonical intent matches the submitted URL.
+- WebSite structured data now identifies the site concisely as **Osameh Irandoust**, with **osameh.dev** as its alternate name; the existing Person entity and verified profile links remain unchanged.
+
+### Accessibility
+
+- Replaced interactive `article role="button"` project cards with structural articles and native links.
+- Corrected the hero showcase heading level and targeted failing dark-theme secondary-text contrast.
+- Replaced the status pulse's paint-heavy box-shadow animation with compositor-safe opacity and transform.
+
+### Loading performance
+
+- Core project cards now render immediately from local portfolio data instead of waiting for the GitHub repository request.
+- Live GitHub metrics continue to enhance project cards asynchronously with stable neutral values while unresolved.
+
+### Search readiness
+
+- Production indexability and staging noindex protections remain unchanged.
+- SSR and prerendering are intentionally deferred while Google Search Console collects indexing evidence.
+
 ## 5.2.1 - 2026-09-06 — Cipher
 
 Patch release in the **Cipher** family, consolidating post-5.2.0 reliability work.

@@ -30,7 +30,7 @@ export function EngineeringNotesSection({ onOpenNote }: { onOpenNote: (slug: str
         <h3>{note.title}</h3>
         <p>{note.summary}</p>
         <div className="note-tags">{note.tags.map(tag => <span key={tag}>{tag}</span>)}</div>
-        <button type="button" onClick={() => onOpenNote(note.slug)}>Read note <ArrowUpRight size={14} /></button>
+        <a className="note-link" href={`/notes/${encodeURIComponent(note.slug)}`} onClick={event => { if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return; event.preventDefault(); onOpenNote(note.slug); }}>Read note <ArrowUpRight size={14} /></a>
       </article>)}
     </div>
     {remaining > 0 && <div className="notes-load-more">

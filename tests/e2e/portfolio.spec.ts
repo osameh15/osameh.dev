@@ -45,6 +45,67 @@ test("project section and source explorer remain available", async ({ page }) =>
   await expect(page.locator("#project-filter-panel")).toBeVisible();
 });
 
+test("Explore my work navigates from section routes to Projects", async ({ page }) => {
+  await page.goto("/about");
+  const explore = page.getByRole("link", { name: /Explore my work/i });
+  await expect(explore).toHaveAttribute("href", "/projects");
+  await explore.click();
+  await expect(page).toHaveURL(/\/projects$/);
+  await expect.poll(async () => Math.abs(((await page.locator("#work").boundingBox())?.y ?? 9999) - 94)).toBeLessThan(12);
+});
+
+test("project cards render without GitHub and expose native detail links", async ({ page }) => {
+  await page.route("**/api/github/**", route => route.abort());
+  await page.goto("/projects", { waitUntil: "domcontentloaded" });
+  const card = page.locator(".project-card").first();
+  await expect(card).toBeVisible();
+  await expect(card).not.toHaveAttribute("role", "button");
+  const link = card.getByRole("link", { name: /Open project details/i });
+  await expect(link).toHaveAttribute("href", /^\/projects\/.+/);
+  const href = await link.getAttribute("href");
+  const projectName = await card.getAttribute("data-project-name");
+  await link.click();
+  await expect(page).toHaveURL(new RegExp(`${href!.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`));
+  await expect(page.locator(".editor-tab.active")).toContainText(projectName ?? "");
+});
+
+test("notes and case studies expose native links with SPA navigation", async ({ page }) => {
+  await page.goto("/notes");
+  const noteLink = page.locator(".note-card").first().getByRole("link", { name: /Read note/i });
+  await expect(noteLink).toHaveAttribute("href", /^\/notes\/[a-z0-9-]+$/);
+  await noteLink.click();
+  await expect(page).toHaveURL(/\/notes\/[a-z0-9-]+$/);
+  await expect(page.locator(".editor-tab.active")).toContainText(/Repository|FTPS|GitHub|cache/i);
+
+  await page.goto("/case-studies");
+  const caseLink = page.getByRole("link", { name: /Open case study/i }).first();
+  await expect(caseLink).toHaveAttribute("href", "/case-studies/amorella-beauty");
+  await caseLink.click();
+  await expect(page).toHaveURL(/\/case-studies\/amorella-beauty$/);
+  await expect(page.getByRole("dialog")).toBeVisible();
+});
+
+test("sitemap and identity schema match canonical document intent", async ({ page, request }) => {
+  const sitemap = await (await request.get("/sitemap.xml")).text();
+  const urls = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map(match => match[1]);
+  expect(urls).toHaveLength(17);
+  for (const section of ["about", "projects", "case-studies", "experience", "activity", "now", "changelog", "notes", "contact", "resume"]) {
+    expect(urls).not.toContain(`https://osameh.dev/${section}`);
+  }
+  expect(urls).toContain("https://osameh.dev/case-studies/amorella-beauty");
+  expect(urls.some(url => url.includes("/projects/"))).toBe(true);
+  expect(urls.some(url => url.includes("/notes/"))).toBe(true);
+
+  await page.goto("/");
+  const graph = await page.locator('script[type="application/ld+json"]').first().evaluate(node => JSON.parse(node.textContent || "{}") as { "@graph": Array<Record<string, unknown>> });
+  const website = graph["@graph"].find(item => item["@type"] === "WebSite");
+  const person = graph["@graph"].find(item => item["@type"] === "Person");
+  expect(website).toMatchObject({ "@id": "https://osameh.dev/#website", name: "Osameh Irandoust", alternateName: "osameh.dev", publisher: { "@id": "https://osameh.dev/#person" } });
+  expect(person).toMatchObject({ "@id": "https://osameh.dev/#person", name: "Osameh Irandoust", jobTitle: "Software Engineer" });
+  await expect(page.locator("h1")).toHaveCount(1);
+  await expect(page.locator(".showcase-card h2")).toBeVisible();
+});
+
 test("direct GitHub Activity route renders the first-class section", async ({ page }) => {
   await page.goto("/activity");
   await expect(page).toHaveURL(/\/activity\/?$/);
@@ -98,7 +159,7 @@ test("engineering note TOC stays selected through repeated jumps and returns exa
 
 test("browser back from an engineering note restores the notes anchor", async ({ page }) => {
   await page.goto("/notes");
-  await page.getByRole("button", { name: /Read note/i }).first().click();
+  await page.getByRole("link", { name: /Read note/i }).first().click();
   await expect(page).toHaveURL(/\/notes\/[a-z0-9-]+\/?$/i);
   await page.goBack();
   await expect(page).toHaveURL(/\/notes\/?$/);
@@ -140,7 +201,7 @@ test("light theme keeps key interactive surfaces visible", async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem("portfolio-theme", "light"));
   await page.goto("/notes");
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
-  const readNote = page.getByRole("button", { name: /Read note/i }).first();
+  const readNote = page.getByRole("link", { name: /Read note/i }).first();
   await expect(readNote).toBeVisible();
   const contrastSignals = await readNote.evaluate(element => {
     const style = getComputedStyle(element);
@@ -153,7 +214,7 @@ test("light theme keeps key interactive surfaces visible", async ({ page }) => {
 test("case studies support privacy-safe deep links", async ({ page }) => {
   await page.goto("/case-studies");
   await expect(page.locator("#case-studies")).toBeVisible();
-  await page.getByRole("button", { name: /Open case study/i }).first().click();
+  await page.getByRole("link", { name: /Open case study/i }).first().click();
   await expect(page).toHaveURL(/\/case-studies\/[a-z0-9-]+$/);
   const dialog = page.getByRole("dialog");
   await expect(dialog).toContainText("Engineering decisions");
@@ -168,7 +229,7 @@ test("case studies support privacy-safe deep links", async ({ page }) => {
 
 test("browser back from a case study restores the case-studies anchor", async ({ page }) => {
   await page.goto("/case-studies");
-  await page.getByRole("button", { name: /Open case study/i }).first().click();
+  await page.getByRole("link", { name: /Open case study/i }).first().click();
   await expect(page).toHaveURL(/\/case-studies\/[a-z0-9-]+\/?$/i);
   await page.goBack();
   await expect(page).toHaveURL(/\/case-studies\/?$/);
@@ -318,7 +379,7 @@ test("case-study modal preserves the opening position and never re-snaps after c
     const box = await page.locator("#case-studies").boundingBox();
     return Math.abs((box?.y ?? 9999) - 96);
   }).toBeLessThan(10);
-  const openButton = page.getByRole("button", { name: /Open case study/i }).first();
+  const openButton = page.getByRole("link", { name: /Open case study/i }).first();
   await openButton.scrollIntoViewIfNeeded();
   const workspaceScroll = await page.evaluate(() => window.scrollY);
   // Playwright's normal click may auto-scroll a barely-visible target by a
@@ -467,7 +528,7 @@ test("v5.1 feature surfaces use the redesigned light-theme palette", async ({ pa
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
   await expectLightSurface(page.locator(".capability-card").first());
   await expectLightSurface(page.locator(".case-study-card").first());
-  await page.getByRole("button", { name: /Open case study/i }).first().click();
+  await page.getByRole("link", { name: /Open case study/i }).first().click();
   await expectLightSurface(page.locator(".case-study-modal"));
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Accessibility" }).click();
@@ -540,7 +601,7 @@ test("modal chrome and cards stay geometrically symmetric across themes and view
       await page.keyboard.press("Escape");
 
       await page.goto("/case-studies");
-      const caseStudyButton = page.getByRole("button", { name: /Open case study/i }).first();
+      const caseStudyButton = page.getByRole("link", { name: /Open case study/i }).first();
       // The fixed mobile status bar can cover the card action; dispatch the
       // real React click without routing the pointer through that overlay.
       await caseStudyButton.dispatchEvent("click");
@@ -662,7 +723,7 @@ const openPaletteShortcut = () => window.dispatchEvent(new KeyboardEvent("keydow
 
 test("Escape closes only the topmost dialog on the modal stack", async ({ page }) => {
   await page.goto("/case-studies");
-  await page.getByRole("button", { name: /Open case study/i }).first().click();
+  await page.getByRole("link", { name: /Open case study/i }).first().click();
   const caseStudy = page.locator('[role="dialog"].case-study-modal');
   await expect(caseStudy).toBeVisible();
   await expect(page).toHaveURL(/\/case-studies\/[a-z0-9-]+$/);
@@ -727,7 +788,7 @@ test("stacking a dialog never releases and re-takes the shared body lock", async
   await page.goto("/case-studies");
   await page.mouse.wheel(0, 600);
   await page.waitForTimeout(1_150);
-  await page.getByRole("button", { name: /Open case study/i }).first().click();
+  await page.getByRole("link", { name: /Open case study/i }).first().click();
   await expect(page.locator('[role="dialog"].case-study-modal')).toBeVisible();
   await expect.poll(() => page.evaluate(() => document.body.style.position)).toBe("fixed");
   const frozenTop = await page.evaluate(() => document.body.style.top);
@@ -773,7 +834,7 @@ test("a stacked dialog with no restore position cannot take over the underlying 
   expect(workspaceScroll).toBeGreaterThan(300);
 
   // The Case Study lock owns a restore position.
-  await page.getByRole("button", { name: /Open case study/i }).first().click();
+  await page.getByRole("link", { name: /Open case study/i }).first().click();
   const caseStudy = page.locator('[role="dialog"].case-study-modal');
   await expect(caseStudy).toBeVisible();
 
@@ -1357,7 +1418,7 @@ async function openBuildInfoWithDelayedMetadata(page: import("@playwright/test")
     if (options.fail) return route.abort("failed");
     await route.fulfill({
       status: 200, contentType: "application/json",
-      body: JSON.stringify({ version: "5.2.1", codename: "Cipher", buildId: "v5.2.1-test", builtAt: new Date().toISOString(), environment: options.environment, availabilityMood: "selective" }),
+      body: JSON.stringify({ version: "5.2.2", codename: "Cipher", buildId: "v5.2.2-test", builtAt: new Date().toISOString(), environment: options.environment, availabilityMood: "selective" }),
     });
   });
   await page.goto("/");

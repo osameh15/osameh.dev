@@ -66,8 +66,15 @@ for (const route of ["api/health", "notes/", "case-studies/", "sitemap\\.xml", "
 const firstClassRouteRule = htaccess.split(/\r?\n/).find(line => line.includes("RewriteRule") && line.includes("index.html")) || "";
 const sitemapPhp = readFileSync(resolve("public/sitemap.php"), "utf8");
 const sitemapXml = readFileSync(resolve("public/sitemap.xml"), "utf8");
-if (!firstClassRouteRule.includes("activity") || !sitemapPhp.includes("https://osameh.dev/activity") || !sitemapXml.includes("https://osameh.dev/activity")) fail("GitHub Activity is missing from first-class routing or a sitemap implementation");
-else pass("GitHub Activity is first-class in Apache routing and both sitemaps");
+if (!firstClassRouteRule.includes("activity")) fail("GitHub Activity is missing from first-class routing");
+else pass("GitHub Activity remains a first-class application deep link");
+const sectionOnlyUrls = ["about", "projects", "case-studies", "experience", "activity", "now", "changelog", "notes", "contact", "resume"].map(path => `https://osameh.dev/${path}`);
+if (sectionOnlyUrls.some(url => sitemapPhp.includes(`'${url}'`) || sitemapXml.includes(`<loc>${url}</loc>`))) fail("Section-only canonical-home URLs must stay out of both sitemaps");
+else pass("Both sitemaps contain independent canonical documents only");
+for (const detailRoute of ["projects/", "notes/", "case-studies/"]) {
+  if (sitemapPhp.includes(detailRoute) && sitemapXml.includes(detailRoute)) pass(`Both sitemaps include ${detailRoute} documents`);
+  else fail(`Missing sitemap detail documents: ${detailRoute}`);
+}
 
 const contactSource = readFileSync(resolve("public/api/contact.php"), "utf8");
 const allowedContactOrigins = ["https://osameh.dev", "https://www.osameh.dev", "https://staging.osameh.dev"];
@@ -252,7 +259,7 @@ if (!failures.some(item => item.includes("artifact file is missing") || item.inc
 
 // ---- Release codename architecture (config/releases.json is the only source) ----
 const releaseConfig = JSON.parse(readFileSync(resolve("config/releases.json"), "utf8"));
-const codenameCases = [["2.2.4", "Pixel"], ["3.1.0", "Shadow"], ["4.2.2", "Specter"], ["5.2.0", "Cipher"], ["5.2.1", "Cipher"], ["5.2.42", "Cipher"], ["5.2.99", "Cipher"], ["5.3.0", null], ["1.0.0", null], ["9.9.9", null], ["", null], ["garbage", null]];
+const codenameCases = [["2.2.4", "Pixel"], ["3.1.0", "Shadow"], ["4.2.2", "Specter"], ["5.2.0", "Cipher"], ["5.2.1", "Cipher"], ["5.2.2", "Cipher"], ["5.2.42", "Cipher"], ["5.2.99", "Cipher"], ["5.3.0", null], ["1.0.0", null], ["9.9.9", null], ["", null], ["garbage", null]];
 const codenameFailures = codenameCases.filter(([version, expected]) => resolveReleaseCodename(releaseConfig, version) !== expected);
 if (releaseConfig.theme !== "Cyber Noir") fail("Release naming theme must be Cyber Noir");
 else if (Object.hasOwn(releaseConfig, "unnamed")) fail("Release metadata must not define an explicit unnamed-family policy");

@@ -101,7 +101,7 @@ The frontend never receives the GitHub token. API authentication stays server-si
 
 ## GitHub integration
 
-Public repositories are loaded dynamically from the GitHub API and sorted by recent activity. Archived repositories and the GitHub profile repository are excluded.
+Project identity renders immediately from the checked-in portfolio fallback. Public repositories and live metrics then refresh progressively from the GitHub API and are sorted by recent activity. Archived repositories and the GitHub profile repository are excluded.
 
 For each project the portfolio can load:
 
@@ -354,7 +354,7 @@ The build pipeline:
 
 Project deep links are rendered through a small PHP metadata layer before React starts. Each `/projects/<repo>` response can include repository-owned title/description data, project-specific Open Graph metadata, `SoftwareSourceCode` / `SoftwareApplication` structured data, and breadcrumbs. Engineering-note deep links receive `TechArticle` structured data. Professional case-study deep links receive privacy-safe Article/breadcrumb metadata through the same server-rendered discovery layer.
 
-`/sitemap.xml` is generated dynamically from the current public GitHub repositories, Engineering Notes, and case-study manifest, with a checked-in static sitemap retained as a fallback.
+`/sitemap.xml` is generated dynamically from the current public GitHub repositories, Engineering Notes, and case-study manifest, with a checked-in static sitemap retained as a fallback. It lists only independently indexable documents: homepage, Project details, Note details, and Case Study details. Application section deep links remain functional but canonicalize to the homepage and therefore stay out of the sitemap.
 
 ## Staging and quality gates
 
@@ -505,6 +505,13 @@ The site also includes an in-app resume viewer and download/open controls.
 
 The **six most recent releases** are summarized here. See **[CHANGELOG.md](docs/CHANGELOG.md)** for the complete production history. This section is intentionally capped at six releases.
 
+### v5.2.2 — Cipher
+
+- Added crawlable native links for Projects, Engineering Notes, and the Amorella Beauty Case Study while preserving SPA/editor-tab behavior; **Explore my work** now consistently opens Projects.
+- Aligned sitemap membership with independent canonical documents and clarified WebSite structured-data identity.
+- Improved native semantics, heading order, targeted contrast, and the hero status animation.
+- Decoupled core project rendering from live GitHub metadata; SSR/prerendering remains deferred pending Search Console evidence.
+
 ### v5.2.1 — Cipher
 
 - Build Information now reports the runtime environment only once it is known, instead of briefly showing production while the metadata request is still in flight or after it fails.
@@ -548,12 +555,6 @@ The **six most recent releases** are summarized here. See **[CHANGELOG.md](docs/
 - upgrades the IDE command surface into ranked search across projects, Engineering Notes, case studies, skills, experience, navigation, and settings
 - adds GitHub Activity to Explorer/Outline navigation in the same sequence as the document and extends the v4.2 semantic light-theme system across every new v5 surface
 - separates staging and production deployment credentials while requiring the reusable quality pipeline and tested artifact before either environment can deploy
-
-### v4.2.2 — Specter · Light-theme regression hardening
-
-- keeps the 4.2 semantic light-theme redesign protected by stricter Engineering Notes and primary-surface contrast regressions
-- follows the 4.2.1 mobile gallery/notes restoration fixes and the 4.2.0 cross-shell light-theme redesign
-
 
 ## Documentation
 
