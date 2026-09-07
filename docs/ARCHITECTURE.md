@@ -244,9 +244,27 @@ README, source tree, source file and image discovery. Responses are cached to di
 with per-endpoint lifetimes, and stale cache is served when GitHub is unavailable
 so the portfolio degrades rather than breaking.
 
+Project identity and base cards come from checked-in fallback data and render before
+the repository request completes. GitHub repository and metric responses are
+progressive enhancement; unresolved live values use neutral placeholders and do not
+block meaningful portfolio content.
+
 The GitHub token is read only from the environment or private server-side
 configuration outside the web root. It is never exposed to a Vite variable or the
 client bundle.
+
+### Crawlable document contract
+
+Project, Engineering Note, and Case Study cards expose native `a[href]` links.
+Plain clicks retain SPA/editor-tab behavior, while browser-native modified clicks,
+new-tab actions, copying, keyboard activation, and no-JavaScript discovery work
+without emulated ARIA roles.
+
+The sitemap contains only routes intended as independent canonical documents:
+homepage, Project details, Note details, and Case Study details. Section routes such
+as `/projects`, `/notes`, and `/activity` remain valid application deep links, but
+canonicalize to the homepage and stay out of sitemap discovery. SSR/prerendering is
+deferred pending Search Console evidence.
 
 ### Security contract
 

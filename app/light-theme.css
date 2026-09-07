@@ -60,7 +60,7 @@ html[data-theme="light"] .showcase-card{background:linear-gradient(180deg,#fff,#
 html[data-theme="light"] .showcase-card:before{background:linear-gradient(135deg,rgba(44,108,62,.08),transparent 42%,transparent 65%,rgba(49,95,139,.06))}
 html[data-theme="light"] .showcase-card header p{color:#1f6638}
 html[data-theme="light"] .showcase-card header span{color:#607267}
-html[data-theme="light"] .showcase-card h3,html[data-theme="light"] .showcase-signal-list b{color:#17271d}
+html[data-theme="light"] .showcase-card h2,html[data-theme="light"] .showcase-signal-list b{color:#17271d}
 html[data-theme="light"] .showcase-pipeline{color:#30483a}
 html[data-theme="light"] .showcase-pipeline i{background:linear-gradient(90deg,#5c8666,transparent)}
 html[data-theme="light"] .showcase-signal-list div,html[data-theme="light"] .showcase-metrics div{background:#f1f6f2;border-color:#c2d0c5}
@@ -141,8 +141,8 @@ html[data-theme="light"] .note-card:before{background:radial-gradient(circle at 
 html[data-theme="light"] .note-card h3,html[data-theme="light"] .note-detail-hero h1,html[data-theme="light"] .note-markdown h2,html[data-theme="light"] .note-markdown h3,html[data-theme="light"] .note-markdown strong{color:#1a2e21}
 html[data-theme="light"] .note-card>p,html[data-theme="light"] .notes-intro,html[data-theme="light"] .note-detail-hero>p:not(.eyebrow),html[data-theme="light"] .note-markdown{color:#405448}
 html[data-theme="light"] .note-tags span{background:#e5f1e8;border-color:#aac8b1;color:#245f38}
-html[data-theme="light"] .note-card>button,html[data-theme="light"] .notes-load-more button{background:#fff;border-color:#8fab95;color:#245f38}
-html[data-theme="light"] .note-card>button:hover,html[data-theme="light"] .notes-load-more button:hover{background:var(--light-accent-soft);border-color:#5f8c6d;color:#174a2a}
+html[data-theme="light"] .note-card>.note-link,html[data-theme="light"] .notes-load-more button{background:#fff;border-color:#8fab95;color:#245f38}
+html[data-theme="light"] .note-card>.note-link:hover,html[data-theme="light"] .notes-load-more button:hover{background:var(--light-accent-soft);border-color:#5f8c6d;color:#174a2a}
 html[data-theme="light"] .note-detail-meta span{background:#fff;border-color:#bdcabe;color:#45594c}
 html[data-theme="light"] .note-markdown code{background:#e5eee7;color:#205d36}
 html[data-theme="light"] .note-markdown pre{background:#f9fbf9;border-color:#bdccbf}

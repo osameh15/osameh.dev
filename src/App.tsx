@@ -494,7 +494,7 @@ function HeroShowcase({ codeLanguage, repoCount }: { codeLanguage: CodeLanguage;
     <div className="showcase-grid">
       <article className="showcase-card showcase-card-primary">
         <header><p>ENGINEERING SNAPSHOT</p><span>Live focus</span></header>
-        <h3>Systems thinking with product-level polish.</h3>
+        <h2>Systems thinking with product-level polish.</h2>
         <div className="showcase-pipeline"><span>Discover</span><i /><span>Architect</span><i /><span>Build</span><i /><span>Deploy</span></div>
         <div className="showcase-signal-list">
           <div><b>Primary lanes</b><span>.NET APIs · Nuxt products · C++ / Qt systems</span></div>
@@ -549,6 +549,7 @@ export default function Home() {
   const [recruiterModeOpen, setRecruiterModeOpen] = useState(false);
   const [visibleRepos, setVisibleRepos] = useState(6);
   const [repoState, setRepoState] = useState<"loading" | "ready">("loading");
+  const [liveRepoData, setLiveRepoData] = useState(false);
   // One ordered collection is the single source of truth for every closable
   // editor tab. Projects previously lived in an array while a Note lived in a
   // lone "active slug", so activating any other view destroyed the Note tab.
@@ -1237,6 +1238,7 @@ export default function Home() {
           .sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at));
         if (!activeRepos.length) throw new Error("No repositories returned");
         setRepos(activeRepos);
+        setLiveRepoData(true);
         setRepoState("ready");
       })
       .catch(() => {
@@ -1273,7 +1275,6 @@ export default function Home() {
   }, [repoState, repos]);
 
   useEffect(() => {
-    if (repoState !== "ready") return;
     const match = window.location.pathname.match(/^\/projects\/([^/]+)\/?$/i);
     if (!match) return;
     let requested = match[1];
@@ -1285,7 +1286,7 @@ export default function Home() {
     } else {
       setNotFoundPath(window.location.pathname);
     }
-  }, [repoState, repos]);
+  }, [repos]);
 
   useEffect(() => {
     if (repoState !== "ready" || projectsNearViewport) return;
@@ -2243,8 +2244,8 @@ export default function Home() {
             </header>
             <div className="ide-project-body">
               <aside className="repo-facts">
-                <div><Star size={17} /><span><b>{activeRepo.stargazers_count}</b> stars</span></div>
-                <div><Github size={17} /><span><b>{activeRepo.forks_count}</b> forks</span></div>
+                <div><Star size={17} /><span><b>{liveRepoData ? activeRepo.stargazers_count : "—"}</b> stars</span></div>
+                <div><Github size={17} /><span><b>{liveRepoData ? activeRepo.forks_count : "—"}</b> forks</span></div>
                 <div><Code2 size={17} /><span><b>{activeRepo.language || "Mixed"}</b> language</span></div>
                 <p className="facts-label">TECH & TOPICS</p>
                 <div className="tags">{[activeRepo.language, ...activeRepo.topics].filter(Boolean).map(tag => <span key={tag}>{tag}</span>)}</div>
@@ -2279,7 +2280,7 @@ export default function Home() {
               <h1>I build software<br />that stays <em>solid.</em></h1>
               <p className="hero-copy">I’m Osameh Irandoust — a software engineer turning complex systems into clear, fast, dependable products. From C++ internals to modern web experiences.</p>
               <div className="hero-actions">
-                <a href="#work" className="primary-btn">Explore my work <ArrowUpRight size={17} /></a>
+                <a href="/projects" className="primary-btn" onClick={event => { if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return; event.preventDefault(); goTo(sectionByPath("/projects")); }}>Explore my work <ArrowUpRight size={17} /></a>
                 <button onClick={copyEmail} className="text-btn">{copied ? <><Check size={16} /> Email copied</> : <>Copy email <span>⌘E</span></>}</button>
               </div>
               <p className="code-close"><b>{code.close}</b> <span>{code.comment}</span></p>
@@ -2320,11 +2321,11 @@ export default function Home() {
               {(projectQuery || projectTech !== "all") && <button className="clear-filter" onClick={() => { setProjectQuery(""); setProjectTech("all"); }}><X size={14} /> Clear</button>}
             </div>
             <div className="stack-explorer" aria-label="Technology explorer"><span>Explore by stack</span>{["C#", "Vue", "TypeScript", "PHP", "Java", "Kotlin", "Nuxt", "Android"].map(tech => <button key={tech} className={projectTech.toLowerCase() === tech.toLowerCase() ? "active" : ""} onClick={() => exploreTech(tech)}>{tech}</button>)}</div>
-            {repoState === "loading" && <div className="repo-status"><LoaderCircle className="spin" size={20} /> Fetching projects from GitHub…</div>}
-            {repoState === "ready" && <>
+            {repoState === "loading" && <div className="metadata-loading" role="status"><LoaderCircle className="spin" size={14} /> Refreshing live GitHub metrics…</div>}
+            <>
               <div className="project-grid">{filteredRepos.slice(0, visibleRepos).map((project, index) => (
-                <article role="button" tabIndex={0} onClick={() => openProject(project)} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openProject(project); } }} className={'project-card tone-' + (index % 3)} key={project.id} data-project-name={project.name} aria-label={'Open ' + project.name + ' project details'}>
-                  <div className="project-top"><span>{String(index + 1).padStart(2, "0")}</span><span className="project-stats"><Star size={13} /> {project.stargazers_count}<Github size={13} /> {project.forks_count}</span><ArrowUpRight size={19} /></div>
+                <article className={'project-card tone-' + (index % 3)} key={project.id} data-project-name={project.name}>
+                  <div className="project-top"><span>{String(index + 1).padStart(2, "0")}</span><span className="project-stats"><Star size={13} /> {liveRepoData ? project.stargazers_count : "—"}<Github size={13} /> {liveRepoData ? project.forks_count : "—"}</span><ArrowUpRight size={19} /></div>
                   <div className="project-image">
                     {repoImages[project.name] && <img src={repoImages[project.name]} alt={'Preview from ' + project.name + ' README'} loading="lazy" onError={event => { event.currentTarget.hidden = true; }} />}
                     <div className="image-fallback"><Code2 size={31} /><span>{project.language || "Code"}</span></div>
@@ -2332,12 +2333,12 @@ export default function Home() {
                   <p className="project-type">{repoMetadata[project.name]?.project.type || project.language || "Repository"} · Updated {new Date(project.updated_at).toLocaleDateString("en", { month: "short", year: "numeric" })}{repoMetadata[project.name]?.project.featured ? " · Featured" : ""}</p>
                   <h3>{repoMetadata[project.name]?.project.name || project.name}</h3><p className="project-desc">{repoMetadata[project.name]?.project.tagline || project.description || "Explore the source, architecture, and latest work in this repository."}</p>
                   <div className="tags">{[project.language, ...project.topics].filter(Boolean).slice(0, 4).map(tag => <span key={tag}>{tag}</span>)}</div>
-                  <div className="project-links"><span className="open-detail">Open project details <ArrowUpRight size={14} /></span><button className={compareRepos.some(item => item.id === project.id) ? "compare-chip active" : "compare-chip"} onClick={event => { event.stopPropagation(); toggleCompareRepo(project); }} aria-pressed={compareRepos.some(item => item.id === project.id)}><Code2 size={13} /> {compareRepos.some(item => item.id === project.id) ? "Selected" : "Compare"}</button>{npmUrl(project.name) && <a className="npm-chip" href={npmUrl(project.name)} target="_blank" rel="noreferrer" onClick={event => event.stopPropagation()} aria-label={'View ' + npmPackages[project.name] + ' on npm'}><Package size={13} /> npm <ArrowUpRight size={12} /></a>}</div>
+                  <div className="project-links"><a className="open-detail" href={`/projects/${encodeURIComponent(project.name)}`} onClick={event => { if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return; event.preventDefault(); openProject(project); }}>Open project details <ArrowUpRight size={14} /></a><button className={compareRepos.some(item => item.id === project.id) ? "compare-chip active" : "compare-chip"} onClick={() => toggleCompareRepo(project)} aria-pressed={compareRepos.some(item => item.id === project.id)}><Code2 size={13} /> {compareRepos.some(item => item.id === project.id) ? "Selected" : "Compare"}</button>{npmUrl(project.name) && <a className="npm-chip" href={npmUrl(project.name)} target="_blank" rel="noreferrer" aria-label={'View ' + npmPackages[project.name] + ' on npm'}><Package size={13} /> npm <ArrowUpRight size={12} /></a>}</div>
                 </article>
               ))}</div>
               {!filteredRepos.length && <div className="project-empty"><Search size={20} /><p>No project matches the current search/filter.</p><button onClick={() => { setProjectQuery(""); setProjectTech("all"); }}>Reset filters</button></div>}
               {visibleRepos < filteredRepos.length && <div className="load-more-wrap"><button className="load-more" onClick={() => setVisibleRepos(count => count + 6)}>Load more projects <span>{Math.min(visibleRepos, filteredRepos.length)} / {filteredRepos.length}</span></button></div>}
-            </>}
+            </>
           </section>
 
           <CaseStudiesSection onOpen={openCaseStudy} />

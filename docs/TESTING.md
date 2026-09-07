@@ -17,7 +17,7 @@ Every command below exists in `package.json`.
 
 | Command | Contract it verifies |
 | --- | --- |
-| `npm run quality` | Repository and product contracts as static analysis: availability profiles and Mood workflow, Note and Case Study metadata, SEO route-support files, GitHub Activity present in routing and both sitemaps, one Command Palette shortcut, Terminal coverage, all 11 dialogs on the shared modal system, the build modal reading its environment from `build-info.json`, README capped at six releases and containing the current version, staging/production secret separation, CI step ordering, environment packaging rules, artifact hidden-file handling. Also runs the Service Worker verifier. |
+| `npm run quality` | Repository and product contracts as static analysis: availability profiles and Mood workflow, Note and Case Study metadata, SEO route support, section deep-link routing, sitemap membership limited to independent canonical documents, one Command Palette shortcut, Terminal coverage, all 11 dialogs on the shared modal system, the build modal reading its environment from `build-info.json`, README capped at six releases and containing the current version, staging/production secret separation, CI step ordering, environment packaging rules, artifact hidden-file handling. Also runs the Service Worker verifier. |
 | `npm run typecheck` | TypeScript in strict, no-emit mode across the application. |
 | `npm run build` | Generates build metadata, typechecks, produces the one **indexable** `dist/` bundle, and copies the PHP/asset deployment files. |
 | `npm run verify:dist` | The built bundle contains every required deployment file, and local links/Notes/Case Studies resolve. |
@@ -30,6 +30,10 @@ Every command below exists in `package.json`.
 | `npm run test:e2e:install` | Installs the pinned Playwright browser. Run once. |
 | `npm run test:e2e` | The browser regression suite (see §4). |
 | `npm run mood` / `npm run mood:list` | Portfolio Mood configuration. Not part of release validation; listed for completeness. |
+
+The browser suite also protects native Project, Note, and Case Study hrefs, SPA
+tab behavior, sitemap/canonical intent, WebSite identity, preserved Person schema,
+and the absence of the incompatible project-card `role="button"` pattern.
 
 Lighthouse is not an npm script. It is invoked against the running preview with a
 pinned version, matching CI exactly:
@@ -119,7 +123,7 @@ never surface as uncaught exceptions, unhandled rejections or React errors.
 
 ## 4. Playwright coverage
 
-Baseline: **72 passing tests** in `tests/e2e/portfolio.spec.ts`. Treat this as a
+Baseline: **76 passing tests** in `tests/e2e/portfolio.spec.ts`. Treat this as a
 floor that grows with each release, not as the contract itself — the contract is
 the coverage areas below.
 
@@ -165,6 +169,12 @@ talking points, producing a fixed four-step tour. **No live GitHub access is
 required.** Each step is measured at 320, 360, 390, 412 and 768 px wide for
 symmetric inline gaps, absence of document horizontal overflow, text wrapping,
 working internal scrolling, and reachable close, progress, Back and Next controls.
+
+Staging checks expect `staging` runtime metadata; production checks expect
+`production`. Deterministic UI tests fixture volatile GitHub values such as
+counts, ordering and featured metadata, while live integration tests assert only
+stable response/schema contracts. Progressive-enhancement tests wait for visible
+state or network completion rather than arbitrary delays.
 
 If a fixture stops producing featured projects, the metadata normalizer is the
 first place to look: it rejects an object missing any of `project`, `repository`,

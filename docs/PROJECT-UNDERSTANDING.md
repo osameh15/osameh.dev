@@ -10,7 +10,7 @@ Companion references: [`ARCHITECTURE.md`](./ARCHITECTURE.md) for how the deploye
 
 ## 1. Detected version
 
-The repository version is **5.2.1**, codename **Cipher** under the Cyber Noir release theme (see [`ARCHITECTURE.md`](./ARCHITECTURE.md)). It is consistent across `package.json`, `package-lock.json`, `docs/CHANGELOG.md`, `README.md`, deployment documentation, and generated build metadata.
+The repository version is **5.2.2**, codename **Cipher** under the Cyber Noir release theme (see [`ARCHITECTURE.md`](./ARCHITECTURE.md)). It is consistent across `package.json`, `package-lock.json`, `docs/CHANGELOG.md`, `README.md`, deployment documentation, and generated build metadata.
 
 Generated build metadata is refreshed during validation and resolves the current release as v5.2.0 · CIPHER.
 
@@ -361,7 +361,7 @@ The workflow takes a `deploy_env` input (`staging` or `production`) that selects
 
 ## 20. Testing architecture
 
-The Playwright suite contains **72 tests** in `tests/e2e/portfolio.spec.ts`.
+The Playwright suite contains **76 tests** in `tests/e2e/portfolio.spec.ts`.
 
 Coverage includes:
 
@@ -417,12 +417,12 @@ The quality script performs structural JSON checks but is not a complete JSON-Sc
 
 `README.md` currently lists exactly six releases:
 
-1. 5.2.0
-2. 5.1.1
-3. 5.1.0
-4. 5.0.0
-5. 4.2.2
-6. 4.2.1
+1. 5.2.2
+2. 5.2.1
+3. 5.2.0
+4. 5.1.1
+5. 5.1.0
+6. 5.0.0
 
 The complete release history remains in `docs/CHANGELOG.md`. The quality gate enforces the six-release README maximum.
 
@@ -445,7 +445,7 @@ Release notes are expected to describe user-visible differences from the previou
 ### Resolved since the original review
 
 All six discrepancies recorded in the first review have been fixed and verified:
-`/activity` is present in the Apache rewrite list and both sitemaps; the contact
+`/activity` is present in the Apache rewrite list as an application deep link; the contact
 origin allowlist includes `https://staging.osameh.dev`; the Gallery context action
 and the diagnostics test selector both target the rendered identifiers; the Mood
 CLI distinguishes preset, short label and public header label; and the documented

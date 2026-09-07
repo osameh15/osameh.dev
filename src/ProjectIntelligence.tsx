@@ -473,7 +473,7 @@ export function FeaturedProjects({ repos, metadata, onOpen, onRecruiterMode }: {
   if (!featured.length) return null;
   return <section className="featured-projects" aria-label="Featured projects">
     <header><div><Sparkles size={16} /><span>FEATURED / RECRUITER SHORTLIST</span></div><button type="button" onClick={onRecruiterMode}>Start recruiter mode <ArrowUpRight size={14} /></button></header>
-    <div className="featured-project-grid">{featured.map(({ repo, meta }, index) => <button type="button" key={repo.name} data-project-name={repo.name} onClick={() => onOpen(repo)}><span className="featured-index">0{index + 1}</span><div><small>{meta?.project.type}</small><h3>{meta?.project.name || repo.name}</h3><p>{meta?.recruiter.headline || repo.description}</p><div>{meta?.recruiter.skillsDemonstrated.slice(0, 4).map(skill => <span key={skill}>{skill}</span>)}</div></div><ArrowUpRight size={16} /></button>)}</div>
+    <div className="featured-project-grid">{featured.map(({ repo, meta }, index) => <a href={`/projects/${encodeURIComponent(repo.name)}`} key={repo.name} data-project-name={repo.name} onClick={event => { if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return; event.preventDefault(); onOpen(repo); }}><span className="featured-index">0{index + 1}</span><div><small>{meta?.project.type}</small><h3>{meta?.project.name || repo.name}</h3><p>{meta?.recruiter.headline || repo.description}</p><div>{meta?.recruiter.skillsDemonstrated.slice(0, 4).map(skill => <span key={skill}>{skill}</span>)}</div></div><ArrowUpRight size={16} /></a>)}</div>
   </section>;
 }
 
