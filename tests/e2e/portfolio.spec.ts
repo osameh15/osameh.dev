@@ -380,13 +380,15 @@ test("case-study modal preserves the opening position and never re-snaps after c
     const box = await page.locator("#case-studies").boundingBox();
     return Math.abs((box?.y ?? 9999) - 96);
   }).toBeLessThan(10);
+  await page.evaluate(() => new Promise<void>(resolve => {
+    requestAnimationFrame(() => requestAnimationFrame(resolve));
+  }));
   const openButton = page.getByRole("link", { name: /Open case study/i }).first();
   await openButton.scrollIntoViewIfNeeded();
   const workspaceScroll = await page.evaluate(() => window.scrollY);
-  // Playwright's normal click may auto-scroll a barely-visible target by a
-  // few pixels after the baseline is captured. Force only the pointer action
-  // so this assertion measures the exact workspace position before opening.
-  await openButton.click({ force: true });
+  // DOM activation preserves the native anchor's click handler without
+  // letting Playwright auto-scroll the target after the baseline is captured.
+  await openButton.evaluate(element => (element as HTMLAnchorElement).click());
   const modal = page.getByRole("dialog");
   const body = modal.locator(".feature-modal-body");
   await expect(modal).toBeVisible();
