@@ -170,6 +170,12 @@ required.** Each step is measured at 320, 360, 390, 412 and 768 px wide for
 symmetric inline gaps, absence of document horizontal overflow, text wrapping,
 working internal scrolling, and reachable close, progress, Back and Next controls.
 
+Staging checks expect `staging` runtime metadata; production checks expect
+`production`. Deterministic UI tests fixture volatile GitHub values such as
+counts, ordering and featured metadata, while live integration tests assert only
+stable response/schema contracts. Progressive-enhancement tests wait for visible
+state or network completion rather than arbitrary delays.
+
 If a fixture stops producing featured projects, the metadata normalizer is the
 first place to look: it rejects an object missing any of `project`, `repository`,
 `caseStudy` or `architecture`, and silently falls back to unfeatured.

@@ -17,12 +17,14 @@ The project follows [Semantic Versioning](https://semver.org/). The early produc
 
 - Replaced interactive `article role="button"` project cards with structural articles and native links.
 - Corrected the hero showcase heading level and targeted failing dark-theme secondary-text contrast.
+- Corrected activity timeline secondary text to meet WCAG AA contrast requirements.
 - Replaced the status pulse's paint-heavy box-shadow animation with compositor-safe opacity and transform.
 
 ### Loading performance
 
 - Core project cards now render immediately from local portfolio data instead of waiting for the GitHub repository request.
 - Live GitHub metrics continue to enhance project cards asynchronously with stable neutral values while unresolved.
+- Staging tests now derive runtime environment state, fixture volatile GitHub data, and wait on meaningful async UI state.
 
 ### Search readiness
 

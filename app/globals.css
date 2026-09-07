@@ -599,3 +599,6 @@ html[data-modal-open="true"],html[data-modal-open="true"] body{overscroll-behavi
 
 /* WCAG AA contrast for dark-theme secondary text. */
 .skills-view-toolbar button,.compare-chip{color:#818c83}.skills-view-toolbar>span,.skills-code-foot,.stack-explorer>span,.project-top,.project-type,.load-more span,.capability-card>header small,.years,.terminal-head p,.muted-card,.now-grid article>span,footer,.vertical-name,.explorer-plugins-title,.explorer-plugin-copy small,.explorer-footer button{color:#89938b}
+
+html:not([data-theme="light"]) .activity-timeline small{color:#89938b}
+html[data-theme="light"] .activity-timeline small{color:var(--light-muted)}

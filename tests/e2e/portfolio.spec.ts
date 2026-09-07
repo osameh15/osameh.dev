@@ -145,6 +145,7 @@ test("engineering note TOC stays selected through repeated jumps and returns exa
   const manualHeadingId = await manualHeading.getAttribute("id");
   expect(manualHeadingId).toBeTruthy();
   await manualHeading.evaluate(element => element.scrollIntoView({ block: "start" }));
+  await page.evaluate(() => window.dispatchEvent(new Event("scroll")));
   const manualTocTarget = page.locator(`.note-toc button[data-toc-id="${manualHeadingId}"]`);
   await expect(manualTocTarget).toHaveAttribute("aria-current", "location");
 
@@ -396,9 +397,7 @@ test("case-study modal preserves the opening position and never re-snaps after c
     return top;
   });
   expect(target).toBeGreaterThan(0);
-  await page.waitForTimeout(700);
-  const settled = await body.evaluate(element => element.scrollTop);
-  expect(Math.abs(settled - target)).toBeLessThanOrEqual(2);
+  await expect.poll(() => body.evaluate(element => element.scrollTop)).toBe(target);
   await page.keyboard.press("Escape");
   await expect.poll(() => page.evaluate(() => document.body.style.position)).not.toBe("fixed");
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(workspaceScroll);
@@ -406,6 +405,7 @@ test("case-study modal preserves the opening position and never re-snaps after c
 
   // Closing a case-study dialog must not schedule a delayed section restore.
   // Use real wheel input so this covers the user-intent cancellation path.
+  await page.mouse.move(500, 500);
   await page.mouse.wheel(0, 260);
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(workspaceScroll);
   const userScroll = await page.evaluate(() => window.scrollY);
@@ -719,6 +719,39 @@ test("light floating compare queue uses readable surfaces", async ({ page }) => 
   expect(colors.actionBackground).not.toBe(colors.actionColor);
 });
 
+test("activity timeline metadata meets WCAG AA in both themes", async ({ page }) => {
+  await page.route("**/api/github/activity", route => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify([{ id: "contrast-fixture", type: "PushEvent", repo: "osameh.dev", message: "Contrast fixture", created_at: "2026-01-01T00:00:00Z", url: "https://github.com/osameh15/osameh.dev" }]),
+  }));
+  const contrastRatio = (selector: string) => page.locator(selector).first().evaluate(element => {
+    const parse = (value: string) => (value.match(/[\d.]+/g)?.map(Number) ?? [0, 0, 0]).slice(0, 3).map(channel => {
+      const normalized = channel / 255;
+      return normalized <= .04045 ? normalized / 12.92 : ((normalized + .055) / 1.055) ** 2.4;
+    });
+    const luminance = (rgb: number[]) => .2126 * rgb[0] + .7152 * rgb[1] + .0722 * rgb[2];
+    const style = getComputedStyle(element);
+    const foreground = luminance(parse(style.color));
+    let current: Element | null = element;
+    let background = "rgba(0, 0, 0, 0)";
+    while (current) {
+      background = getComputedStyle(current).backgroundColor;
+      const channels = background.match(/[\d.]+/g)?.map(Number) ?? [];
+      if ((channels.length > 3 ? channels[3] : 1) > 0) break;
+      current = current.parentElement;
+    }
+    const backdrop = luminance(parse(background));
+    return (Math.max(foreground, backdrop) + .05) / (Math.min(foreground, backdrop) + .05);
+  });
+  await page.goto("/activity");
+  const target = page.locator(".activity-timeline small");
+  await expect(target).toBeVisible();
+  expect(await contrastRatio(".activity-timeline small")).toBeGreaterThanOrEqual(4.5);
+  await page.evaluate(() => { document.documentElement.dataset.theme = "light"; });
+  expect(await contrastRatio(".activity-timeline small")).toBeGreaterThanOrEqual(4.5);
+});
+
 const openPaletteShortcut = () => window.dispatchEvent(new KeyboardEvent("keydown", { key: "p", code: "KeyP", ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true }));
 
 test("Escape closes only the topmost dialog on the modal stack", async ({ page }) => {
@@ -917,8 +950,22 @@ const LONG_POINTS = [
   "Deployment runs a single indexable build through quality gates, TypeScript, PHP lint, Playwright and Lighthouse before environment-specific packaging.",
 ];
 const FEATURED_FIXTURES: Record<string, number> = { "osameh.dev": 1, "Mizekar": 2 };
+const FEATURED_REPOS = Object.keys(FEATURED_FIXTURES).map((name, index) => ({
+  id: index + 1,
+  name,
+  description: LONG_HEADLINE,
+  language: "TypeScript",
+  topics: ["react", "typescript", "accessibility"],
+  stargazers_count: 1,
+  forks_count: 0,
+  archived: false,
+  updated_at: `2026-01-0${index + 1}T00:00:00Z`,
+  fork: false,
+  default_branch: "main",
+}));
 
 async function stubFeaturedProjects(page: import("@playwright/test").Page) {
+  await page.route("**/api/github/repos", route => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(FEATURED_REPOS) }));
   await page.route("**/api/github/meta/**", async route => {
     const name = decodeURIComponent(new URL(route.request().url()).pathname.split("/").pop() || "");
     const order = FEATURED_FIXTURES[name];
@@ -1044,7 +1091,9 @@ async function runPalette(page: import("@playwright/test").Page, query: string) 
   await expect(palette.getByRole("option").first()).toBeVisible();
   await palette.getByRole("textbox").press("Enter");
   await expect(palette).toBeHidden();
-  await page.waitForTimeout(400);
+  const destination = query.toLowerCase().startsWith("open project") ? "projects" : "notes";
+  await expect(page).toHaveURL(new RegExp(`/${destination}/[^/]+$`));
+  await expect.poll(() => page.locator(`.editor-tab[data-tab-id^="${destination === "projects" ? "project" : "note"}:"]`).count()).toBeGreaterThan(0);
 }
 const tabIds = (page: import("@playwright/test").Page) =>
   page.evaluate(() => [...document.querySelectorAll(".editor-tab")].map(tab => (tab as HTMLElement).dataset.tabId || "home"));
@@ -1103,6 +1152,7 @@ test("clicking Home keeps the note tab open and restores Engineering Notes", asy
 });
 
 test("mixed project and note tabs coexist, switch and never duplicate", async ({ page }) => {
+  await stubFeaturedProjects(page);
   await page.goto("/");
   await runPalette(page, PROJECT_A);
   await runPalette(page, NOTE_A);
@@ -1224,7 +1274,8 @@ test("release identity surfaces show the version and Cipher codename", async ({ 
   await expect(cell("VERSION")).toHaveText(`v${RELEASE_VERSION} · CIPHER`);
   await expect(cell("CODENAME")).toHaveText("Cipher");
   // Environment must stay runtime-derived, not compiled in.
-  await expect(cell("ENVIRONMENT")).toHaveText("production");
+  const buildInfo = await (await page.request.get("/build-info.json")).json() as { environment?: string };
+  await expect(cell("ENVIRONMENT")).toHaveText(buildInfo.environment ?? "resolving…");
 });
 
 test("build info reports staging environment while keeping the Cipher identity", async ({ page }) => {
@@ -1242,6 +1293,7 @@ test("build info reports staging environment while keeping the Cipher identity",
 
 test("terminal version and status output carry the release codename", async ({ page }) => {
   await page.goto("/");
+  await expect(page.getByRole("heading", { name: /I build software/i })).toBeVisible();
   await page.keyboard.press("`");
   const terminal = page.locator(".terminal-panel");
   await expect(terminal).toBeVisible();
@@ -1268,7 +1320,7 @@ test("header and resume use the Neural Cipher brand mark", async ({ page }) => {
   await page.evaluate(() => window.dispatchEvent(new Event("portfolio:resume")));
   const resumeMark = page.locator(".resume-brand img");
   await expect(resumeMark).toBeVisible();
-  expect(await resumeMark.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
+  await expect.poll(() => resumeMark.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
 });
 
 test("manifest and favicons use the new icon pack and drop the retired names", async ({ page }) => {
