@@ -506,6 +506,12 @@ The site also includes an in-app resume viewer and download/open controls.
 
 The **six most recent releases** are summarized here. See **[CHANGELOG.md](docs/CHANGELOG.md)** for the complete production history. This section is intentionally capped at six releases.
 
+### v5.3.2 — Vanta
+
+- The workspace now presents C++ by default (`main.cpp`), across the editor tab, Explorer and hero. Every other language remains selectable and an explicit choice is still remembered.
+- The GitHub health probe now authenticates with the environment's own token, so `authenticated` reports whether GitHub accepted the credential rather than whether one is merely configured.
+- Upstream reachability and credential validity are reported as separate facts, and separate production/staging credentials are unchanged.
+
 ### v5.3.1 — Vanta
 
 - **Whole-card navigation.** Project, Note, and Case Study cards open from anywhere on the card, while secondary controls (Compare, npm, a client's live site) keep their own action and the destination stays a real link.
@@ -540,13 +546,6 @@ The **six most recent releases** are summarized here. See **[CHANGELOG.md](docs/
 - HSTS is owned solely by the CDN edge, removing a duplicate header on error responses.
 - Staging and production run from separate document roots with directory-scoped deployment credentials.
 - Added guards preventing an origin HSTS directive and a fabricated environment label from returning.
-
-### v5.2.0 — Cipher
-
-- New **Neural Cipher** visual identity across the header, favicons, Apple touch icon, PWA install icons, and the Resume Viewer.
-- Release codenames under the **Cyber Noir** theme. Starting with 5.2, each official major/minor family receives one codename, so every 5.2.x patch is Cipher. The version and codename appear in the status bar, Build Information, and Terminal.
-- Refreshed social sharing artwork.
-- Editor tabs now scroll the active tab into view on narrow screens instead of leaving it off-strip.
 
 ## Documentation
 

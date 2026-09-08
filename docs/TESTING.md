@@ -1,6 +1,6 @@
 # Testing Reference
 
-**Applies to:** v5.3.1
+**Applies to:** v5.3.2
 **Scope:** what is tested, which command proves which contract, and — most
 importantly — what can be trusted locally versus what requires CI or staging.
 
@@ -359,6 +359,18 @@ staging hostname against production configuration, low, missing or non-numeric
 score, and null, string or empty responses. It also covers environment selection
 (including ports, localhost, and a lookalike host), the minimum-score clamp, and
 the token guards.
+
+### GitHub readiness (PHP, no credential)
+
+`backend/tests/github-health.php` covers the probe decision without a network
+call: an accepted credential is operational and authenticated; a 401 or 403
+against a configured credential reports `authenticated: false` and degrades; an
+anonymous 403 is throttling and stays operational; a transport failure or 5xx
+degrades without blaming the credential. It also asserts header construction -
+that an Authorization header is present only when a token exists, uses the
+bearer convention, and that the existing Accept/User-Agent/API-version headers
+survive - and that one environment's probe carries only that environment's
+token. The fixture tokens are obviously fake and no value is ever printed.
 
 ### Architecture
 

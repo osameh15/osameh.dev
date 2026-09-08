@@ -1,6 +1,6 @@
 # Runtime Architecture
 
-**Applies to:** v5.3.1
+**Applies to:** v5.3.2
 **Scope:** how the deployed system behaves at runtime — request path, routing,
 server-side metadata, the SPA shell, the GitHub proxy, the Service Worker, and
 the shared UI invariants.
@@ -714,6 +714,17 @@ configuration until a visitor tried to send a message.
 the machine-readable view the deployment gates read. Both staging and production
 deploys now fail when the deployed environment reports an unconfigured or
 non-operational contact path. A root URL answering 200 is not acceptance.
+
+`authenticated` reports whether **GitHub accepted this environment's own
+credential**, not whether one is configured. The probe sends the same token the
+GitHub proxy uses, because an anonymous probe could only ever prove that GitHub
+is reachable - a revoked or expired token would still have reported healthy
+while every live GitHub feature failed.
+
+Reach and credential are separate facts. An unreachable upstream degrades the
+service without implicating the credential; a credential GitHub refuses reports
+`authenticated: false`; and an anonymous rate limit - which is throttling, not
+rejection - is never mistaken for a bad credential.
 
 Nothing about a credential is exposed: `authenticated` and `configured` are
 booleans, and no token, prefix, length or scope appears anywhere.
