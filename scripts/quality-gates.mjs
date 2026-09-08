@@ -27,6 +27,7 @@ import { verifyServiceWorker } from "./verify-sw.mjs";
 import { verifyBrandAssets } from "./verify-brand-assets.mjs";
 import { verifyReadmeAssetUrls } from "./verify-readme-assets.mjs";
 import { verifyRepositorySecrets } from "./verify-secrets.mjs";
+import { verifySearchReadiness } from "./verify-search-readiness.mjs";
 import { resolveReleaseCodename } from "../frontend/src/lib/releaseMetadataCore.js";
 
 const failures = [];
@@ -379,9 +380,22 @@ else pass("Site-key selection is exact-hostname and returns null for unknown hos
 if (/(?:\|\||\?\?)\s*SITE_KEYS\["osameh\.dev"\]/.test(recaptchaClient) || /default:\s*"6L/.test(recaptchaClient)) {
   fail("Site-key selection falls back to the production key");
 }
-if (!/'osameh\.dev', 'www\.osameh\.dev' => 'production'/.test(recaptchaServer) || !/default => null/.test(recaptchaServer)) {
+const backendConfig = readFileSync(resolve("backend/lib/config.php"), "utf8");
+if (!/'osameh\.dev', 'www\.osameh\.dev' => 'production'/.test(backendConfig) || !/default => null/.test(backendConfig)) {
   fail("Server environment selection is not exact-hostname with a fail-closed default");
 } else pass("Server environment selection is exact-hostname and fail-closed");
+
+// Exactly one candidate path, and no cross-environment fallback anywhere.
+if (!/return dirname\(\$root\) \. '\/private';/.test(backendConfig)) fail("The private directory is not resolved from the environment's own document root");
+else pass("Private configuration resolves to one environment-local directory");
+for (const file of ["backend/lib/config.php", "backend/lib/recaptcha.php", "backend/api/github.php", "backend/api/contact.php", "backend/api/health.php", "backend/seo/project.php", "backend/seo/project-og.php"]) {
+  const source = readFileSync(resolve(file), "utf8");
+  if (/getenv\('HOME'\)|\.config\/osameh-portfolio/.test(source)) fail(`${file} still searches a shared $HOME path for secrets`);
+  if (/dirname\(dirname\(/.test(source)) fail(`${file} walks above its own document root for secrets`);
+}
+if (!failures.some(item => item.includes("shared $HOME path") || item.includes("walks above its own document root"))) {
+  pass("No backend file can reach another environment's private configuration");
+}
 
 // The minimum score is one constant.
 const scoreLiterals = [recaptchaServer, contactEndpoint, recaptchaClient, contactForm]
@@ -505,7 +519,7 @@ if (!failures.some(item => item.includes("imports backend source") || item.inclu
 
 // Backend library includes are reached through an API entrypoint, never served.
 const serverConfig = readFileSync(resolve("backend/server/.htaccess"), "utf8");
-if (!/RewriteRule \^api\/\(\?:lib\/\|recaptcha\\\.php\$\) - \[F,L\]/.test(serverConfig)) fail("Backend library includes are not blocked from direct web access");
+if (!/RewriteRule \^api\/\(\?:lib\/\|recaptcha\\.php\$\|config\\.php\$\) - \[F,L\]/.test(serverConfig)) fail("Backend library includes are not blocked from direct web access");
 else pass("Backend library includes are not directly reachable over the web");
 
 // The deploy assembler must publish both trees into the one artifact contract.
@@ -524,6 +538,60 @@ for (const entry of portfolio?.sourceExplorer?.entryPoints || []) {
 }
 if (!failures.some(item => item.includes("Source Explorer entry point"))) {
   pass(`${(portfolio?.sourceExplorer?.entryPoints || []).length} Source Explorer entry points resolve to real paths`);
+}
+
+// ---- v5.3.1 Vanta: search discovery readiness ----
+//
+// Google's indexed snapshot of this domain predates the portfolio. These gates
+// cover only what we control: current metadata, a stable crawlable favicon, and
+// no surviving trace of the old hosting placeholder. Search Console stays
+// manual, and no SSR or prerendering is introduced.
+const searchFailures = verifySearchReadiness("frontend/index.html", [
+  "frontend/public/manifest.webmanifest",
+  "frontend/public/robots.txt",
+  "backend/seo/not-found.php",
+  "backend/seo/project.php",
+  "backend/seo/note.php",
+  "backend/seo/case-study.php",
+  "frontend/public/sw.js",
+]);
+for (const failure of searchFailures) fail(failure);
+if (!searchFailures.length) pass("Homepage metadata, stable favicon declarations, and no legacy placeholder text");
+
+// Card destinations must be real hrefs in the rendered DOM, because deep URLs
+// are currently unknown to Google and internal links are how they get found.
+const cardSurfaces = [
+  ["frontend/src/app/App.tsx", 'className="open-detail card-surface-link"', "/projects/"],
+  ["frontend/src/features/notes/EngineeringNotes.tsx", 'className="note-link card-surface-link"', "/notes/"],
+  ["frontend/src/features/portfolio/PortfolioFeatures.tsx", 'className="case-study-open card-surface-link"', "/case-studies/"],
+];
+for (const [file, marker, route] of cardSurfaces) {
+  const source = frontendSourceText.get(file) || "";
+  if (!source.includes(marker)) fail(`${file} does not expose a stretched primary card link`);
+  else if (!source.includes(`href={\`${route}`)) fail(`${file} card link does not point at ${route}{id}`);
+}
+if (!failures.some(item => item.includes("stretched primary card link") || item.includes("card link does not point"))) {
+  pass("Project, Note and Case Study cards expose crawlable primary destinations");
+}
+
+// The stretched-link pattern is only valid while no interactive element is
+// nested inside another. An anchor wrapping a card would nest its buttons.
+for (const [file] of cardSurfaces) {
+  const source = frontendSourceText.get(file) || "";
+  if (/<a[^>]*>\s*<article/.test(source)) fail(`${file} wraps a card in an anchor, nesting its interactive controls`);
+  if (/<article[^>]*role="button"/.test(source)) fail(`${file} reintroduces the article role="button" pattern`);
+}
+if (!failures.some(item => item.includes("wraps a card in an anchor") || item.includes('role="button" pattern'))) {
+  pass("Card navigation nests no interactive elements and adds no button roles");
+}
+const featureStyleSheet = readFileSync(resolve("frontend/src/styles/features-v5.css"), "utf8");
+if (!/\.card-surface-link::after\{[^}]*position:absolute/.test(featureStyleSheet)) fail("The primary card link is not stretched over the card surface");
+else pass("The primary card link covers the card surface");
+for (const secondary of [".project-card .compare-chip", ".project-card .npm-chip", ".case-study-card .case-study-live"]) {
+  if (!featureStyleSheet.includes(secondary)) fail(`Secondary card action is not lifted above the primary overlay: ${secondary}`);
+}
+if (!failures.some(item => item.includes("not lifted above the primary overlay"))) {
+  pass("Secondary card actions stay independently operable");
 }
 
 // ---- Neural Cipher brand assets ----

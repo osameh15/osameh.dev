@@ -47,7 +47,8 @@ export function verifyBundleSecrets(root) {
     // Text assets only. A secret would have to be readable to be leaked.
     if (!/\.(?:js|mjs|cjs|map|html|json|php|txt|css|webmanifest|xml)$/i.test(name)) continue;
     const source = readFileSync(path, "utf8");
-    if (/RECAPTCHA_SECRET/i.test(source) && !name.startsWith("api/recaptcha.php")) {
+    const serverSideVerifier = name === "api/recaptcha.php" || name === "api/config.php";
+    if (/RECAPTCHA_SECRET/i.test(source) && !serverSideVerifier) {
       failures.push(`${root}/${name} references a reCAPTCHA secret name outside the server-side verifier`);
     }
     // The client bundle must never carry a secret-shaped assignment.
@@ -95,7 +96,7 @@ export function verifyRepositorySecrets(trackedFiles) {
       if (source.includes(key)) failures.push(`${file} hardcodes a reCAPTCHA site key; select it through ${configPath}`);
     }
     if (/VITE_[A-Z_]*RECAPTCHA/i.test(source)) failures.push(`${file} exposes reCAPTCHA configuration through a VITE_ variable`);
-    if (/RECAPTCHA_SECRET/i.test(source) && file !== "backend/lib/recaptcha.php" && file !== "scripts/verify-secrets.mjs") {
+    if (/RECAPTCHA_SECRET/i.test(source) && !["backend/lib/recaptcha.php", "backend/lib/config.php", "backend/tests/config-isolation.php", "scripts/verify-secrets.mjs"].includes(file)) {
       failures.push(`${file} references a reCAPTCHA secret name outside the server-side verifier`);
     }
   }

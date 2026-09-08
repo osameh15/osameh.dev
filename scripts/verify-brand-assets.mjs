@@ -69,6 +69,16 @@ export function verifyBrandAssets() {
   }
 
   if (!existsSync(resolve("frontend/public/icons/favicon.ico"))) failures.push("Missing frontend/public/icons/favicon.ico");
+  // Search engines resolve a root favicon first, so the approved artwork is
+  // republished at a stable, never-hashed root path.
+  if (!existsSync(resolve("frontend/public/favicon.ico"))) failures.push("Missing frontend/public/favicon.ico");
+  const rootPng = resolve("frontend/public/favicon-48x48.png");
+  if (!existsSync(rootPng)) failures.push("Missing frontend/public/favicon-48x48.png");
+  else {
+    const size = pngSize(rootPng);
+    if (!size) failures.push("favicon-48x48.png is not a readable PNG");
+    else if (size.width !== 48 || size.height !== 48) failures.push(`favicon-48x48.png is ${size.width}x${size.height}, expected 48x48`);
+  }
   if (!existsSync(resolve("frontend/public/icons/README.md"))) failures.push("Missing frontend/public/icons/README.md icon-pack documentation");
 
   // Social artwork must be a real 1200x630 card.
@@ -118,6 +128,9 @@ export function verifyBrandAssets() {
   // The document head must wire the new pack.
   const index = existsSync(resolve("frontend/index.html")) ? readFileSync(resolve("frontend/index.html"), "utf8") : "";
   if (!index.includes("/icons/favicon.ico")) failures.push("index.html does not reference the new favicon.ico");
+  for (const declaration of ['rel="icon" href="/favicon.ico"', 'href="/favicon-48x48.png"']) {
+    if (!index.includes(declaration)) failures.push(`index.html is missing the stable root favicon declaration: ${declaration}`);
+  }
   if (!/apple-touch-icon["'][^>]*sizes="180x180"|sizes="180x180"[^>]*apple-touch-icon/.test(index) && !index.includes("/icons/apple-touch-icon.png")) failures.push("index.html does not reference the 180x180 Apple touch icon");
 
   return failures;
