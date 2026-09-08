@@ -31,7 +31,7 @@ jobs:
       url: https://staging.osameh.dev
     steps:
       - name: Download tested staging bundle
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: osameh-staging-dist
           path: dist
@@ -123,7 +123,7 @@ jobs:
           set ftp:ssl-force true
           set ftp:ssl-protect-data true
           set ssl:verify-certificate false
-          mirror --reverse --delete --verbose --parallel=4 \
+          mirror --reverse --delete --verbose --parallel=4 --no-perms \
             --exclude-glob .well-known \
             --exclude-glob '.well-known/**' \
             --exclude-glob cgi-bin \

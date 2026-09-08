@@ -1,8 +1,15 @@
 import { test, expect, type Locator } from "@playwright/test";
 import { readFileSync } from "node:fs";
+import { resolveReleaseCodename } from "../../frontend/src/lib/releaseMetadataCore.js";
+import { adjacentNotes, engineeringNotes } from "../../frontend/src/features/notes/notesData";
+import { RECAPTCHA_ACTION, recaptchaSiteKey } from "../../frontend/src/config/recaptchaConfig";
 
 const availabilityFixture = JSON.parse(readFileSync(new URL("../../config/availability.json", import.meta.url), "utf8"));
+const releasesFixture = JSON.parse(readFileSync(new URL("../../config/releases.json", import.meta.url), "utf8"));
 const RELEASE_VERSION: string = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")).version;
+// The codename is resolved the same way the application resolves it, so a new
+// release family never invalidates these assertions.
+const RELEASE_CODENAME: string = resolveReleaseCodename(releasesFixture, RELEASE_VERSION);
 const activeAvailability = availabilityFixture.profiles[availabilityFixture.activeStatus];
 
 async function expectSymmetric(dialog: Locator, leftCard: Locator, rightCard = leftCard, tolerance = 2) {
@@ -481,7 +488,8 @@ test("mobile engineering-note TOC stays below the editor tabs", async ({ page })
     const tabsBox = await page.locator(".tabs-row").boundingBox();
     const tocBox = await toc.boundingBox();
     if (!tabsBox || !tocBox) return false;
-    return tocBox.y >= tabsBox.y + tabsBox.height + 10;
+    // Flush against the tabs: below them, with no margin of its own.
+    return Math.abs(tocBox.y - (tabsBox.y + tabsBox.height)) <= 1;
   }).toBe(true);
 });
 
@@ -1267,41 +1275,41 @@ test("build modal reports the deployed environment from build-info.json", async 
 });
 
 // ---------------------------------------------------------------------------
-// Cipher release family — codename architecture, Neural Cipher branding, and
+// Release identity — codename architecture, Neural Cipher branding, and
 // active-tab auto-scroll. The version is read from package.json so a patch bump
 // never invalidates these assertions.
 // ---------------------------------------------------------------------------
 
-test("release identity surfaces show the version and Cipher codename", async ({ page }) => {
+test("release identity surfaces show the version and release codename", async ({ page }) => {
   await page.goto("/");
   // Status bar
   const status = page.locator(".status-build");
   await expect(status).toContainText(`v${RELEASE_VERSION}`);
-  await expect(status).toContainText("CIPHER");
+  await expect(status).toContainText(RELEASE_CODENAME.toUpperCase());
   // Build Info
   await page.evaluate(() => window.dispatchEvent(new Event("portfolio:build")));
   const modal = page.locator(".build-info-modal");
   await expect(modal).toBeVisible();
-  await expect(modal.locator("#build-info-title")).toContainText(`v${RELEASE_VERSION} · CIPHER`);
+  await expect(modal.locator("#build-info-title")).toContainText(`v${RELEASE_VERSION} · ${RELEASE_CODENAME.toUpperCase()}`);
   const cell = (label: string) => modal.locator(".build-info-grid article").filter({ hasText: label }).locator("strong");
-  await expect(cell("VERSION")).toHaveText(`v${RELEASE_VERSION} · CIPHER`);
-  await expect(cell("CODENAME")).toHaveText("Cipher");
+  await expect(cell("VERSION")).toHaveText(`v${RELEASE_VERSION} · ${RELEASE_CODENAME.toUpperCase()}`);
+  await expect(cell("CODENAME")).toHaveText(RELEASE_CODENAME);
   // Environment must stay runtime-derived, not compiled in.
   const buildInfo = await (await page.request.get("/build-info.json")).json() as { environment?: string };
   await expect(cell("ENVIRONMENT")).toHaveText(buildInfo.environment ?? "resolving…");
 });
 
-test("build info reports staging environment while keeping the Cipher identity", async ({ page }) => {
+test("build info reports staging environment while keeping the release identity", async ({ page }) => {
   await page.route("**/build-info.json", route => route.fulfill({
     status: 200, contentType: "application/json",
-    body: JSON.stringify({ version: RELEASE_VERSION, codename: "Cipher", buildId: `v${RELEASE_VERSION}-test`, builtAt: new Date().toISOString(), environment: "staging", availabilityMood: "selective" }),
+    body: JSON.stringify({ version: RELEASE_VERSION, codename: RELEASE_CODENAME, buildId: `v${RELEASE_VERSION}-test`, builtAt: new Date().toISOString(), environment: "staging", availabilityMood: "selective" }),
   }));
   await page.goto("/");
   await page.evaluate(() => window.dispatchEvent(new Event("portfolio:build")));
   const modal = page.locator(".build-info-modal");
   await expect(modal.locator(".build-info-badge")).toHaveText("STAGING BUILD");
   await expect(modal.locator(".build-info-grid article").filter({ hasText: "ENVIRONMENT" }).locator("strong")).toHaveText("staging");
-  await expect(modal.locator(".build-info-grid article").filter({ hasText: "CODENAME" }).locator("strong")).toHaveText("Cipher");
+  await expect(modal.locator(".build-info-grid article").filter({ hasText: "CODENAME" }).locator("strong")).toHaveText(RELEASE_CODENAME);
 });
 
 test("terminal version and status output carry the release codename", async ({ page }) => {
@@ -1313,10 +1321,10 @@ test("terminal version and status output carry the release codename", async ({ p
   const input = terminal.locator("input");
   await input.fill("version");
   await input.press("Enter");
-  await expect(terminal.locator(".terminal-output")).toContainText(`osameh.dev v${RELEASE_VERSION} · Cipher`);
+  await expect(terminal.locator(".terminal-output")).toContainText(`osameh.dev v${RELEASE_VERSION} · ${RELEASE_CODENAME}`);
   await input.fill("neofetch");
   await input.press("Enter");
-  await expect(terminal.locator(".terminal-output")).toContainText("Codename  Cipher");
+  await expect(terminal.locator(".terminal-output")).toContainText(`Codename  ${RELEASE_CODENAME}`);
   await expect(terminal.locator(".terminal-output")).toContainText("OSAMEH.DEV // NEURAL CIPHER");
 });
 
@@ -1504,18 +1512,19 @@ test("changelog shows codename badges only for named releases", async ({ page })
   })));
   expect(rows.length).toBeGreaterThan(5);
 
-  const named = new Map([["4.2.2", "Specter"], ["3.1.0", "Shadow"], ["2.2.4", "Pixel"]]);
   for (const row of rows) {
     // A family codename applies to every patch in that family; historical names
-    // are exact. Everything else must render no badge at all.
-    const expected = named.get(row.version) ?? (row.version.startsWith("5.2.") ? "Cipher" : null);
+    // are exact. Everything else must render no badge at all. The expectation
+    // comes from the same resolver the application uses, so activating a new
+    // family updates both sides at once.
+    const expected = resolveReleaseCodename(releasesFixture, row.version);
     expect(row.codename, `codename badge for ${row.version}`).toBe(expected);
   }
   // A version with no official release metadata naturally renders no badge.
   expect(rows.find(row => row.version === "1.0.0")?.codename).toBeNull();
 
   // The detail panel names the selected release.
-  await expect(page.locator(".release-codename-line .release-codename")).toHaveText("Cipher");
+  await expect(page.locator(".release-codename-line .release-codename")).toHaveText(RELEASE_CODENAME);
 });
 
 // ---------------------------------------------------------------------------
@@ -1580,6 +1589,404 @@ test("build info never guesses production when the metadata request fails", asyn
   expect(state!.environment).not.toBe("production");
   // The modal stays usable and nothing rejects unhandled.
   await expect(page.locator(".build-info-modal")).toBeVisible();
-  await expect(page.locator("#build-info-title")).toContainText("CIPHER");
+  await expect(page.locator("#build-info-title")).toContainText(RELEASE_CODENAME.toUpperCase());
   expect(pageErrors).toEqual([]);
+});
+
+
+// ---------------------------------------------------------------------------
+// v5.3.0 Vanta — adjacent Engineering Note navigation.
+//
+// Order comes from the one authoritative list, the links are real anchors, and
+// following one goes through the shared editor-tab lifecycle.
+// ---------------------------------------------------------------------------
+
+const FIRST_NOTE = engineeringNotes[0];
+const LAST_NOTE = engineeringNotes[engineeringNotes.length - 1];
+const MIDDLE_NOTES = engineeringNotes.slice(1, -1);
+
+const noteNav = (page: import("@playwright/test").Page) => page.locator("nav.note-adjacent");
+const previousLink = (page: import("@playwright/test").Page) => noteNav(page).locator('[data-adjacent="previous"]');
+const nextLink = (page: import("@playwright/test").Page) => noteNav(page).locator('[data-adjacent="next"]');
+
+test("adjacent note order is derived from the authoritative Notes order", () => {
+  expect(engineeringNotes.length).toBeGreaterThan(2);
+  expect(adjacentNotes(FIRST_NOTE.slug).previous).toBeNull();
+  expect(adjacentNotes(FIRST_NOTE.slug).next?.slug).toBe(engineeringNotes[1].slug);
+  expect(adjacentNotes(LAST_NOTE.slug).next).toBeNull();
+  expect(adjacentNotes(LAST_NOTE.slug).previous?.slug).toBe(engineeringNotes[engineeringNotes.length - 2].slug);
+  // Every interior position agrees with its index in the published order.
+  engineeringNotes.forEach((note, index) => {
+    const { previous, next } = adjacentNotes(note.slug);
+    expect(previous?.slug ?? null).toBe(index > 0 ? engineeringNotes[index - 1].slug : null);
+    expect(next?.slug ?? null).toBe(index < engineeringNotes.length - 1 ? engineeringNotes[index + 1].slug : null);
+  });
+  // An unknown slug has no neighbours rather than defaulting to the ends.
+  expect(adjacentNotes("not-a-note")).toEqual({ previous: null, next: null });
+});
+
+test("the first note offers only Next", async ({ page }) => {
+  await page.goto(`/notes/${FIRST_NOTE.slug}`);
+  await expect(page.locator(".note-markdown")).toBeVisible();
+  await expect(previousLink(page)).toHaveCount(0);
+  await expect(nextLink(page)).toHaveAttribute("href", `/notes/${engineeringNotes[1].slug}`);
+  await expect(nextLink(page)).toContainText(engineeringNotes[1].title);
+  // Absent, not disabled: no dead control is exposed to assistive technology.
+  await expect(noteNav(page).locator("button, [aria-disabled='true'], [disabled]")).toHaveCount(0);
+});
+
+test("middle notes offer Previous and Next with correct hrefs", async ({ page }) => {
+  for (const note of MIDDLE_NOTES) {
+    const index = engineeringNotes.findIndex(item => item.slug === note.slug);
+    await page.goto(`/notes/${note.slug}`);
+    await expect(page.locator(".note-markdown")).toBeVisible();
+    await expect(previousLink(page)).toHaveAttribute("href", `/notes/${engineeringNotes[index - 1].slug}`);
+    await expect(nextLink(page)).toHaveAttribute("href", `/notes/${engineeringNotes[index + 1].slug}`);
+    await expect(previousLink(page)).toContainText(engineeringNotes[index - 1].title);
+    await expect(nextLink(page)).toContainText(engineeringNotes[index + 1].title);
+  }
+});
+
+test("the last note offers only Previous", async ({ page }) => {
+  await page.goto(`/notes/${LAST_NOTE.slug}`);
+  await expect(page.locator(".note-markdown")).toBeVisible();
+  await expect(nextLink(page)).toHaveCount(0);
+  await expect(previousLink(page)).toHaveAttribute("href", `/notes/${engineeringNotes[engineeringNotes.length - 2].slug}`);
+});
+
+test("adjacent note links are real anchors with descriptive labels", async ({ page }) => {
+  await page.goto(`/notes/${engineeringNotes[1].slug}`);
+  await expect(page.locator(".note-markdown")).toBeVisible();
+  for (const link of [previousLink(page), nextLink(page)]) {
+    await expect(link).toHaveJSProperty("tagName", "A");
+    await expect(link).not.toHaveAttribute("role", "link");
+  }
+  await expect(previousLink(page)).toHaveAttribute("aria-label", `Previous note: ${engineeringNotes[0].title}`);
+  await expect(nextLink(page)).toHaveAttribute("aria-label", `Next note: ${engineeringNotes[2].title}`);
+  await expect(noteNav(page)).toHaveAttribute("aria-label", "Engineering Notes navigation");
+});
+
+test("Next opens the adjacent note through the shared editor-tab lifecycle", async ({ page }) => {
+  await page.goto(`/notes/${FIRST_NOTE.slug}`);
+  await expect(page.locator(".note-markdown")).toBeVisible();
+  const before = (await tabIds(page)).length;
+  await nextLink(page).click();
+  await expect.poll(() => new URL(page.url()).pathname).toBe(`/notes/${engineeringNotes[1].slug}`);
+  await expect(page.locator(".editor-tab.active")).toHaveText(`${engineeringNotes[1].slug}.md`);
+  expect((await tabIds(page)).length).toBe(before + 1);
+  // The destination starts at its own beginning, not at the previous scroll,
+  // and it is there immediately rather than animating down from the old one.
+  expect(await page.evaluate(() => window.scrollY)).toBeLessThan(40);
+});
+
+test("adjacent navigation never duplicates an already open note tab", async ({ page }) => {
+  await page.goto(`/notes/${FIRST_NOTE.slug}`);
+  await expect(page.locator(".note-markdown")).toBeVisible();
+  await nextLink(page).click();
+  await expect(page.locator(".editor-tab.active")).toHaveText(`${engineeringNotes[1].slug}.md`);
+  const opened = (await tabIds(page)).length;
+  await previousLink(page).click();
+  await expect(page.locator(".editor-tab.active")).toHaveText(`${FIRST_NOTE.slug}.md`);
+  // Returning activates the existing tab instead of appending a second one.
+  expect((await tabIds(page)).length).toBe(opened);
+  const noteTabs = (await tabIds(page)).filter(id => id.startsWith("note:"));
+  expect(new Set(noteTabs).size).toBe(noteTabs.length);
+});
+
+test("adjacent navigation preserves mixed project and note tabs", async ({ page }) => {
+  await page.goto("/");
+  await runPalette(page, PROJECT_A);
+  await runPalette(page, NOTE_A);
+  const beforeIds = await tabIds(page);
+  await expect(page.locator(".note-markdown")).toBeVisible();
+  await nextLink(page).click();
+  await expect(page.locator(".editor-tab.active")).toHaveText(`${engineeringNotes[1].slug}.md`);
+  const afterIds = await tabIds(page);
+  // Every tab that was open is still open, in the same order, plus the new one.
+  expect(afterIds.slice(0, beforeIds.length)).toEqual(beforeIds);
+  expect(afterIds.filter(id => id.startsWith("project:"))).toEqual(beforeIds.filter(id => id.startsWith("project:")));
+});
+
+test("browser Back returns to the note the reader came from", async ({ page }) => {
+  await page.goto(`/notes/${FIRST_NOTE.slug}`);
+  await expect(page.locator(".note-markdown")).toBeVisible();
+  await nextLink(page).click();
+  await expect.poll(() => new URL(page.url()).pathname).toBe(`/notes/${engineeringNotes[1].slug}`);
+  await page.goBack();
+  await expect.poll(() => new URL(page.url()).pathname).toBe(`/notes/${FIRST_NOTE.slug}`);
+  await expect(page.locator(".editor-tab.active")).toHaveText(`${FIRST_NOTE.slug}.md`);
+  await expect(page.getByRole("heading", { name: FIRST_NOTE.title })).toBeVisible();
+});
+
+test("adjacent navigation is keyboard operable", async ({ page }) => {
+  await page.goto(`/notes/${FIRST_NOTE.slug}`);
+  await expect(page.locator(".note-markdown")).toBeVisible();
+  await nextLink(page).focus();
+  await expect(nextLink(page)).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect.poll(() => new URL(page.url()).pathname).toBe(`/notes/${engineeringNotes[1].slug}`);
+});
+
+for (const width of [320, 360, 390, 412, 768]) {
+  test(`adjacent note navigation fits a ${width}px viewport`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 780 });
+    await page.goto(`/notes/${engineeringNotes[1].slug}`);
+    await expect(page.locator(".note-markdown")).toBeVisible();
+    await expect(previousLink(page)).toBeVisible();
+    await expect(nextLink(page)).toBeVisible();
+    for (const link of [previousLink(page), nextLink(page)]) {
+      const box = (await link.boundingBox())!;
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(width + 1);
+      // Comfortable tap target.
+      expect(box.height).toBeGreaterThanOrEqual(44);
+    }
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow).toBeLessThanOrEqual(1);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// v5.3.0 Vanta — Google reCAPTCHA v3 on contact submission.
+//
+// Nothing here contacts Google. grecaptcha is stubbed deterministically, and
+// the host-mapped tests serve the local preview under the real hostnames so
+// exact-hostname site-key selection can be observed in a browser.
+// ---------------------------------------------------------------------------
+
+test("site keys are selected by exact hostname and never fall back to production", () => {
+  const production = recaptchaSiteKey("osameh.dev");
+  const staging = recaptchaSiteKey("staging.osameh.dev");
+  expect(production).toBeTruthy();
+  expect(staging).toBeTruthy();
+  expect(production).not.toBe(staging);
+  expect(recaptchaSiteKey("OSAMEH.DEV")).toBe(production);
+  for (const host of ["localhost", "127.0.0.1", "www.osameh.dev", "osameh.dev.attacker.example", "staging.osameh.dev.attacker.example", ""]) {
+    expect(recaptchaSiteKey(host), `unknown host ${host || "(empty)"}`).toBeNull();
+  }
+  expect(RECAPTCHA_ACTION).toBe("contact_submit");
+});
+
+type RecaptchaBehavior = "token" | "reject" | "empty";
+
+/** Deterministic grecaptcha. Present before app code runs, so no script loads. */
+async function stubRecaptcha(page: import("@playwright/test").Page, behavior: RecaptchaBehavior = "token") {
+  await page.addInitScript(mode => {
+    const calls: { siteKey: string; action: string }[] = [];
+    (window as unknown as { __recaptcha: typeof calls }).__recaptcha = calls;
+    (window as unknown as { grecaptcha: unknown }).grecaptcha = {
+      ready: (callback: () => void) => callback(),
+      execute: (siteKey: string, options: { action: string }) => {
+        calls.push({ siteKey, action: options.action });
+        if (mode === "reject") return Promise.reject(new Error("execute-failed"));
+        if (mode === "empty") return Promise.resolve("");
+        return Promise.resolve(`token-${calls.length}`);
+      },
+    };
+  }, behavior);
+}
+
+const recaptchaCalls = (page: import("@playwright/test").Page) =>
+  page.evaluate(() => (window as unknown as { __recaptcha?: { siteKey: string; action: string }[] }).__recaptcha ?? []);
+
+/**
+ * Serves the local preview under a real portfolio hostname.
+ *
+ * Site-key selection is exact-hostname, so 127.0.0.1 deliberately resolves to
+ * no configuration. Mapping the origin is the only way to exercise the
+ * configured paths in a browser without shipping a test-only key.
+ */
+async function gotoAsHost(page: import("@playwright/test").Page, host: string, path = "/contact") {
+  await page.route(`https://${host}/**`, async route => {
+    const url = new URL(route.request().url());
+    // The service worker only registers over HTTPS; keep it out of the test.
+    if (url.pathname === "/sw.js") return route.fulfill({ status: 404, body: "" });
+    // API stubs are registered before this handler, and the last registered
+    // route wins, so hand /api/* back to them instead of the preview server,
+    // which serves no PHP.
+    if (url.pathname.startsWith("/api/")) return route.fallback();
+    const response = await route.fetch({ url: `http://127.0.0.1:4173${url.pathname}${url.search}` });
+    await route.fulfill({ response });
+  });
+  await page.goto(`https://${host}${path}`);
+}
+
+async function fillContactForm(page: import("@playwright/test").Page) {
+  const form = page.locator(".contact-form");
+  await form.locator('input[name="name"]').fill("Regression Tester");
+  await form.locator('input[name="email"]').fill("tester@example.com");
+  await form.locator('input[name="subject"]').fill("Automated regression");
+  await form.locator('textarea[name="message"]').fill("This is a deterministic regression message with more than twenty characters.");
+  return form;
+}
+
+/** Captures contact POSTs and answers them without touching the real endpoint. */
+async function captureContactPosts(page: import("@playwright/test").Page, respond: { status?: number; body?: Record<string, unknown> } = {}) {
+  const posts: Record<string, unknown>[] = [];
+  await page.route("**/api/contact", async route => {
+    if (route.request().method() !== "POST") {
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, csrf: "a".repeat(48) }) });
+    }
+    posts.push(JSON.parse(route.request().postData() || "{}"));
+    await route.fulfill({
+      status: respond.status ?? 200,
+      contentType: "application/json",
+      body: JSON.stringify(respond.body ?? { success: true, message: "Message sent." }),
+    });
+  });
+  return posts;
+}
+
+for (const [host, label] of [["osameh.dev", "production"], ["staging.osameh.dev", "staging"]] as const) {
+  test(`the ${label} host loads reCAPTCHA with its own site key`, async ({ page }) => {
+    const requested: string[] = [];
+    await page.route("https://www.google.com/recaptcha/**", async route => {
+      requested.push(route.request().url());
+      // Stand in for Google's api.js without contacting it.
+      await route.fulfill({
+        status: 200,
+        contentType: "application/javascript",
+        body: "window.grecaptcha={ready:cb=>cb(),execute:()=>Promise.resolve('stub-token')};",
+      });
+    });
+    await gotoAsHost(page, host);
+    const form = page.locator(".contact-form");
+    await expect(form).toBeVisible();
+    // Nothing third-party before the visitor touches the form.
+    expect(requested).toEqual([]);
+    await form.locator('input[name="name"]').focus();
+    await expect.poll(() => requested.length).toBeGreaterThan(0);
+    expect(requested[0]).toContain(`render=${recaptchaSiteKey(host)}`);
+    const otherHost = host === "osameh.dev" ? "staging.osameh.dev" : "osameh.dev";
+    expect(requested[0]).not.toContain(recaptchaSiteKey(otherHost)!);
+  });
+}
+
+test("an unknown host refuses to submit rather than using the production key", async ({ page }) => {
+  await stubRecaptcha(page);
+  const posts = await captureContactPosts(page);
+  await page.goto("/contact");
+  const form = await fillContactForm(page);
+  await form.locator('button[type="submit"]').click();
+  await expect(form.locator(".form-message.error")).toContainText(/not configured/i);
+  expect(await recaptchaCalls(page)).toEqual([]);
+  expect(posts).toEqual([]);
+});
+
+test("a token is generated at submission time with the contact_submit action", async ({ page }) => {
+  await stubRecaptcha(page);
+  const posts = await captureContactPosts(page);
+  await gotoAsHost(page, "staging.osameh.dev");
+  const form = await fillContactForm(page);
+  // Filling the form must not spend a token.
+  expect(await recaptchaCalls(page)).toEqual([]);
+  await form.locator('button[type="submit"]').click();
+  await expect(form.locator(".form-message.success")).toBeVisible();
+  const calls = await recaptchaCalls(page);
+  expect(calls).toHaveLength(1);
+  expect(calls[0].action).toBe("contact_submit");
+  expect(calls[0].siteKey).toBe(recaptchaSiteKey("staging.osameh.dev"));
+  expect(posts).toHaveLength(1);
+  expect(posts[0].recaptchaToken).toBe("token-1");
+});
+
+test("a failed token execution blocks the submission and stays retryable", async ({ page }) => {
+  await stubRecaptcha(page, "reject");
+  const posts = await captureContactPosts(page);
+  await gotoAsHost(page, "staging.osameh.dev");
+  const form = await fillContactForm(page);
+  await form.locator('button[type="submit"]').click();
+  await expect(form.locator(".form-message.error")).toContainText("Verification could not be completed.");
+  expect(posts).toEqual([]);
+  // Retryable: the button is live again and the fields are intact.
+  await expect(form.locator('button[type="submit"]')).toBeEnabled();
+  await expect(form.locator('input[name="email"]')).toHaveValue("tester@example.com");
+});
+
+test("an empty token blocks the submission", async ({ page }) => {
+  await stubRecaptcha(page, "empty");
+  const posts = await captureContactPosts(page);
+  await gotoAsHost(page, "staging.osameh.dev");
+  const form = await fillContactForm(page);
+  await form.locator('button[type="submit"]').click();
+  await expect(form.locator(".form-message.error")).toContainText("Verification could not be completed.");
+  expect(posts).toEqual([]);
+});
+
+test("a rejected verification is reported without exposing any score", async ({ page }) => {
+  await stubRecaptcha(page);
+  await captureContactPosts(page, { status: 403, body: { success: false, message: "Verification could not be completed. Please try again." } });
+  await gotoAsHost(page, "staging.osameh.dev");
+  const form = await fillContactForm(page);
+  await form.locator('button[type="submit"]').click();
+  const message = form.locator(".form-message.error");
+  await expect(message).toContainText("Verification could not be completed.");
+  await expect(message).not.toContainText(/score/i);
+  await expect(message).not.toContainText(/0\.\d/);
+});
+
+test("only one submission is in flight at a time", async ({ page }) => {
+  await stubRecaptcha(page);
+  const posts: Record<string, unknown>[] = [];
+  await page.route("**/api/contact", async route => {
+    if (route.request().method() !== "POST") {
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, csrf: "a".repeat(48) }) });
+    }
+    posts.push(JSON.parse(route.request().postData() || "{}"));
+    await new Promise(resolve => setTimeout(resolve, 900));
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, message: "Message sent." }) });
+  });
+  await gotoAsHost(page, "staging.osameh.dev");
+  const form = await fillContactForm(page);
+  const submitButton = form.locator('button[type="submit"]');
+  await submitButton.click();
+  await expect(submitButton).toBeDisabled();
+  // A second activation while pending must not start another verification.
+  await form.locator('textarea[name="message"]').press("Enter");
+  await page.evaluate(() => (document.querySelector(".contact-form") as HTMLFormElement).requestSubmit());
+  await expect(form.locator(".form-message.success")).toBeVisible();
+  expect(posts).toHaveLength(1);
+  expect(await recaptchaCalls(page)).toHaveLength(1);
+});
+
+test("a retry after a failure requests a brand new token", async ({ page }) => {
+  await stubRecaptcha(page);
+  let attempt = 0;
+  const posts: Record<string, unknown>[] = [];
+  await page.route("**/api/contact", async route => {
+    if (route.request().method() !== "POST") {
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, csrf: "a".repeat(48) }) });
+    }
+    posts.push(JSON.parse(route.request().postData() || "{}"));
+    attempt += 1;
+    await route.fulfill({
+      status: attempt === 1 ? 403 : 200,
+      contentType: "application/json",
+      body: JSON.stringify(attempt === 1
+        ? { success: false, message: "Verification could not be completed. Please try again." }
+        : { success: true, message: "Message sent." }),
+    });
+  });
+  await gotoAsHost(page, "staging.osameh.dev");
+  const form = await fillContactForm(page);
+  await form.locator('button[type="submit"]').click();
+  await expect(form.locator(".form-message.error")).toBeVisible();
+  await form.locator('button[type="submit"]').click();
+  await expect(form.locator(".form-message.success")).toBeVisible();
+  expect(posts).toHaveLength(2);
+  // A token is never replayed.
+  expect(posts[0].recaptchaToken).toBe("token-1");
+  expect(posts[1].recaptchaToken).toBe("token-2");
+});
+
+test("the reCAPTCHA disclosure is present and the home page loads no Google script", async ({ page }) => {
+  const googleRequests: string[] = [];
+  page.on("request", request => { if (/google\.com|gstatic\.com/.test(request.url())) googleRequests.push(request.url()); });
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: /I build software/i })).toBeVisible();
+  expect(googleRequests).toEqual([]);
+  const note = page.locator(".contact-recaptcha-note");
+  await expect(note).toContainText(/reCAPTCHA/i);
+  await expect(note.getByRole("link", { name: /Privacy Policy/i })).toHaveAttribute("href", "https://policies.google.com/privacy");
+  await expect(note.getByRole("link", { name: /Terms of Service/i })).toHaveAttribute("href", "https://policies.google.com/terms");
 });

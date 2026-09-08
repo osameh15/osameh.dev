@@ -1,6 +1,6 @@
 # osameh.dev Project Understanding Report
 
-**Review date:** 2026-09-06 (updated for v5.2.0)
+**Review date:** 2026-09-08 (updated for v5.3.0)
 **Repository:** `osameh.dev`
 **Review scope:** Tracked application source, configuration, workflows, tests, documentation, public endpoints, generated metadata, and static-asset inventory.
 
@@ -10,30 +10,17 @@ Companion references: [`ARCHITECTURE.md`](./ARCHITECTURE.md) for how the deploye
 
 ## 1. Detected version
 
-The repository version is **5.2.2**, codename **Cipher** under the Cyber Noir release theme (see [`ARCHITECTURE.md`](./ARCHITECTURE.md)). It is consistent across `package.json`, `package-lock.json`, `docs/CHANGELOG.md`, `README.md`, deployment documentation, and generated build metadata.
+The repository version is **5.3.0**, codename **Vanta** under the Cyber Noir release theme (see [`ARCHITECTURE.md`](./ARCHITECTURE.md)). It is consistent across `package.json`, `package-lock.json`, `docs/CHANGELOG.md`, `README.md`, deployment documentation, and generated build metadata.
 
-Generated build metadata is refreshed during validation and resolves the current release as v5.2.0 · CIPHER.
+Generated build metadata is refreshed during validation and resolves the current release as v5.3.0 · VANTA.
 
 ## 2. Current branch and worktree
 
 The current branch is **`develop`**.
 
-At onboarding time, the worktree contained 12 pre-existing unstaged modified files:
-
-- `docs/CHANGELOG.md`
-- `README.md`
-- `app/features-v5.css`
-- `app/globals.css`
-- `scripts/quality-gates.mjs`
-- `src/App.tsx`
-- `src/PortfolioFeatures.tsx`
-- `src/ProjectIntelligence.tsx`
-- `src/generated/build.ts`
-- `src/main.tsx`
-- `src/modalScroll.ts`
-- `tests/e2e/portfolio.spec.ts`
-
-These changes must be preserved and reviewed before editing overlapping areas.
+v5.3.0 was prepared from a clean worktree. The release moved every frontend and
+backend source file into the new architecture described below; `git` records
+those as renames, so history follows each file.
 
 ## 3. Framework and tooling
 
@@ -52,7 +39,7 @@ The package manifest and lockfile are synchronized. Application state is impleme
 
 ## 4. Application architecture
 
-`src/App.tsx` is the central IDE shell and orchestration layer. It owns:
+`frontend/src/app/App.tsx` is the IDE shell and orchestration layer. It owns:
 
 - route and browser-history state
 - semantic section navigation and scroll spy
@@ -65,31 +52,48 @@ The package manifest and lockfile are synchronized. Application state is impleme
 - theme, font, and code-language preferences
 - scroll restoration and user-intent cancellation
 
-Major feature modules are:
+Its own model lives beside it rather than inside it: `app/editorTabs.ts` (the one
+ordered tab collection and its closing rules), `app/sections.ts` (the semantic
+page registry), and `app/workspacePreferences.ts` (theme, font, and the
+language-specific sample sources).
 
-- `src/PortfolioFeatures.tsx`: availability, accessibility, public client case studies, and capabilities
-- `src/AdvancedUI.tsx`: GitHub Activity, Now, changelog, diagnostics, build information, PWA, recruiter, resume, sharing, and comparison UI
-- `src/ProjectIntelligence.tsx`: repository metadata, metrics, project engineering case studies, architecture, source explorer, gallery, and mobile project navigation
-- `src/EngineeringNotes.tsx`: Markdown loading, sanitization, TOC, scroll spy, code copying, and sharing
-- `src/projectMetadata.ts`: project metadata types, normalization, fallbacks, and loading
-- `src/portfolioData.ts`: repository, experience, activity fallback, changelog, resume, and Now data
-- `src/caseStudiesData.ts`: public client case study and capability data
-- `src/notesData.ts`: Engineering Notes registry
-- `src/modalScroll.ts`: shared modal/body scroll locking
-- `src/generated/build.ts`: generated build, environment, and Mood metadata
+Feature modules under `frontend/src/features/` each own one product surface:
+
+- `home/HeroShowcase.tsx`: brand mark, animated metrics, engineering showcase
+- `notes/`: Engineering Notes rendering, adjacency, markdown pipeline, TOC
+- `projects/`: repository intelligence, metadata, README gallery, compare, case study
+- `portfolio/PortfolioFeatures.tsx`: availability, accessibility, public client case studies, capabilities
+- `contact/ContactForm.tsx`: contact submission and reCAPTCHA verification flow
+- `activity/`, `changelog/`, `now/`, `resume/`: their matching portfolio sections
+- `diagnostics/`: Build Information and System Health
+- `workspace/`: shortcut guide and PWA install control
+
+Shared infrastructure under `frontend/src/lib/` knows nothing about features:
+`modalScroll.ts` (the shared modal foundation), `universalSearch.ts` (Command
+Palette ranking), `analytics.ts`, `share.ts`, `toast.ts`, `releaseMetadata*`
+(codename resolution), and `githubAssetUrlCore.*` (README asset normalization).
+
+Repository-owned content lives in `frontend/src/data/` (`portfolioData.ts`,
+`caseStudiesData.ts`), public frontend configuration in `frontend/src/config/`,
+and the build fingerprint in `frontend/src/generated/build.ts`.
+
+Application state is implemented through React state, hooks, and a
+feature-preferences context rather than an external state library.
 
 ## 5. Important directories
 
-- `src/`: React application logic and components
-- `app/`: global, Light Theme, and v5 feature CSS
-- `config/`: centrally managed availability configuration
-- `public/`: PHP APIs, routing, SEO endpoints, Notes, PWA resources, sitemap, and robots files
-- `scripts/`: build metadata, deployment preparation, Mood CLI, quality gates, and distribution verification
+- `frontend/`: everything the browser runs - `index.html`, static `public/` assets, and `src/` (app shell, features, lib, config, data, styles, generated)
+- `backend/`: everything the server runs - `api/` endpoints, `lib/` internal includes, `seo/` metadata layers and the true 404, `server/.htaccess`, `tests/`
+- `config/`: centrally managed availability and release metadata
+- `scripts/`: build metadata, deployment assembly, environment packaging, Mood CLI, quality gates, verifiers
 - `tests/e2e/`: Playwright regression coverage
 - `.github/workflows/`: quality, staging, production, and availability workflows
-- `deploy/`: private server-configuration examples
+- `deploy/`: private server-configuration example
 - `docs/`: screenshots and engineering documentation
-- `vendor/`: imported shadcn/Tailwind CSS baseline
+
+The frontend imports no backend source and the backend references no component;
+quality gates assert both, along with the absence of the superseded `src/`,
+`app/`, `public/`, `vendor/` and `tests/php/` trees.
 
 ## 6. Main UI and navigation architecture
 
@@ -137,7 +141,7 @@ Light, Dark, and System support is present across Case Studies, capabilities, av
 
 ## 8. Modal and scroll architecture
 
-`src/modalScroll.ts` implements a reference-counted shared body lock. All eleven `role="dialog"` consumers route through the shared `useModalDialog` hook, which composes the lock with Escape handling, focus containment, focus return, and per-viewport geometry measurement.
+`frontend/src/lib/modalScroll.ts` implements a reference-counted shared body lock. All eleven `role="dialog"` consumers route through the shared `useModalDialog` hook, which composes the lock with Escape handling, focus containment, focus return, and per-viewport geometry measurement.
 
 The first active lock:
 
@@ -466,7 +470,7 @@ Node.js floor matches Vite 8.
 ### Corrected diagnosis worth recording
 
 The Source Explorer outage was **not** an application path-validation bug. Every
-file request failed identically — including `src/App.tsx` and `package.json` —
+file request failed identically — including `frontend/src/app/App.tsx` and `package.json` —
 because the edge cache stripped client query strings, so `$_GET['path']` arrived
 empty. `.idea/`-prefixed paths were never rejected by the validator: the traversal
 pattern only ever matched a segment equal to `..`. The fix was an external CDN
@@ -486,7 +490,28 @@ configuration change; the code changes in v5.1.1 are defensive hardening
 - Source Explorer availability depends on the edge preserving client query
   strings. That is external configuration and can regress silently.
 
-## 25. Current engineering priorities
+## 25. v5.3.0 Vanta additions
+
+**Architecture.** Frontend and backend are separate source trees assembled into
+the same deploy artifact. The public runtime contract is unchanged: `dist/`
+mirrored into the document root, APIs at `/api/...`. `AdvancedUI.tsx` was
+decomposed into eleven feature modules, and App's module-scope model moved into
+`app/` and `features/`. Backend includes live in `backend/lib/`, are published
+beside the endpoint that requires them, and are refused over the web.
+
+**Adjacent Engineering Notes.** Every Note links to its neighbours, ordered by
+the same authoritative `engineeringNotes` array the index renders, as real
+crawlable anchors handed to the shared editor-tab lifecycle. Ends render no
+control at all rather than a disabled one.
+
+**Contact verification.** Google reCAPTCHA v3 protects the server-side contact
+submission. Public site keys are selected by exact hostname with no production
+fallback; private secrets stay outside the repository; the server verifies
+success, action, hostname and score and fails closed on every rejection path;
+rate limiting, CORS, CSP strictness and the Service Worker `/api/*` rule are
+unchanged.
+
+## 26. Current engineering priorities
 
 1. Complete the v5.2.0 staging acceptance pass: release identity, Neural Cipher
    assets, active-tab auto-scroll, plus the mature 404, Source Explorer, Service

@@ -7,10 +7,10 @@
     "4.2.2": { "codename": "Specter" }
   },
   "families": {
-    "5.2": { "codename": "Cipher" }
+    "5.2": { "codename": "Cipher" },
+    "5.3": { "codename": "Vanta" }
   },
   "reserved": {
-    "5.3": "Vanta",
     "5.4": "Phantom",
     "5.5": "Null",
     "5.6": "Raven",

@@ -11,6 +11,11 @@ export default defineConfig({
   use: {
     baseURL: "http://127.0.0.1:4173",
     headless: true,
+    // CI installs and runs Playwright's own pinned Chromium, which is the
+    // authoritative browser for this suite. A workstation that cannot download
+    // it can point the same run at an installed browser instead:
+    //   PLAYWRIGHT_CHANNEL=chrome npm run test:e2e
+    channel: process.env.PLAYWRIGHT_CHANNEL || undefined,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },

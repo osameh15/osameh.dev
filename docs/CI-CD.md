@@ -1,6 +1,6 @@
 # CI/CD Pipeline — Technical Reference
 
-**Applies to:** v5.2.3
+**Applies to:** v5.3.0
 **Scope:** how code reaches `staging.osameh.dev` and `osameh.dev`, what blocks a
 deployment, and why the pipeline is shaped the way it is.
 
@@ -66,7 +66,9 @@ Repository quality gates      npm run quality
    v
 TypeScript                    npm run typecheck
    v
-PHP lint                      find public -name '*.php' | xargs -n1 php -l
+PHP lint                      find backend -name '*.php' | xargs -n1 php -l
+   v
+PHP reCAPTCHA contract        php backend/tests/recaptcha-decision.php
    v
 Build tested application bundle   npm run build      -> dist/   (indexable)
    v
@@ -193,7 +195,7 @@ staging before Lighthouse — the original defect — makes `npm run quality` ex
 ### 6.1 Service Worker verification
 
 The Service Worker registers only over HTTPS, so no local browser run loads it.
-`scripts/verify-sw.mjs` executes the real `public/sw.js` in a sandboxed worker
+`scripts/verify-sw.mjs` executes the real `frontend/public/sw.js` in a sandboxed worker
 environment and asserts:
 
 - the response clone is taken **before** the body is consumed
@@ -279,7 +281,7 @@ A staging `530` is never resolved by substituting production credentials.
 
 | Failure | Consequence |
 | --- | --- |
-| Quality gates, TypeScript, PHP lint | no build, no artifact, no deploy |
+| Quality gates, TypeScript, PHP lint, PHP reCAPTCHA contract | no build, no artifact, no deploy |
 | Build or `verify:dist` | no artifact, no deploy |
 | Playwright | no artifact, no deploy |
 | Lighthouse below threshold | no artifact, no deploy |

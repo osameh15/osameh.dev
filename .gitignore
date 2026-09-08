@@ -9,7 +9,12 @@ dist-production/
 *.log
 .DS_Store
 # Generated production fingerprint
-public/build-info.json
+frontend/public/build-info.json
+
+# Browser-test output
+playwright-report/
+test-results/
+ci-diagnostics-*/
 
 # Never commit server-side secrets/private runtime data
 **/osameh-portfolio-secrets.php

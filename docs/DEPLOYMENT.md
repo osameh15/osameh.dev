@@ -1,4 +1,4 @@
-# Deployment — osameh.dev v5.2.0
+# Deployment — osameh.dev v5.3.0
 
 Target: ParsPack shared Linux hosting + ParsPack CDN + PHP 8+.
 
@@ -31,18 +31,60 @@ for a local production check. Do not validate deep links by double-clicking `dis
 
 ## 2. Secret location
 
-Keep the GitHub token outside all public directories:
+Keep every server secret outside all public directories:
 
 ```text
 domains/osameh.dev/private/osameh-portfolio-secrets.php
 ```
 
+The file is never committed, never copied into `dist/`, never packaged into a
+deploy artifact, and never reachable through Vite. It stays outside the
+repository entirely - the refactor deliberately did **not** move it into
+`backend/`; `backend/lib/recaptcha.php` only loads it. The tracked template is
+[`deploy/osameh-portfolio-secrets.example.php`](../deploy/osameh-portfolio-secrets.example.php).
+
 ```php
 <?php
 return [
     'GITHUB_TOKEN' => 'github_pat_xxxxxxxxx',
+
+    'RECAPTCHA' => [
+        'production' => [
+            'secret' => '...',
+            'hostname' => 'osameh.dev',
+            'min_score' => 0.5,
+            'action' => 'contact_submit',
+        ],
+        'staging' => [
+            'secret' => '...',
+            'hostname' => 'staging.osameh.dev',
+            'min_score' => 0.5,
+            'action' => 'contact_submit',
+        ],
+    ],
 ];
 ```
+
+Only the **secret** and an optional `min_score` are read from this file. The
+expected hostname and the verified action are code constants in
+`backend/lib/recaptcha.php`, because they are the security boundary: a block
+copied onto the wrong server must not be able to move it. A disagreement is
+logged as a safe diagnostic and the constant still wins, and a `min_score`
+outside 0.1-1.0 is ignored in favour of the 0.5 default.
+
+Production and staging occupy separate document roots, so each environment has
+its own copy holding only its own secret. An environment that cannot resolve one
+fails closed: the contact endpoint refuses the submission rather than borrowing
+another environment's configuration.
+
+The reCAPTCHA **site keys** are not secrets. They are public by design and live
+in `frontend/src/config/recaptchaConfig.ts`, selected by exact hostname:
+`osameh.dev` gets the production key, `staging.osameh.dev` the staging key, and
+any other host gets none - never a production fallback.
+
+The reCAPTCHA keys are configured in the Google admin console to permit AMP
+usage. That is a key-level capability only. The portfolio implements no AMP
+pages, markup, routing or reCAPTCHA-for-AMP integration.
 
 Recommended permission: `600` or `640`.
 
@@ -125,10 +167,10 @@ proving the route is invalid:
 
 | Handler | Invalid when |
 | --- | --- |
-| `public/not-found.php` | no file, directory, or first-class route matches |
-| `public/note.php` | slug is absent from `notes-index.json` |
-| `public/case-study.php` | id is absent from `case-studies-index.json` |
-| `public/project.php` | repository is absent from the cached GitHub repo record |
+| `backend/seo/not-found.php` | no file, directory, or first-class route matches |
+| `backend/seo/note.php` | slug is absent from `notes-index.json` |
+| `backend/seo/case-study.php` | id is absent from `case-studies-index.json` |
+| `backend/seo/project.php` | repository is absent from the cached GitHub repo record |
 
 Routing is an **internal Apache rewrite**, never a redirect, so the browser keeps
 the original invalid URL and React renders the 404 workspace from
@@ -301,7 +343,7 @@ Strict-Transport-Security: max-age=31536000;preload
 ```
 
 TLS terminates at the CDN edge, which may generate or cache responses independently
-of the origin. `public/.htaccess` deliberately does not emit
+of the origin. `backend/server/.htaccess` deliberately does not emit
 `Strict-Transport-Security`, ensuring one browser-facing HSTS source and avoiding
 the duplicate values previously seen on origin/error responses. Do not infer that
 `includeSubDomains` is enabled or that `osameh.dev` is enrolled in browser preload
@@ -544,7 +586,7 @@ covered in [`TESTING.md`](./TESTING.md#8-troubleshooting).
 Check CDN query-string forwarding. The file endpoint passes its path as a client
 query parameter; if the edge caches or normalises requests so query strings do not
 reach the origin, `$_GET` arrives empty and every path fails identically —
-including ordinary ones such as `src/App.tsx`. This is not a path-validation bug.
+including ordinary ones such as `frontend/src/app/App.tsx`. This is not a path-validation bug.
 Confirm by comparing a path-encoded endpoint with a query-encoded one:
 
 ```bash

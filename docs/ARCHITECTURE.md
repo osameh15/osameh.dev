@@ -1,6 +1,6 @@
 # Runtime Architecture
 
-**Applies to:** v5.2.3
+**Applies to:** v5.3.0
 **Scope:** how the deployed system behaves at runtime — request path, routing,
 server-side metadata, the SPA shell, the GitHub proxy, the Service Worker, and
 the shared UI invariants.
@@ -11,6 +11,101 @@ Related references:
 - [`DEPLOYMENT.md`](./DEPLOYMENT.md) — hosting, CDN, DNS and credential operations
 - [`TESTING.md`](./TESTING.md) — what is verified, and where it can be verified
 - [`PROJECT-UNDERSTANDING.md`](./PROJECT-UNDERSTANDING.md) — feature-level onboarding
+
+---
+
+## 0. Repository structure
+
+Frontend and backend are separate source trees. They are assembled into one
+deploy artifact at build time, so the public runtime contract - `dist/` mirrored
+into the document root, APIs at `/api/...` - is unchanged by that separation.
+
+```text
+frontend/                     everything the browser runs
+├── index.html                Vite entry document, JSON-LD, social metadata
+├── public/                   static assets copied verbatim into dist/
+│   ├── icons/                Neural Cipher pack (runtime + authoring)
+│   ├── notes-content/        Engineering Note markdown
+│   ├── resume/               CV PDF
+│   ├── notes-index.json      Note registry read by the PHP metadata layer
+│   ├── case-studies-index.json
+│   ├── manifest.webmanifest, sw.js, robots.txt, sitemap.xml, og-cover*
+│   └── build-info.json       generated per environment at packaging time
+└── src/
+    ├── app/                  the IDE shell and its own model
+    │   ├── App.tsx           orchestration: routing, panels, terminal, palette
+    │   ├── main.tsx          bootstrap, providers, Service Worker registration
+    │   ├── editorTabs.ts     the one ordered tab collection and its rules
+    │   ├── sections.ts       the semantic page registry
+    │   └── workspacePreferences.ts   theme, font, code-language surfaces
+    ├── features/             one directory per product surface
+    │   ├── home/             hero showcase and brand mark
+    │   ├── notes/            Engineering Notes, adjacency, markdown pipeline
+    │   ├── projects/         repository intelligence, README gallery, compare
+    │   ├── portfolio/        availability, accessibility, client case studies
+    │   ├── contact/          contact form and reCAPTCHA submission flow
+    │   ├── activity/         GitHub activity feed
+    │   ├── changelog/        release graph
+    │   ├── now/              Now section
+    │   ├── resume/           resume viewer
+    │   ├── diagnostics/      Build Information and System Health
+    │   └── workspace/        shortcut guide, PWA install control
+    ├── config/               PUBLIC frontend configuration (reCAPTCHA site keys)
+    ├── data/                 repository-owned content used by the UI
+    ├── lib/                  shared infrastructure, no feature knowledge
+    │   ├── modalScroll.ts    the shared modal foundation
+    │   ├── universalSearch.ts  Command Palette ranking
+    │   ├── analytics.ts, share.ts, toast.ts
+    │   ├── releaseMetadata*.  release codename resolution
+    │   └── githubAssetUrlCore.*  README asset URL normalization
+    ├── generated/            build fingerprint (written by prepare-build)
+    └── styles/               globals, light theme, v5 features, vendor baseline
+
+backend/                      everything the server runs
+├── api/                      the public JSON endpoints, one file per surface
+│   ├── contact.php, github.php, analytics.php, health.php
+├── lib/                      internal includes, never an endpoint
+│   └── recaptcha.php         environment resolution, config, verification
+├── seo/                      per-route metadata layers and the true 404
+│   ├── project.php, note.php, case-study.php, not-found.php
+│   ├── sitemap.php, project-og.php
+├── server/.htaccess          rewrites, security headers, cache policy, CSP
+└── tests/                    deterministic PHP contract tests
+
+scripts/                      build, packaging, verification, release tooling
+config/                       release and availability metadata (not per-tier)
+tests/e2e/                    browser contracts
+docs/                         this documentation set
+```
+
+### Boundaries
+
+- The frontend imports no backend source, and the backend references no
+  component. Quality gates assert both.
+- `backend/lib/` is reached only through an API entrypoint. It is published
+  beside that entrypoint as `dist/api/recaptcha.php` - a directory the document
+  root already has, so a deployment never has to create a new top-level one -
+  and `.htaccess` refuses it over the web. The endpoint resolves either
+  location, so one include line is correct in the repository and in the deploy.
+- Configuration is layered rather than mixed: **public** frontend config
+  (`frontend/src/config/`), **private** server secrets (outside the repository
+  entirely, see [`DEPLOYMENT.md`](./DEPLOYMENT.md)), **release** metadata
+  (`config/releases.json`), and **build** configuration at the root.
+
+### Artifact assembly
+
+```text
+frontend/  --vite build-->  dist/            index.html, assets/, public files
+backend/   --assembler-->   dist/api/, dist/*.php, dist/.htaccess
+                                 |
+                    dist-staging/ | dist-production/     indexing policy only
+                                 |
+                              FTPS deploy
+```
+
+`scripts/ensure-deploy-files.mjs` performs the backend half and stamps the
+JSON-LD CSP hash; `scripts/package-env.mjs` derives the environment bundles from
+the tested `dist/` without mutating it.
 
 ---
 
@@ -39,7 +134,7 @@ script is loaded at runtime — the Content-Security-Policy in `.htaccess` is
 | Concern | Owner |
 | --- | --- |
 | TLS, edge caching, HSTS, error pass-through | ParsPack CDN (external configuration) |
-| Rewrites, non-HSTS security headers, cache policy, CSP | `public/.htaccess` |
+| Rewrites, non-HSTS security headers, cache policy, CSP | `backend/server/.htaccess` |
 | Route validity + metadata for dynamic URLs | PHP handlers |
 | Everything after first paint | React SPA |
 | GitHub credentials | server-side only, never in the bundle |
@@ -77,7 +172,7 @@ the health endpoint exposes the same value server-side.
 
 ## 2. Application shell
 
-The site is a single React 19 + Vite SPA rendered as an IDE workspace. `src/App.tsx`
+The site is a single React 19 + Vite SPA rendered as an IDE workspace. `frontend/src/app/App.tsx`
 is the shell and orchestration layer; feature modules live beside it.
 
 The shell owns:
@@ -178,8 +273,8 @@ A handler returns 404 only where it can prove the route is invalid:
 
 | Route | Authority |
 | --- | --- |
-| `/notes/:slug` | slug absent from `public/notes-index.json` |
-| `/case-studies/:id` | id absent from `public/case-studies-index.json` |
+| `/notes/:slug` | slug absent from `frontend/public/notes-index.json` |
+| `/case-studies/:id` | id absent from `frontend/public/case-studies-index.json` |
 | `/projects/:name` | repository absent from the cached GitHub repository record |
 | anything else unmatched | no file, directory or first-class route matches |
 
@@ -203,7 +298,7 @@ query parameters, `$_GET` arrives empty at PHP and the endpoint cannot function.
 
 This is not hypothetical: it is what caused the v5.1.0 Source Explorer outage.
 Every file request failed identically, including ordinary paths such as
-`src/App.tsx`. The application's repository path validation was never the cause —
+`frontend/src/app/App.tsx`. The application's repository path validation was never the cause —
 dot-prefixed directories like `.idea/` were always accepted, because the traversal
 check only ever rejected a path segment equal to `..`.
 
@@ -232,7 +327,7 @@ time and verified before an artifact exists — see [`CI-CD.md`](./CI-CD.md#5-en
 ```text
 Browser
    -> /api/github/*                     same-origin, no credentials in the client
-   -> PHP proxy (public/api/github.php)
+   -> PHP proxy (backend/api/github.php)
    -> repository + path validation
    -> api.github.com / raw.githubusercontent.com
    -> normalized, filtered JSON response
@@ -313,7 +408,7 @@ selecting another file recovers immediately.
 
 ## 6. Service Worker
 
-Registered only over HTTPS, from `public/sw.js`. Its cache name is stamped with
+Registered only over HTTPS, from `frontend/public/sw.js`. Its cache name is stamped with
 the build id, so a new deployment invalidates the previous cache on activation.
 
 | Request | Strategy |
@@ -379,8 +474,8 @@ scrolling and history from interfering with each other.
 
 **Cyber Noir** is the release-naming system for official osameh.dev releases.
 `config/releases.json` is the single metadata source; the pure
-`src/releaseMetadataCore.js` resolver is shared by runtime and build generation,
-while `src/releaseMetadata.ts` owns display formatting. No component may
+`frontend/src/lib/releaseMetadataCore.js` resolver is shared by runtime and build generation,
+while `frontend/src/lib/releaseMetadata.ts` owns display formatting. No component may
 hardcode a codename.
 
 - A codename identifies a release **family** (`major.minor`), so every patch
@@ -401,7 +496,7 @@ the same release identity while remaining distinguishable by environment.
 
 ### Brand assets
 
-The Neural Cipher icon pack lives in `public/icons/`, documented by its own
+The Neural Cipher icon pack lives in `frontend/public/icons/`, documented by its own
 `README.md`. Runtime assets are the favicon set (`favicon.ico` plus 16/32/48 px),
 the 64 px header retina variant, 128/256 px UI sizes, the 180 px Apple touch
 icon, and the 192/512 px PWA icons. The 1024 px master, the design source and the
@@ -447,3 +542,111 @@ executes, and **DOMPurify is the last stage the markup passes through**. Sanitiz
 before a parse/re-serialize round trip would let the parser reconstruct markup that
 had already been inspected. Unsafe elements and attributes are forbidden, and
 external HTTPS links receive safe target and relationship attributes.
+
+---
+
+## 11. Adjacent Engineering Note navigation
+
+Every Note ends with links to the Notes on either side of it.
+
+- **One order.** Adjacency is derived from `engineeringNotes`, the same array the
+  Notes index renders and the Command Palette, Terminal and context menus read.
+  `adjacentNotes(slug)` in `frontend/src/features/notes/notesData.ts` is the only
+  resolver; there is no second ordering table and nothing sorts filenames.
+- **Ends are absent, not disabled.** The first Note has no Previous and the last
+  has no Next. The missing side renders no navigation action at all, so assistive
+  technology is never offered a dead control.
+- **Real links.** Each side is an `<a href="/notes/{slug}">` carrying an
+  `aria-label` naming the direction and the destination title, so modified
+  clicks, middle click, "Open in new tab", copy-link and keyboard activation all
+  behave natively and the links are crawlable.
+- **One lifecycle.** A plain click is intercepted and handed to the shared
+  `openNote` path, so the destination opens as an editor tab, an already-open
+  Note is activated rather than duplicated, tab order is unchanged, and history
+  behaves exactly as it does everywhere else.
+- **The destination starts at its own beginning.** Note-to-note navigation
+  scrolls with `behavior: "instant"`. `"auto"` is not sufficient: it defers to
+  `html { scroll-behavior: smooth }`, which would animate down through content
+  that is already unmounting.
+
+No `rel="prev"`/`rel="next"` head metadata is added. These are ordinary
+contextual internal links and the sitemap architecture is untouched.
+
+---
+
+## 12. Contact verification (reCAPTCHA v3)
+
+Only the server-side submission that results in an email is protected. Published
+addresses, `mailto:` links and social links are untouched - nobody is asked to
+pass a challenge to read an email address.
+
+### Public configuration
+
+`frontend/src/config/recaptchaConfig.ts` holds both **public** site keys and the
+single action name `contact_submit`. Selection is exact-hostname:
+
+| Host | Key |
+| --- | --- |
+| `osameh.dev` | production site key |
+| `staging.osameh.dev` | staging site key |
+| anything else | **none** |
+
+An unknown host resolves to no configuration and the form refuses to submit.
+Unknown is never treated as production: falling back would run development and
+preview traffic through the production key and score it as real.
+
+### Token lifecycle
+
+```text
+first interaction with the form  ->  api.js loaded (once, memoized)
+submit pressed                   ->  grecaptcha.execute(key, contact_submit)
+fresh token                      ->  POST /api/contact
+```
+
+Nothing is requested during initial page load, so the portfolio's first paint
+carries no third-party request.
+
+Google's floating badge is hidden with `visibility: hidden`, which its terms
+permit only when the required branding text is shown near the form instead. That
+disclosure - "Protected by reCAPTCHA", with links to Google's Privacy Policy and
+Terms of Service - is rendered permanently in the contact form footer on every
+viewport, not just while a submission is in flight. `display: none` is
+deliberately not used: the widget still needs a layout box to execute. A token is generated per attempt, is never
+stored in `localStorage`/`sessionStorage`, and is never replayed: a retry asks
+Google for a new one.
+
+### Server-side verification
+
+`backend/lib/recaptcha.php` owns the contract and is included by
+`backend/api/contact.php`; it is never an endpoint itself.
+
+- `recaptchaEnvironment()` maps the served host to `production`, `staging`, or
+  **null**. The same fail-closed rule as the frontend, enforced server-side.
+- `recaptchaConfig()` reads only the **secret** (and an optional `min_score`)
+  from the private secrets file. The expected hostname and the verified action
+  are code constants: they are the security boundary, so an environment block
+  copied onto the wrong server cannot move it. A disagreement is logged as a safe
+  diagnostic and the constant still wins. A `min_score` outside 0.1-1.0 is
+  ignored, so configuration can raise the bar but never disable scoring.
+- `recaptchaDecision()` is pure and separately tested. It requires
+  `success === true`, `action === "contact_submit"`, a hostname matching the
+  selected environment, and a numeric `score` at or above the minimum (0.5).
+- `recaptchaVerifyToken()` performs the Google call with finite connect and
+  total timeouts and full TLS verification, then defers to the decision.
+
+Every rejection path fails closed: missing, empty, oversized, expired or
+rejected token; wrong action; wrong hostname; low or missing score; malformed
+response; unreachable Google; unresolvable environment. None of them can reach
+`mail()`. Only a short reason code is logged - never the secret, never the
+token, never the payload - and the response carries a stable user-facing message
+with no score or Google detail in it.
+
+### What did not change
+
+Rate limiting still runs before verification and is not replaced by it: it is
+what stops a flood from spending Google's verification quota. The exact origin
+allowlist, the CSRF double-submit, and the honeypot are all unchanged. The
+Content-Security-Policy gains exactly two allowances - the reCAPTCHA script
+origins and its challenge frame origins - with no `unsafe-eval`, no inline
+scripts and no wildcard hosts. The Service Worker still returns early for
+`/api/`, so no submission, token or verification response is ever cached.

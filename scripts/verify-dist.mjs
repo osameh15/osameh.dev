@@ -1,8 +1,9 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { verifyBundleSecrets } from "./verify-secrets.mjs";
 
 const required = [
-  "dist/index.html", "dist/.htaccess", "dist/build-info.json", "dist/api/github.php", "dist/api/contact.php",
+  "dist/index.html", "dist/.htaccess", "dist/build-info.json", "dist/api/github.php", "dist/api/contact.php", "dist/api/recaptcha.php",
   "dist/api/health.php", "dist/project.php", "dist/note.php", "dist/case-study.php", "dist/case-studies-index.json", "dist/sitemap.php", "dist/notes-index.json", "dist/sw.js"
 ];
 const missing = required.filter(file => !existsSync(resolve(file)));
@@ -20,5 +21,8 @@ for (const ref of localRefs) {
   const file = resolve(`dist${ref}`);
   if (!existsSync(file) && !ref.startsWith("/projects/") && !ref.startsWith("/notes/") && !ref.startsWith("/case-studies/")) throw new Error(`Broken built local reference: ${ref}`);
 }
+const secretFailures = verifyBundleSecrets("dist");
+if (secretFailures.length) throw new Error(`Secret leakage check failed:\n  ${secretFailures.join("\n  ")}`);
+
 const caseStudies = JSON.parse(readFileSync(resolve("dist/case-studies-index.json"), "utf8"));
 console.log(`Verified deployment bundle, ${notes.length} notes, and ${caseStudies.length} case studies.`);
