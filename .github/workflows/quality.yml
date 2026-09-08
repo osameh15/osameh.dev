@@ -80,6 +80,11 @@ jobs:
       - name: PHP configuration isolation test
         run: php backend/tests/config-isolation.php
 
+      # The GitHub readiness probe: authenticated when the environment has a
+      # credential, and honest about which of reach and credential failed.
+      - name: PHP GitHub health test
+        run: php backend/tests/github-health.php
+
       # One build for every environment. It is a normal, indexable
       # production-like bundle, which is what verify:dist, Playwright and the
       # strict Lighthouse SEO audit below all run against. Environment indexing

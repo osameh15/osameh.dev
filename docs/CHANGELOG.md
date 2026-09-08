@@ -4,6 +4,20 @@ All notable changes to **osameh.dev** are documented here.
 
 The project follows [Semantic Versioning](https://semver.org/). The early production releases were shipped in rapid succession while the portfolio was moved from its hosted prototype to the current ParsPack/CDN deployment.
 
+## 5.3.2 - 2026-09-08 — Vanta
+
+Patch release in the **Vanta** family, correcting GitHub health reporting.
+
+### Portfolio experience
+- Changed the default selectable portfolio code language from TypeScript to C++, with `main.cpp` as the default Home editor tab. A visitor's explicitly selected language is still preserved, and an unusable stored value now falls back to C++.
+
+### Health & observability
+- The GitHub readiness probe now authenticates with the current environment's own token, matching the credential the GitHub proxy actually uses.
+- `authenticated` now means GitHub accepted that credential. It previously meant only that a token string was present in configuration, so a revoked or expired token still reported as authenticated while every live GitHub feature failed.
+- Reach and credential are now reported as separate facts: an unreachable upstream no longer implicates the credential, and an anonymous rate limit is no longer mistakable for a rejected one.
+- Preserved separate production and staging credentials with no cross-environment fallback.
+- Added deterministic coverage for probe decisions, header construction and environment token isolation.
+
 ## 5.3.1 - 2026-09-08 — Vanta
 
 Stabilization release in the **Vanta** family.

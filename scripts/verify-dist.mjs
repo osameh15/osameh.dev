@@ -4,7 +4,7 @@ import { verifyBundleSecrets } from "./verify-secrets.mjs";
 import { verifyBuiltSearchAssets, verifySearchReadiness } from "./verify-search-readiness.mjs";
 
 const required = [
-  "dist/index.html", "dist/.htaccess", "dist/build-info.json", "dist/api/github.php", "dist/api/contact.php", "dist/api/recaptcha.php", "dist/api/config.php", "dist/favicon.ico", "dist/favicon-48x48.png",
+  "dist/index.html", "dist/.htaccess", "dist/build-info.json", "dist/api/github.php", "dist/api/contact.php", "dist/api/recaptcha.php", "dist/api/config.php", "dist/api/health-probe.php", "dist/favicon.ico", "dist/favicon-48x48.png",
   "dist/api/health.php", "dist/project.php", "dist/note.php", "dist/case-study.php", "dist/case-studies-index.json", "dist/sitemap.php", "dist/notes-index.json", "dist/sw.js"
 ];
 const missing = required.filter(file => !existsSync(resolve(file)));

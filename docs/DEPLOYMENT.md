@@ -1,4 +1,4 @@
-# Deployment — osameh.dev v5.3.1
+# Deployment — osameh.dev v5.3.2
 
 Target: ParsPack shared Linux hosting + ParsPack CDN + PHP 8+.
 

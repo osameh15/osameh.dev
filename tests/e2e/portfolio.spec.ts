@@ -2214,3 +2214,69 @@ test("project, note and case study destinations are crawlable from the rendered 
   expect(hrefs.some(href => href.startsWith("/notes/"))).toBe(true);
   expect(hrefs.some(href => href.startsWith("/case-studies/"))).toBe(true);
 });
+
+
+// ---------------------------------------------------------------------------
+// v5.3.2 Vanta — default portfolio presentation language.
+//
+// This is the File-menu language selector, not a claim about how the site is
+// built. A fresh visitor sees C++; an explicit stored choice always wins.
+// ---------------------------------------------------------------------------
+
+const homeTab = (page: import("@playwright/test").Page) => page.locator(".editor-tab").first();
+
+test("a fresh session presents the workspace in C++", async ({ page }) => {
+  await page.goto("/");
+  await expect(homeTab(page)).toHaveText("main.cpp");
+  await expect(page.locator(".showcase-stack-context code")).toHaveText("main.cpp");
+  await expect(page.locator(".showcase-card-stack header span")).toContainText("C++");
+  expect(await page.evaluate(() => localStorage.getItem("portfolio-language"))).toBe("cpp");
+});
+
+test("an explicit saved language survives a reload", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("portfolio-language", "typescript"));
+  await page.goto("/");
+  await expect(homeTab(page)).toHaveText("home.tsx");
+  await expect(page.locator(".showcase-card-stack header span")).toContainText("TypeScript");
+  await page.reload();
+  await expect(homeTab(page)).toHaveText("home.tsx");
+  // The default must not have overwritten the stored choice.
+  expect(await page.evaluate(() => localStorage.getItem("portfolio-language"))).toBe("typescript");
+});
+
+test("an unusable saved language falls back to C++", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("portfolio-language", "brainfuck"));
+  await page.goto("/");
+  await expect(homeTab(page)).toHaveText("main.cpp");
+  await expect(page.locator(".showcase-card-stack header span")).toContainText("C++");
+});
+
+test("every language-aware surface follows one selection", async ({ page }) => {
+  await page.goto("/");
+  const languageFor = async () => page.evaluate(() => ({
+    tab: (document.querySelector(".editor-tab") as HTMLElement | null)?.textContent?.trim() || "",
+    explorer: [...document.querySelectorAll(".explorer .file")].map(node => node.textContent?.trim() || "")[0] || "",
+    stack: (document.querySelector(".showcase-stack-context code") as HTMLElement | null)?.textContent?.trim() || "",
+    lens: (document.querySelector(".showcase-card-stack header span") as HTMLElement | null)?.textContent?.trim() || "",
+  }));
+
+  const cpp = await languageFor();
+  expect(cpp.tab).toBe("main.cpp");
+  expect(cpp.explorer).toBe("main.cpp");
+  expect(cpp.stack).toBe("main.cpp");
+  expect(cpp.lens).toContain("C++");
+
+  // Switching still works, and every surface moves together.
+  await page.evaluate(() => localStorage.setItem("portfolio-language", "go"));
+  await page.reload();
+  const go = await languageFor();
+  expect(go.tab).toBe("main.go");
+  expect(go.explorer).toBe("main.go");
+  expect(go.stack).toBe("main.go");
+  expect(go.lens).toContain("Go");
+
+  // And back to the default when the preference is cleared.
+  await page.evaluate(() => localStorage.removeItem("portfolio-language"));
+  await page.reload();
+  await expect(homeTab(page)).toHaveText("main.cpp");
+});
