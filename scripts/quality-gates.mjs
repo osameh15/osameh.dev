@@ -409,7 +409,11 @@ if (verificationIndex < 0 || mailIndex < 0 || verificationIndex > mailIndex) fai
 else pass("The contact endpoint verifies reCAPTCHA before handing anything to the mail service");
 if (rateLimitIndex < 0) fail("The contact endpoint no longer rate limits submissions");
 else pass("The contact endpoint still rate limits submissions alongside reCAPTCHA");
-if (!/require_once __DIR__ \. '\/\.\.\/lib\/recaptcha\.php'/.test(contactEndpoint)) fail("The contact endpoint does not include the shared reCAPTCHA verifier");
+if (!/\$recaptchaLibrary = __DIR__ \. '\/\.\.\/lib\/recaptcha\.php';/.test(contactEndpoint) || !/require_once \$recaptchaLibrary;/.test(contactEndpoint)) fail("The contact endpoint does not include the shared reCAPTCHA verifier");
+// A missing library must not surface as a PHP warning: that would print the
+// server's filesystem layout into the response.
+else if (!/if \(!is_file\(\$recaptchaLibrary\)\)/.test(contactEndpoint)) fail("The contact endpoint would leak a filesystem path when the reCAPTCHA library is missing");
+else pass("The contact endpoint includes the reCAPTCHA verifier and fails closed if it is absent");
 if (/\$_(?:GET|REQUEST)\[[^\]]*(?:skip|disable|bypass)/i.test(contactEndpoint) || /RECAPTCHA_DISABLED/.test(contactEndpoint + recaptchaServer)) {
   fail("The contact endpoint exposes a reCAPTCHA bypass");
 } else pass("The contact endpoint exposes no reCAPTCHA bypass");

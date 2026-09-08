@@ -1,7 +1,22 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__ . '/../lib/recaptcha.php';
+// The verification library is a deployment artifact, so its absence is a
+// server fault, not a request fault. Fail closed with a clean JSON response:
+// letting require_once raise would print the server's filesystem layout into
+// the response body.
+$recaptchaLibrary = __DIR__ . '/../lib/recaptcha.php';
+if (!is_file($recaptchaLibrary)) {
+    http_response_code(503);
+    header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: private, no-store, max-age=0');
+    header('X-Content-Type-Options: nosniff');
+    header('X-Robots-Tag: noindex');
+    error_log('contact: recaptcha library is missing from the deployment');
+    echo json_encode(['success' => false, 'message' => 'Message could not be sent right now. Please try again shortly.']);
+    exit;
+}
+require_once $recaptchaLibrary;
 
 function jsonResponse(array $payload, int $status = 200): never {
     http_response_code($status);
