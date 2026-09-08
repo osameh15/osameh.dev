@@ -27,10 +27,10 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
 
@@ -93,7 +93,7 @@ jobs:
 
       - name: Upload Playwright diagnostics on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: playwright-diagnostics-${{ inputs.deploy_env || 'application' }}
           path: |
@@ -154,7 +154,7 @@ jobs:
 
       - name: Upload Lighthouse report on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: lighthouse-report-${{ inputs.deploy_env || 'application' }}
           path: |
@@ -180,7 +180,7 @@ jobs:
 
       - name: Upload verified environment bundle
         if: ${{ inputs.artifact_name != '' && inputs.deploy_env != '' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ${{ inputs.artifact_name }}
           path: dist-${{ inputs.deploy_env }}/
