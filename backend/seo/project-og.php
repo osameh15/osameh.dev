@@ -1,27 +1,22 @@
 <?php
 declare(strict_types=1);
 
+// The backend library lives beside this file once deployed, and under
+// backend/lib/ in the repository. Resolving both keeps one include correct in
+// either tree, and a missing library fails closed instead of raising.
+foreach ([__DIR__ . '/config.php', __DIR__ . '/../lib/config.php', __DIR__ . '/api/config.php'] as $portfolioConfigCandidate) {
+    if (is_file($portfolioConfigCandidate)) { require_once $portfolioConfigCandidate; break; }
+}
+
 const OG_OWNER = 'osameh15';
 const OG_API = '2022-11-28';
 const OG_W = 1200;
 const OG_H = 630;
 
-function ogToken(): ?string {
-    $env = trim((string)getenv('GITHUB_TOKEN'));
-    if ($env !== '') return $env;
-    $root = realpath((string)($_SERVER['DOCUMENT_ROOT'] ?? ''));
-    $paths = [];
-    if ($root !== false) $paths[] = dirname($root) . '/private/osameh-portfolio-secrets.php';
-    $home = trim((string)getenv('HOME'));
-    if ($home !== '') $paths[] = rtrim($home, '/') . '/.config/osameh-portfolio/secrets.php';
-    foreach ($paths as $path) {
-        if (!is_file($path) || !is_readable($path)) continue;
-        $cfg = require $path;
-        if (is_array($cfg) && is_string($cfg['GITHUB_TOKEN'] ?? null) && trim($cfg['GITHUB_TOKEN']) !== '') return trim($cfg['GITHUB_TOKEN']);
-    }
-    return null;
+function ogToken(): ?string
+{
+    return portfolioGithubToken();
 }
-
 function ogGh(string $url): ?array {
     if (!function_exists('curl_init')) return null;
     $headers = ['Accept: application/vnd.github+json', 'User-Agent: osameh-portfolio-og', 'X-GitHub-Api-Version: ' . OG_API];

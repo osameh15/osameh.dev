@@ -1,6 +1,13 @@
 <?php
 declare(strict_types=1);
 
+// The backend library lives beside this file once deployed, and under
+// backend/lib/ in the repository. Resolving both keeps one include correct in
+// either tree, and a missing library fails closed instead of raising.
+foreach ([__DIR__ . '/config.php', __DIR__ . '/../lib/config.php', __DIR__ . '/api/config.php'] as $portfolioConfigCandidate) {
+    if (is_file($portfolioConfigCandidate)) { require_once $portfolioConfigCandidate; break; }
+}
+
 const GITHUB_USER = 'osameh15';
 const API_VERSION = '2022-11-28';
 const REPOSITORY_CACHE_KEY = 'repos-v8';
@@ -757,24 +764,7 @@ function githubRequest(string $url, string $accept): array
 
 function githubToken(): ?string
 {
-    $environment = trim((string) getenv('GITHUB_TOKEN'));
-    if ($environment !== '') return $environment;
-
-    $candidates = [];
-    $home = trim((string) getenv('HOME'));
-    if ($home !== '') $candidates[] = rtrim($home, '/') . '/.config/osameh-portfolio/secrets.php';
-    $documentRoot = realpath((string) ($_SERVER['DOCUMENT_ROOT'] ?? ''));
-    if ($documentRoot !== false) $candidates[] = dirname($documentRoot) . '/private/osameh-portfolio-secrets.php';
-
-    foreach (array_unique($candidates) as $path) {
-        if (!is_file($path) || !is_readable($path)) continue;
-        $config = require $path;
-        if (is_array($config) && isset($config['GITHUB_TOKEN']) && is_string($config['GITHUB_TOKEN'])) {
-            $token = trim($config['GITHUB_TOKEN']);
-            if ($token !== '') return $token;
-        }
-    }
-    return null;
+    return portfolioGithubToken();
 }
 
 function cacheDirectory(): ?string
