@@ -4,8 +4,22 @@
 // missing brand asset fails before it can ship. Legacy names deleted in v5.2.0
 // must also stay unreferenced, otherwise a runtime request would 404.
 
-import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { resolve } from "node:path";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { join, resolve } from "node:path";
+
+/** Every frontend source file, wherever a feature happens to live. */
+function frontendSourceFiles(root = "frontend/src") {
+  const out = [];
+  const visit = directory => {
+    for (const entry of readdirSync(resolve(directory))) {
+      const path = join(directory, entry);
+      if (statSync(resolve(path)).isDirectory()) visit(path);
+      else if (/\.(?:ts|tsx|css)$/.test(entry)) out.push(path.replaceAll("\\\\", "/"));
+    }
+  };
+  visit(root);
+  return out;
+}
 import { pathToFileURL } from "node:url";
 
 function pngSize(path) {
@@ -47,19 +61,19 @@ export function verifyBrandAssets() {
   const failures = [];
 
   for (const [name, [width, height]] of Object.entries(requiredIcons)) {
-    const path = resolve("public/icons", name);
-    if (!existsSync(path)) { failures.push(`Missing brand icon: public/icons/${name}`); continue; }
+    const path = resolve("frontend/public/icons", name);
+    if (!existsSync(path)) { failures.push(`Missing brand icon: frontend/public/icons/${name}`); continue; }
     const size = pngSize(path);
     if (!size) failures.push(`Brand icon is not a valid PNG: ${name}`);
     else if (size.width !== width || size.height !== height) failures.push(`Brand icon ${name} is ${size.width}x${size.height}, expected ${width}x${height}`);
   }
 
-  if (!existsSync(resolve("public/icons/favicon.ico"))) failures.push("Missing public/icons/favicon.ico");
-  if (!existsSync(resolve("public/icons/README.md"))) failures.push("Missing public/icons/README.md icon-pack documentation");
+  if (!existsSync(resolve("frontend/public/icons/favicon.ico"))) failures.push("Missing frontend/public/icons/favicon.ico");
+  if (!existsSync(resolve("frontend/public/icons/README.md"))) failures.push("Missing frontend/public/icons/README.md icon-pack documentation");
 
   // Social artwork must be a real 1200x630 card.
-  const social = resolve("public/og-cover-social.jpg");
-  if (!existsSync(social)) failures.push("Missing public/og-cover-social.jpg");
+  const social = resolve("frontend/public/og-cover-social.jpg");
+  if (!existsSync(social)) failures.push("Missing frontend/public/og-cover-social.jpg");
   else {
     const size = jpegSize(social);
     if (!size) failures.push("og-cover-social.jpg is not a readable JPEG");
@@ -68,12 +82,12 @@ export function verifyBrandAssets() {
 
   // Retired names must not appear anywhere that produces a runtime request.
   const scanned = [
-    "index.html",
-    "public/manifest.webmanifest",
-    "public/sw.js",
-    "public/.htaccess",
+    "frontend/index.html",
+    "frontend/public/manifest.webmanifest",
+    "frontend/public/sw.js",
+    "backend/server/.htaccess",
     "scripts/ensure-deploy-files.mjs",
-    ...readdirSync(resolve("src")).filter(file => file.endsWith(".ts") || file.endsWith(".tsx")).map(file => `src/${file}`),
+    ...frontendSourceFiles(),
   ];
   for (const file of scanned) {
     const path = resolve(file);
@@ -86,23 +100,23 @@ export function verifyBrandAssets() {
   }
 
   // The manifest must point at icons that actually exist.
-  const manifestPath = resolve("public/manifest.webmanifest");
+  const manifestPath = resolve("frontend/public/manifest.webmanifest");
   if (existsSync(manifestPath)) {
     try {
       const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
       for (const icon of manifest.icons || []) {
-        const target = resolve("public", String(icon.src).replace(/^\//, ""));
+        const target = resolve("frontend/public", String(icon.src).replace(/^\//, ""));
         if (!existsSync(target)) failures.push(`Manifest references a missing icon: ${icon.src}`);
       }
       if (!(manifest.icons || []).some(icon => String(icon.sizes) === "192x192")) failures.push("Manifest is missing a 192x192 PWA icon");
       if (!(manifest.icons || []).some(icon => String(icon.sizes) === "512x512")) failures.push("Manifest is missing a 512x512 PWA icon");
     } catch {
-      failures.push("public/manifest.webmanifest is not valid JSON");
+      failures.push("frontend/public/manifest.webmanifest is not valid JSON");
     }
   }
 
   // The document head must wire the new pack.
-  const index = existsSync(resolve("index.html")) ? readFileSync(resolve("index.html"), "utf8") : "";
+  const index = existsSync(resolve("frontend/index.html")) ? readFileSync(resolve("frontend/index.html"), "utf8") : "";
   if (!index.includes("/icons/favicon.ico")) failures.push("index.html does not reference the new favicon.ico");
   if (!/apple-touch-icon["'][^>]*sizes="180x180"|sizes="180x180"[^>]*apple-touch-icon/.test(index) && !index.includes("/icons/apple-touch-icon.png")) failures.push("index.html does not reference the 180x180 Apple touch icon");
 

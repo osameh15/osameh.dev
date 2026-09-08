@@ -1,4 +1,4 @@
-// Executes public/sw.js against a minimal Service Worker environment.
+// Executes frontend/public/sw.js against a minimal Service Worker environment.
 //
 // The worker only registers over HTTPS, so a local Playwright run never loads
 // it. These checks cover the failure that shipped in v5.1.0: the response clone
@@ -13,7 +13,7 @@ import { pathToFileURL } from "node:url";
 
 export function verifyServiceWorker() {
   const failures = [];
-  const source = readFileSync(resolve("public/sw.js"), "utf8");
+  const source = readFileSync(resolve("frontend/public/sw.js"), "utf8");
 
   const makeResponse = (ok = true) => {
     let bodyUsed = false;

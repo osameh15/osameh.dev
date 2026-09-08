@@ -1,0 +1,109 @@
+Options -Indexes
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  RewriteCond %{HTTP_HOST} ^www\.osameh\.dev$ [NC]
+  RewriteRule ^ https://osameh.dev%{REQUEST_URI} [R=301,L]
+
+  # Deep links are rendered through tiny PHP meta layers so crawlers receive
+  # canonical, social, and structured metadata before React boots.
+  RewriteRule ^projects/([A-Za-z0-9._-]+)/?$ project.php?repo=$1 [QSA,L]
+  RewriteRule ^notes/([a-z0-9-]+)/?$ note.php?slug=$1 [QSA,L]
+  RewriteRule ^case-studies/([a-z0-9-]+)/?$ case-study.php?id=$1 [QSA,L]
+  RewriteRule ^sitemap\.xml$ sitemap.php [QSA,L]
+
+  # Stable same-origin API URLs.
+  RewriteRule ^api/github/repos/?$ api/github.php [QSA,L]
+  RewriteRule ^api/github/activity/?$ api/github.php?activity=1 [QSA,L]
+  RewriteRule ^api/github/metrics/([A-Za-z0-9._-]+)/?$ api/github.php?metrics=$1 [QSA,L]
+RewriteRule ^api/github/meta/([A-Za-z0-9._-]+)/?$ api/github.php?meta=$1 [QSA,L]
+  RewriteRule ^api/github/tree/([A-Za-z0-9._-]+)/?$ api/github.php?tree=$1 [QSA,L]
+  RewriteRule ^api/github/file/([A-Za-z0-9._-]+)/?$ api/github.php?fileRepo=$1 [QSA,L]
+  RewriteRule ^api/github/readme/([A-Za-z0-9._-]+)/?$ api/github.php?repo=$1 [QSA,L]
+  RewriteRule ^api/github/images/([A-Za-z0-9._-]+)/?$ api/github.php?images=$1 [QSA,L]
+  RewriteRule ^api/contact/?$ api/contact.php [QSA,L]
+  RewriteRule ^api/analytics/?$ api/analytics.php [QSA,L]
+  RewriteRule ^api/health/?$ api/health.php [QSA,L]
+  RewriteRule ^og/projects/([A-Za-z0-9._-]+)\.jpg$ project-og.php?repo=$1 [QSA,L]
+
+  # Backend library includes are not endpoints. They are required by the API
+  # entrypoints and must never be reachable on their own. The deployed tree
+  # mirrors backend/ exactly, so one include path is correct in both.
+  RewriteRule ^lib/ - [F,L]
+
+  # API requests must never fall through to the SPA document.
+  RewriteRule ^api/ - [L]
+
+  # First-class client routes. /resume must be handled explicitly because a
+  # real public/resume directory also exists for the PDF asset.
+  RewriteRule ^(?:home|about|projects|experience|activity|now|changelog|notes|case-studies|contact|resume|status)/?$ index.html [L]
+
+  # Existing files/directories are served normally. Unknown browser routes are
+  # handled internally by not-found.php, which returns a real HTTP 404 carrying
+  # our IDE-style 404 shell. This is an internal rewrite, never a redirect, so
+  # the browser keeps the original invalid URL.
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule ^ not-found.php [L]
+</IfModule>
+
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set X-Frame-Options "DENY"
+  Header always set X-Permitted-Cross-Domain-Policies "none"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always set Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+  # reCAPTCHA v3 needs exactly two allowances beyond the baseline policy: the
+  # api.js/recaptcha__*.js scripts, and the invisible challenge frame Google
+  # renders from its own origins. Nothing else is relaxed - no unsafe-eval, no
+  # blanket unsafe-inline, no wildcard hosts - and default-src, object-src,
+  # frame-ancestors and base-uri are untouched.
+  Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'sha256-__JSONLD_CSP_HASH__' https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'; frame-src https://www.google.com/recaptcha/ https://recaptcha.google.com/recaptcha/; frame-ancestors 'none'; manifest-src 'self'; worker-src 'self'; upgrade-insecure-requests"
+</IfModule>
+
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/plain text/css text/javascript application/javascript application/json application/manifest+json application/xml image/svg+xml
+</IfModule>
+
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType text/html "access plus 0 seconds"
+  ExpiresByType text/css "access plus 1 year"
+  ExpiresByType application/javascript "access plus 1 year"
+  ExpiresByType font/woff2 "access plus 1 year"
+  ExpiresByType image/svg+xml "access plus 7 days"
+  ExpiresByType image/png "access plus 30 days"
+  ExpiresByType image/jpeg "access plus 30 days"
+  ExpiresByType image/webp "access plus 30 days"
+  ExpiresByType image/avif "access plus 30 days"
+  ExpiresByType application/pdf "access plus 1 day"
+</IfModule>
+
+<IfModule mod_headers.c>
+  <FilesMatch "\.(?:css|js|mjs|woff2)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+  <FilesMatch "\.(?:png|jpe?g|webp|avif|svg)$">
+    Header set Cache-Control "public, max-age=2592000"
+  </FilesMatch>
+  <FilesMatch "^(?:favicon\.ico|icon-\d+x\d+\.png|apple-touch-icon\.png|pwa-\d+x\d+\.png)$">
+    Header set Cache-Control "public, max-age=604800"
+  </FilesMatch>
+  <FilesMatch "^og-cover(?:-social)?\.(?:webp|jpg)$">
+    Header set Cache-Control "public, max-age=86400"
+  </FilesMatch>
+  <FilesMatch "^(?:index\.html|robots\.txt|sitemap\.xml|build-info\.json|manifest\.webmanifest|sw\.js|notes-index\.json|case-studies-index\.json)$">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </FilesMatch>
+  <FilesMatch "\.pdf$">
+    Header set Cache-Control "public, max-age=86400"
+  </FilesMatch>
+</IfModule>
+
+<IfModule mod_headers.c>
+  <FilesMatch "\.md$">
+    Header set Cache-Control "public, max-age=3600, stale-while-revalidate=86400"
+    Header set X-Robots-Tag "noindex, nofollow"
+  </FilesMatch>
+</IfModule>

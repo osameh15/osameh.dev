@@ -1,5 +1,5 @@
 import { pathToFileURL } from "node:url";
-import { encodePathSegments, normalizeReadmeAssetUrl } from "../src/githubAssetUrlCore.js";
+import { encodePathSegments, normalizeReadmeAssetUrl } from "../frontend/src/lib/githubAssetUrlCore.js";
 
 const REPO = { owner: "osameh15", repoName: "ArappMainBack-End", defaultBranch: "main" };
 

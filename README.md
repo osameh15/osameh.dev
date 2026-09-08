@@ -1,6 +1,6 @@
 # osameh.dev
 
-![osameh.dev social cover](public/og-cover-social.jpg)
+![osameh.dev social cover](frontend/public/og-cover-social.jpg)
 
 A production portfolio for **Osameh Irandoust**, designed as an IDE-inspired workspace rather than a conventional résumé page. The site combines a static React/Vite frontend with a small PHP backend for GitHub data, contact delivery, analytics, dynamic social cards, and shared-hosting integration.
 
@@ -25,7 +25,7 @@ A production portfolio for **Osameh Irandoust**, designed as an IDE-inspired wor
 - Interactive terminal with the backtick (`) shortcut, autofocus, resize/maximize support, and developer commands
 - Built-in resume viewer and packaged PDF CV
 - Installable PWA with offline shell and service worker
-- Secure contact form with same-origin checks, CSRF protection, honeypot validation, and rate limiting
+- Secure contact form with same-origin checks, CSRF protection, honeypot validation, rate limiting, and server-verified Google reCAPTCHA v3
 - Dynamic Open Graph metadata and per-project social preview cards
 - Privacy-friendly aggregate analytics without cookies or visitor identifiers
 - Build fingerprints and diagnostics for CDN/deployment troubleshooting
@@ -378,7 +378,7 @@ Quality gates cover repository metadata, availability configuration, PHP syntax,
 
 ## Engineering Notes
 
-Notes are stored as Markdown under `public/notes-content/` and indexed by `public/notes-index.json`. The index renders notes in batches of six as the library grows. Each article provides reading time, tags, deep links, a scroll-synchronized table of contents with active-section state, copyable code blocks, and sharing. Notes are also discoverable from Command Palette and Terminal (`notes`, `notes <text>`, `cat note <slug>`).
+Notes are stored as Markdown under `frontend/public/notes-content/` and indexed by `frontend/public/notes-index.json`. The index renders notes in batches of six as the library grows. Each article provides reading time, tags, deep links, a scroll-synchronized table of contents with active-section state, copyable code blocks, and sharing. Notes are also discoverable from Command Palette and Terminal (`notes`, `notes <text>`, `cat note <slug>`).
 
 On tablet and mobile, the table of contents becomes a sticky horizontal navigation strip instead of disappearing. Returning from an article restores the Engineering Notes index at its section anchor.
 
@@ -437,6 +437,8 @@ public_html/
 │   ├── contact.php
 │   ├── analytics.php
 │   └── health.php
+├── lib/
+│   └── recaptcha.php        (internal include, refused over the web)
 ├── notes-content/
 ├── notes-index.json
 ├── case-studies-index.json
@@ -505,6 +507,14 @@ The site also includes an in-app resume viewer and download/open controls.
 
 The **six most recent releases** are summarized here. See **[CHANGELOG.md](docs/CHANGELOG.md)** for the complete production history. This section is intentionally capped at six releases.
 
+### v5.3.0 — Vanta
+
+- Separated **frontend** and **backend** source trees, reorganized the frontend by feature, and decomposed the largest mixed-responsibility modules. The deploy artifact and every public URL are unchanged.
+- Added **Previous / Next** navigation between Engineering Notes, ordered by the same authoritative Notes list the index renders, as real crawlable `/notes/{slug}` links that still open as editor tabs.
+- Added **Google reCAPTCHA v3** to server-side contact submission: a fresh token per attempt, generated at submit time, verified server-side for success, action, hostname and score.
+- Environment-specific public site keys are selected by exact hostname; an unknown host gets no configuration rather than production. Private secrets stay server-side and never enter the repository or a build.
+- Rate limiting, the exact origin allowlist, the strict CSP, and the Service Worker `/api/*` network-only rule are unchanged.
+
 ### v5.2.3 — Cipher
 
 - Fixed double URL-encoding of GitHub README asset paths, which returned HTTP 404 for filenames containing spaces or existing percent escapes.
@@ -542,16 +552,6 @@ The **six most recent releases** are summarized here. See **[CHANGELOG.md](docs/
 - Unified the editor-tab lifecycle: projects and Engineering Notes coexist as independent tabs, selecting Home no longer closes them, closing a tab activates the one to its left, and returning Home restores the section that tab came from.
 - Closing a project returns to the Projects section.
 - The build-information panel reports the environment it is actually running in.
-
-### v5.1.0 — Interaction reliability & developer UX
-
-- standardizes the Install, Command Palette, Accessibility, and Portfolio Mood header controls, including true vertical icon/label centering
-- consolidates site-wide ranked search into a single **Command Palette** with one `Ctrl/Cmd + Shift + P` shortcut
-- shows the full active Portfolio Mood message in the header (for example, `Open to selected opportunities`)
-- unifies scrollbars across the IDE with transparent tracks, low-opacity thumbs that become fully visible on hover, removes reserved modal scrollbar gutters, and keeps modal title dividers/content margins edge-to-edge and symmetric
-- adds dedicated right-click actions for Engineering Notes and Case Studies
-- expands Terminal commands for Case Studies, capabilities, GitHub Activity, Portfolio Mood, Accessibility, and the Command Palette
-- hardens the new v5 surfaces against Light Theme transition drift, mobile Gallery end-state flakiness, and context-menu/route-scroll races
 
 ## Documentation
 

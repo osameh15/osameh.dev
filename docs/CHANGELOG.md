@@ -4,6 +4,36 @@ All notable changes to **osameh.dev** are documented here.
 
 The project follows [Semantic Versioning](https://semver.org/). The early production releases were shipped in rapid succession while the portfolio was moved from its hosted prototype to the current ParsPack/CDN deployment.
 
+## 5.3.0 - 2026-09-08 — Vanta
+
+First release in the **Vanta** family. Every 5.3.x patch inherits the codename.
+
+### Architecture
+- Separated frontend and backend source into `frontend/` and `backend/` trees. The public runtime contract is unchanged: the deploy artifact is still `dist/` mirrored into the document root, and every API URL stays at `/api/...`.
+- Reorganized the frontend by responsibility: an application shell with its own tab, section and preference model; one directory per product surface under `features/`; and shared infrastructure under `lib/` that knows nothing about features.
+- Decomposed the mixed-responsibility `AdvancedUI` module into eleven feature modules, and moved the application shell's module-scope model out of `App.tsx`.
+- Grouped backend code into API entrypoints, internal library includes, per-route metadata layers, server configuration and tests. Library includes are published outside the API path and refused over the web.
+- Removed the superseded `src/`, `app/`, `public/`, `vendor/` and `tests/php/` top-level directories, and added quality gates that fail if they reappear or if either tree starts depending on the other.
+
+### Engineering Notes
+- Added Previous/Next navigation between published Engineering Notes.
+- Added native crawlable adjacent-note links, so modified clicks, new-tab actions, copy-link and keyboard activation behave like ordinary links.
+- Preserved the IDE tab lifecycle and deep-link behavior: an adjacent Note opens as an editor tab, an already-open Note is activated rather than duplicated, and other Project and Note tabs are untouched.
+- A Note reached from its neighbour opens at its own beginning instead of inheriting the previous article's scroll position.
+
+### Contact security
+- Added Google reCAPTCHA v3 protection to server-side contact/email submission.
+- Added environment-specific production and staging site keys, selected by exact hostname, alongside private server-side secrets that never reach the repository or the build.
+- Added server-side `success`, `action`, `hostname` and score verification against Google, with a single configured minimum score.
+- Preserved rate limiting and fail-closed mail behavior: no accepted verification means no message is handed to the mail service.
+- Added distinct verification, sending, success and failure states with an accessible live status region.
+
+### Security & reliability
+- Added deterministic reCAPTCHA validation coverage in PHP and browser coverage with a mocked `grecaptcha`.
+- Added secret-leakage safeguards across the repository, the tested bundle and both packaged environment bundles.
+- Preserved a strict Content-Security-Policy with only the minimal reCAPTCHA script and frame origins added; no `unsafe-eval`, no inline scripts, no wildcard hosts.
+- Preserved the Service Worker contract that `/api/*` is never intercepted or cached.
+
 ## 5.2.3 - 2026-09-07 — Cipher
 
 Patch release in the **Cipher** family, correcting GitHub README asset resolution.

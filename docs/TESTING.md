@@ -1,6 +1,6 @@
 # Testing Reference
 
-**Applies to:** v5.2.3
+**Applies to:** v5.3.0
 **Scope:** what is tested, which command proves which contract, and — most
 importantly — what can be trusted locally versus what requires CI or staging.
 
@@ -30,6 +30,7 @@ Every command below exists in `package.json`.
 | `npm run verify:sw` | Service Worker response-ownership and caching rules (see §5). Also invoked by `npm run quality`. |
 | `npm run test:e2e:install` | Installs the pinned Playwright browser. Run once. |
 | `npm run test:e2e` | The browser regression suite (see §4). |
+| `npm run test:php` | The deterministic PHP reCAPTCHA decision contract. Skips with `PHP TEST NOT RUN — PHP EXECUTABLE UNAVAILABLE` when no PHP binary is present; CI is authoritative. |
 | `npm run mood` / `npm run mood:list` | Portfolio Mood configuration. Not part of release validation; listed for completeness. |
 
 The browser suite also protects native Project, Note, and Case Study hrefs, SPA
@@ -77,6 +78,18 @@ checklist in §7 has been completed against a real deployment.
 This is the section that matters most. Do not report a staging-only contract as
 locally verified.
 
+### A workstation without Playwright's browser
+
+CI installs and runs Playwright's own pinned Chromium, which is the
+authoritative browser for this suite. Where that download is unavailable, the
+same run can be pointed at an installed browser instead:
+
+```bash
+PLAYWRIGHT_CHANNEL=chrome npm run test:e2e
+```
+
+The variable is unset in CI, so the pinned browser is what gates a release.
+
 ### Local can verify
 
 - TypeScript and the Vite build
@@ -101,7 +114,7 @@ never surface as uncaught exceptions, unhandled rejections or React errors.
 
 ### CI additionally verifies
 
-- PHP lint across `public/**/*.php`
+- PHP lint across `backend/**/*.php`
 - the pinned Playwright browser on Linux
 - a reproducible install → build → package → verify pipeline
 - Lighthouse on Linux
@@ -185,7 +198,7 @@ first place to look: it rejects an object missing any of `project`, `repository`
 
 ## 5. Service Worker verification
 
-`scripts/verify-sw.mjs` executes the real `public/sw.js` inside a controlled
+`scripts/verify-sw.mjs` executes the real `frontend/public/sw.js` inside a controlled
 worker environment and asserts:
 
 - the response clone is taken **before** the body is consumed
@@ -304,3 +317,54 @@ and audit before any `package:*` step. See [`CI-CD.md`](./CI-CD.md#33-why-the-or
 fail during temp-directory cleanup with `EPERM` *after* the audit completes. The
 report is still written; this is a cleanup failure, not an audit failure. CI on
 Linux is authoritative.
+
+---
+
+## 8. v5.3.0 Vanta coverage
+
+### Adjacent Engineering Notes
+
+Pure coverage asserts that adjacency follows `engineeringNotes` for every
+position, that the ends resolve to `null`, and that an unknown slug has no
+neighbours. Browser coverage asserts the first Note offers only Next, the last
+only Previous, and every middle Note both, with exact `/notes/{slug}` hrefs and
+titles; that the links are real anchors with descriptive labels and no disabled
+control on the missing side; that following one opens an editor tab without
+duplicating an open Note or disturbing Project tabs; that the destination starts
+at its own beginning; that browser Back returns to the previous Note; that the
+links are keyboard operable; and that the navigation fits 320, 360, 390, 412 and
+768px viewports with 44px tap targets and no horizontal overflow.
+
+### reCAPTCHA
+
+**Nothing in CI contacts Google.** `grecaptcha` is stubbed deterministically, and
+the host-mapped tests serve the local preview under the real hostnames so
+exact-hostname site-key selection can be observed in a browser without shipping a
+test-only key. There is no backend bypass to test against - none exists.
+
+Covered: production and staging hosts each load the script with their own key and
+not the other's; an unknown host refuses to submit and requests no token; no
+Google request happens before the visitor touches the form; the token is
+generated at submit time with the `contact_submit` action and travels in the
+payload; execute failure and an empty token both block submission and stay
+retryable; a rejected verification is reported without exposing a score; a second
+activation while a submission is pending starts nothing; and a retry after a
+failure carries a brand new token.
+
+`backend/tests/recaptcha-decision.php` covers the server contract without a
+network call or a secret: a valid response, a score exactly at the minimum, a
+case-insensitive hostname, and every rejection - `success` false or missing or
+truthy-but-not-true, wrong or missing action, wrong or missing hostname, a
+staging hostname against production configuration, low, missing or non-numeric
+score, and null, string or empty responses. It also covers environment selection
+(including ports, localhost, and a lookalike host), the minimum-score clamp, and
+the token guards.
+
+### Architecture
+
+Quality gates assert the frontend/backend directories exist and the superseded
+`src/`, `app/`, `public/`, `vendor/` and `tests/php/` trees have not reappeared;
+that the frontend contains no PHP and imports no backend source; that the backend
+references no component; that `/lib/` is refused over the web; that the deploy
+assembler still publishes both halves into `dist/`; and that every Source
+Explorer entry point resolves to a real path.

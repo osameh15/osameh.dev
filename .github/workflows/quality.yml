@@ -67,7 +67,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          find public -name '*.php' -print0 | xargs -0 -n1 php -l
+          find backend -name '*.php' -print0 | xargs -0 -n1 php -l
+
+      # The reCAPTCHA fail-closed decision contract. Pure PHP, no network call
+      # to Google and no secret: CI is the authoritative run because a
+      # workstation may not have a PHP binary.
+      - name: PHP reCAPTCHA verification test
+        run: php backend/tests/recaptcha-decision.php
 
       # One build for every environment. It is a normal, indexable
       # production-like bundle, which is what verify:dist, Playwright and the
