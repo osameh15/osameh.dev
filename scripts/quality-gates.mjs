@@ -519,7 +519,7 @@ if (!failures.some(item => item.includes("imports backend source") || item.inclu
 
 // Backend library includes are reached through an API entrypoint, never served.
 const serverConfig = readFileSync(resolve("backend/server/.htaccess"), "utf8");
-if (!/RewriteRule \^api\/\(\?:lib\/\|recaptcha\\.php\$\|config\\.php\$\) - \[F,L\]/.test(serverConfig)) fail("Backend library includes are not blocked from direct web access");
+if (!/RewriteRule \^api\/\(\?:lib\/\|recaptcha\\.php\$\|config\\.php\$\|health-probe\\.php\$\) - \[F,L\]/.test(serverConfig)) fail("Backend library includes are not blocked from direct web access");
 else pass("Backend library includes are not directly reachable over the web");
 
 // The deploy assembler must publish both trees into the one artifact contract.

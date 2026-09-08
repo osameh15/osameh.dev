@@ -8,6 +8,7 @@ const files = [
   ["backend/api/contact.php", "dist/api/contact.php"],
   ["backend/lib/recaptcha.php", "dist/api/recaptcha.php"],
   ["backend/lib/config.php", "dist/api/config.php"],
+  ["backend/lib/health-probe.php", "dist/api/health-probe.php"],
   ["backend/api/analytics.php", "dist/api/analytics.php"],
   ["backend/api/health.php", "dist/api/health.php"],
   ["backend/seo/project.php", "dist/project.php"],

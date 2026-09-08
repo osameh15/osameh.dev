@@ -10,6 +10,9 @@ foreach ([__DIR__ . '/config.php', __DIR__ . '/../lib/config.php', __DIR__ . '/a
 foreach ([__DIR__ . '/recaptcha.php', __DIR__ . '/../lib/recaptcha.php', __DIR__ . '/api/recaptcha.php'] as $portfolioRecaptchaCandidate) {
     if (is_file($portfolioRecaptchaCandidate)) { require_once $portfolioRecaptchaCandidate; break; }
 }
+foreach ([__DIR__ . '/health-probe.php', __DIR__ . '/../lib/health-probe.php', __DIR__ . '/api/health-probe.php'] as $portfolioProbeCandidate) {
+    if (is_file($portfolioProbeCandidate)) { require_once $portfolioProbeCandidate; break; }
+}
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, max-age=0');
@@ -33,38 +36,27 @@ function healthCacheFile(): ?string {
     return rtrim($base, '/') . '/osameh-health-github.json';
 }
 
-function githubHealth(): array {
+function githubHealth(?string $token): array {
+    $hasToken = $token !== null && trim($token) !== '';
     $cache = healthCacheFile();
+    // The cached verdict is only reusable while the credential state is the
+    // same; a token that appeared or was removed changes what the probe means.
     if ($cache && is_file($cache) && time() - (int)filemtime($cache) < 60) {
         $cached = json_decode((string)file_get_contents($cache), true);
-        if (is_array($cached)) return $cached;
+        if (is_array($cached) && ($cached['probedWithToken'] ?? null) === $hasToken) {
+            unset($cached['probedWithToken']);
+            return $cached;
+        }
     }
-    if (!function_exists('curl_init')) return check('github', 'GitHub upstream', 'degraded', null, 'cURL unavailable');
-    $started = nowMs();
-    $ch = curl_init('https://api.github.com/rate_limit');
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_NOBODY => true,
-        CURLOPT_CONNECTTIMEOUT => 3,
-        CURLOPT_TIMEOUT => 5,
-        CURLOPT_HTTPHEADER => [
-            'Accept: application/vnd.github+json',
-            'User-Agent: osameh-portfolio-health',
-            'X-GitHub-Api-Version: 2022-11-28',
-        ],
-        CURLOPT_PROTOCOLS => CURLPROTO_HTTPS,
-        CURLOPT_SSL_VERIFYPEER => true,
-        CURLOPT_SSL_VERIFYHOST => 2,
-    ]);
-    curl_exec($ch);
-    $statusCode = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
-    $error = curl_errno($ch);
-    curl_close($ch);
-    $latency = nowMs() - $started;
-    $result = ($error !== 0 || $statusCode < 200 || $statusCode >= 500)
-        ? check('github', 'GitHub upstream', 'degraded', $latency, 'Upstream check unavailable')
-        : check('github', 'GitHub upstream', 'operational', $latency, 'Public API reachable');
-    if ($cache) { @file_put_contents($cache, json_encode($result, JSON_UNESCAPED_SLASHES), LOCK_EX); @chmod($cache, 0600); }
+
+    $probe = githubProbe($token);
+    $result = check('github', 'GitHub upstream', $probe['status'], $probe['latencyMs'], $probe['detail']);
+    $result['authenticated'] = $probe['authenticated'];
+
+    if ($cache) {
+        @file_put_contents($cache, json_encode($result + ['probedWithToken' => $hasToken], JSON_UNESCAPED_SLASHES), LOCK_EX);
+        @chmod($cache, 0600);
+    }
     return $result;
 }
 
@@ -95,7 +87,11 @@ $recaptchaEnvironment = function_exists('portfolioEnvironment') ? portfolioEnvir
 $recaptchaConfigured = $recaptchaEnvironment !== null
     && function_exists('recaptchaConfig')
     && recaptchaConfig($recaptchaEnvironment) !== null;
-$githubAuthenticated = function_exists('portfolioGithubToken') && portfolioGithubToken() !== null;
+$githubToken = function_exists('portfolioGithubToken') ? portfolioGithubToken() : null;
+$githubCheck = githubHealth($githubToken);
+// Authenticated now means GitHub accepted this environment's credential, not
+// merely that one is configured.
+$githubAuthenticated = (bool) ($githubCheck['authenticated'] ?? false);
 
 $notesPath = rtrim($docRoot, '/') . '/notes-index.json';
 $notesOk = is_file($notesPath) && is_readable($notesPath) && is_array(json_decode((string)file_get_contents($notesPath), true));
@@ -104,7 +100,7 @@ $githubProxyPath = __DIR__ . '/github.php';
 
 $checks = [
     check('origin', 'Portfolio origin', 'operational', null, 'PHP runtime responding'),
-    array_merge(githubHealth(), ['authenticated' => $githubAuthenticated]),
+    $githubCheck,
     check('github-proxy', 'GitHub proxy', is_file($githubProxyPath) ? 'operational' : 'down', null, is_file($githubProxyPath) ? 'Endpoint deployed' : 'Endpoint missing'),
     check(
         'contact',
