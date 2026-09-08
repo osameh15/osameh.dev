@@ -409,6 +409,10 @@ if (verificationIndex < 0 || mailIndex < 0 || verificationIndex > mailIndex) fai
 else pass("The contact endpoint verifies reCAPTCHA before handing anything to the mail service");
 if (rateLimitIndex < 0) fail("The contact endpoint no longer rate limits submissions");
 else pass("The contact endpoint still rate limits submissions alongside reCAPTCHA");
+// Staging may be exercised harder than production, but production's own limit
+// must never be raised by that allowance.
+if (!/\$limit = recaptchaEnvironment\(\) === 'staging' \? \d+ : 4;/.test(contactEndpoint)) fail("The production contact rate limit is no longer 4 submissions per hour");
+else pass("Production keeps its contact rate limit while staging may be exercised");
 if (!/\$recaptchaLibrary = is_file\(__DIR__ \. '\/recaptcha\.php'\)/.test(contactEndpoint) || !/require_once \$recaptchaLibrary;/.test(contactEndpoint)) fail("The contact endpoint does not include the shared reCAPTCHA verifier");
 // A missing library must not surface as a PHP warning: that would print the
 // server's filesystem layout into the response.

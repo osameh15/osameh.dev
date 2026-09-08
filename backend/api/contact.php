@@ -84,7 +84,11 @@ function rateAllowed(): bool {
     $path = $directory . '/' . $key . '.json';
     $now = time();
     $window = 3600;
-    $limit = 4;
+    // Production keeps the real anti-abuse limit. Staging exists to be
+    // exercised during acceptance, where four submissions an hour makes the
+    // contact path effectively untestable, so it gets a higher ceiling - not
+    // an unlimited one, and never applied to production.
+    $limit = recaptchaEnvironment() === 'staging' ? 20 : 4;
     $entries = [];
     if (is_file($path)) {
         $decoded = json_decode((string)@file_get_contents($path), true);
