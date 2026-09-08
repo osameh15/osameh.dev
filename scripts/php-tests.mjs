@@ -9,5 +9,9 @@ if (probe.error || probe.status !== 0) {
   process.exit(0);
 }
 
-const run = spawnSync("php", ["backend/tests/recaptcha-decision.php"], { stdio: "inherit", shell: process.platform === "win32" });
-process.exit(run.status ?? 1);
+const suites = ["backend/tests/recaptcha-decision.php", "backend/tests/config-isolation.php"];
+for (const suite of suites) {
+  const run = spawnSync("php", [suite], { stdio: "inherit", shell: process.platform === "win32" });
+  if ((run.status ?? 1) !== 0) process.exit(run.status ?? 1);
+}
+process.exit(0);

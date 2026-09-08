@@ -1990,3 +1990,227 @@ test("the reCAPTCHA disclosure is present and the home page loads no Google scri
   await expect(note.getByRole("link", { name: /Privacy Policy/i })).toHaveAttribute("href", "https://policies.google.com/privacy");
   await expect(note.getByRole("link", { name: /Terms of Service/i })).toHaveAttribute("href", "https://policies.google.com/terms");
 });
+
+
+// ---------------------------------------------------------------------------
+// v5.3.1 Vanta — whole-card navigation.
+//
+// The card's primary anchor is stretched over the card surface, so clicking the
+// body navigates while secondary controls keep their own action. These tests
+// assert the behaviour, not the technique.
+// ---------------------------------------------------------------------------
+
+/**
+ * A point on the card's own surface that a real click would actually reach.
+ *
+ * The workspace has sticky top chrome and a fixed status bar, so a card scrolled
+ * merely "into view" can still have its heading underneath them. The point is
+ * therefore validated with elementFromPoint and the page nudged until the card
+ * itself is what sits under the cursor.
+ */
+async function cardBodyPoint(card: Locator) {
+  await card.scrollIntoViewIfNeeded();
+  const heading = card.locator("h3").first();
+  await heading.waitFor({ state: "visible" });
+
+  for (let attempt = 0; attempt < 6; attempt++) {
+    await card.page().waitForTimeout(150);
+    const box = (await heading.boundingBox())!;
+    const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    const covered = await card.page().evaluate(({ x, y }) => {
+      const at = document.elementFromPoint(x, y);
+      if (!at) return "outside";
+      return at.closest(".project-card, .note-card, .case-study-card") ? "" : (at.className || at.tagName);
+    }, point);
+    if (covered === "") return point;
+    // Lift the card clear of whatever fixed chrome is covering it.
+    await card.page().evaluate(() => window.scrollBy({ top: 160, behavior: "auto" }));
+  }
+  const box = (await heading.boundingBox())!;
+  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+}
+
+test("clicking a project card body opens the project", async ({ page }) => {
+  await page.route("**/api/github**", route => route.abort());
+  await page.goto("/projects", { waitUntil: "domcontentloaded" });
+  const card = page.locator(".project-card").first();
+  await expect(card).toBeVisible();
+
+  const link = card.locator("a.card-surface-link");
+  const href = await link.getAttribute("href");
+  expect(href).toMatch(/^\/projects\/.+/);
+
+  const before = (await tabIds(page)).length;
+  const point = await cardBodyPoint(card);
+  await page.mouse.click(point.x, point.y);
+
+  await expect.poll(() => new URL(page.url()).pathname).toBe(href);
+  expect((await tabIds(page)).length).toBe(before + 1);
+  await expect(page.locator(".editor-tab.active")).toHaveText(`${href!.split("/").pop()}.md`);
+});
+
+test("a project card never opens twice", async ({ page }) => {
+  await page.route("**/api/github**", route => route.abort());
+  await page.goto("/projects", { waitUntil: "domcontentloaded" });
+  const card = page.locator(".project-card").first();
+  const href = (await card.locator("a.card-surface-link").getAttribute("href"))!;
+  await page.mouse.click(...Object.values(await cardBodyPoint(card)) as [number, number]);
+  await expect.poll(() => new URL(page.url()).pathname).toBe(href);
+  const opened = (await tabIds(page)).length;
+
+  await page.goBack();
+  await expect(page.locator(".project-card").first()).toBeVisible();
+  await page.mouse.click(...Object.values(await cardBodyPoint(page.locator(".project-card").first())) as [number, number]);
+  await expect.poll(() => new URL(page.url()).pathname).toBe(href);
+  expect((await tabIds(page)).length).toBe(opened);
+});
+
+test("a project card secondary action does not navigate", async ({ page }) => {
+  await page.route("**/api/github**", route => route.abort());
+  await page.goto("/projects", { waitUntil: "domcontentloaded" });
+  const card = page.locator(".project-card").first();
+  await expect(card).toBeVisible();
+  const compare = card.locator(".compare-chip");
+  await compare.click();
+  await expect(compare).toHaveAttribute("aria-pressed", "true");
+  // Still on the projects route: Compare selected, nothing navigated.
+  expect(new URL(page.url()).pathname).toBe("/projects");
+  expect((await tabIds(page)).filter(id => id.startsWith("project:"))).toEqual([]);
+});
+
+test("clicking a note card body opens the note", async ({ page }) => {
+  await page.goto("/notes");
+  const card = page.locator(".note-card").first();
+  await expect(card).toBeVisible();
+  const href = (await card.locator("a.card-surface-link").getAttribute("href"))!;
+  expect(href).toBe(`/notes/${engineeringNotes[0].slug}`);
+  await page.mouse.click(...Object.values(await cardBodyPoint(card)) as [number, number]);
+  await expect.poll(() => new URL(page.url()).pathname).toBe(href);
+  await expect(page.locator(".editor-tab.active")).toHaveText(`${engineeringNotes[0].slug}.md`);
+});
+
+test("clicking a case study card body opens the case study", async ({ page }) => {
+  await page.goto("/case-studies");
+  const card = page.locator(".case-study-card").first();
+  await expect(card).toBeVisible();
+  const href = (await card.locator("a.card-surface-link").getAttribute("href"))!;
+  expect(href).toMatch(/^\/case-studies\/.+/);
+  await page.mouse.click(...Object.values(await cardBodyPoint(card)) as [number, number]);
+  await expect.poll(() => new URL(page.url()).pathname).toBe(href);
+  await expect(page.locator(".case-study-modal")).toBeVisible();
+});
+
+test("card primary links are real anchors and keyboard operable", async ({ page }) => {
+  await page.route("**/api/github**", route => route.abort());
+  await page.goto("/projects", { waitUntil: "domcontentloaded" });
+  const link = page.locator(".project-card").first().locator("a.card-surface-link");
+  await expect(link).toHaveJSProperty("tagName", "A");
+  await expect(link).not.toHaveAttribute("role", "button");
+  // No card is itself a button, and no anchor wraps a card.
+  expect(await page.locator('article.project-card[role="button"]').count()).toBe(0);
+  expect(await page.locator("a article").count()).toBe(0);
+  const href = (await link.getAttribute("href"))!;
+  await link.focus();
+  await expect(link).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect.poll(() => new URL(page.url()).pathname).toBe(href);
+});
+
+test("a modified click on a card is left to the browser", async ({ page }) => {
+  await page.route("**/api/github**", route => route.abort());
+  await page.goto("/projects", { waitUntil: "domcontentloaded" });
+  const card = page.locator(".project-card").first();
+  await expect(card.locator("a.card-surface-link")).toHaveAttribute("href", /^\/projects\/.+/);
+
+  // Asserted at the event level rather than by driving a real modified click,
+  // because whether Chromium opens a background tab is the browser's business.
+  // Ours is only this: a plain click is taken over by the SPA, and a modified
+  // click is not touched, so the browser's own link handling still applies.
+  const outcome = await page.evaluate(() => {
+    const link = document.querySelector(".project-card a.card-surface-link") as HTMLAnchorElement;
+    const fire = (init: MouseEventInit) => {
+      const event = new MouseEvent("click", { bubbles: true, cancelable: true, ...init });
+      link.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    return { modified: fire({ ctrlKey: true }), meta: fire({ metaKey: true }), middle: fire({ button: 1 }) };
+  });
+  expect(outcome.modified, "ctrl+click must not be intercepted").toBe(false);
+  expect(outcome.meta, "cmd+click must not be intercepted").toBe(false);
+  expect(outcome.middle, "middle click must not be intercepted").toBe(false);
+  // None of those navigated the SPA.
+  expect(new URL(page.url()).pathname).toBe("/projects");
+});
+
+for (const width of [320, 360, 390, 412, 768]) {
+  test(`project card navigation stays usable at ${width}px`, async ({ page }) => {
+    await page.route("**/api/github**", route => route.abort());
+    await page.setViewportSize({ width, height: 780 });
+    await page.goto("/projects", { waitUntil: "domcontentloaded" });
+    const card = page.locator(".project-card").first();
+    await expect(card).toBeVisible();
+    const box = (await card.boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(width + 1);
+    // The secondary control remains a comfortable target above the overlay.
+    const compare = card.locator(".compare-chip");
+    const compareBox = (await compare.boundingBox())!;
+    expect(compareBox.height).toBeGreaterThanOrEqual(24);
+    await compare.click();
+    await expect(compare).toHaveAttribute("aria-pressed", "true");
+    expect(new URL(page.url()).pathname).toBe("/projects");
+  });
+}
+
+// ---------------------------------------------------------------------------
+// v5.3.1 Vanta — search discovery readiness.
+//
+// Google's indexed snapshot of this domain predates the portfolio. These assert
+// the mechanics on our side; nothing here contacts Google or Search Console.
+// ---------------------------------------------------------------------------
+
+test("the homepage declares a stable crawlable favicon and current metadata", async ({ page }) => {
+  await page.goto("/");
+  await expect(page).toHaveTitle(/Osameh Irandoust/);
+
+  const declarations = await page.evaluate(() =>
+    [...document.querySelectorAll('link[rel="icon"]')].map(node => ({
+      href: node.getAttribute("href") || "",
+      sizes: node.getAttribute("sizes") || "",
+    })));
+  expect(declarations.some(item => item.href === "/favicon.ico")).toBe(true);
+  expect(declarations.some(item => item.href === "/favicon-48x48.png")).toBe(true);
+  // A hashed asset URL changes every build and cannot be a stable search favicon.
+  expect(declarations.every(item => !item.href.includes("/assets/"))).toBe(true);
+
+  const canonical = await page.locator('link[rel="canonical"]').getAttribute("href");
+  expect(canonical).toBe("https://osameh.dev/");
+
+  const body = await page.content();
+  for (const legacy of ["Secured Home of osameh.dev", "private_html", "upload a new index.html"]) {
+    expect(body, `legacy placeholder: ${legacy}`).not.toContain(legacy);
+  }
+});
+
+test("the favicon assets are served as images, not the SPA shell", async ({ request }) => {
+  for (const [path, type] of [["/favicon.ico", /image\/(x-icon|vnd\.microsoft\.icon|ico)/], ["/favicon-48x48.png", /image\/png/]] as const) {
+    const response = await request.get(path);
+    expect(response.status(), path).toBe(200);
+    expect(response.headers()["content-type"] || "", path).toMatch(type);
+    const body = await response.body();
+    expect(body.length, path).toBeGreaterThan(500);
+    expect(body.subarray(0, 20).toString("utf8"), path).not.toContain("<!doctype");
+  }
+});
+
+test("project, note and case study destinations are crawlable from the rendered page", async ({ page }) => {
+  await page.route("**/api/github**", route => route.abort());
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await expect(page.locator(".project-card").first()).toBeVisible();
+
+  const hrefs = await page.evaluate(() =>
+    [...document.querySelectorAll("a[href]")].map(node => node.getAttribute("href") || ""));
+  expect(hrefs.some(href => href.startsWith("/projects/"))).toBe(true);
+  expect(hrefs.some(href => href.startsWith("/notes/"))).toBe(true);
+  expect(hrefs.some(href => href.startsWith("/case-studies/"))).toBe(true);
+});

@@ -258,7 +258,7 @@ export function CaseStudiesSection({ onOpen }: { onOpen: (study: CaseStudy) => v
         <header><span>{String(index + 1).padStart(2, "0")}</span><small>{study.privacy === "anonymized" ? t("confidential") : study.client}</small></header>
         <p className="case-study-type">{study.industry} · {study.projectType}</p><h3>{study.title}</h3><p>{study.summary}</p>
         <div className="case-study-stack">{study.stack.slice(0, 5).map(item => <span key={item}>{item}</span>)}</div>
-        <div className="case-study-actions"><a href={`/case-studies/${encodeURIComponent(study.id)}`} onClick={event => { if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return; event.preventDefault(); onOpen(study); }}>{t("openCaseStudy")} <ChevronRight size={14} /></a>{study.siteUrl && <a href={study.siteUrl} target="_blank" rel="noreferrer">{t("liveSite")} <ArrowUpRight size={13} /></a>}</div>
+        <div className="case-study-actions"><a className="case-study-open card-surface-link" href={`/case-studies/${encodeURIComponent(study.id)}`} onClick={event => { if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return; event.preventDefault(); onOpen(study); }}>{t("openCaseStudy")} <ChevronRight size={14} /></a>{study.siteUrl && <a className="case-study-live" href={study.siteUrl} target="_blank" rel="noreferrer">{t("liveSite")} <ArrowUpRight size={13} /></a>}</div>
       </article>)}</div>
     </div>
 

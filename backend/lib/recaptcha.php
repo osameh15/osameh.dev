@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/config.php';
+
 /**
  * Google reCAPTCHA v3 server-side verification.
  *
@@ -38,26 +40,13 @@ const RECAPTCHA_TOTAL_TIMEOUT = 8;
  */
 function recaptchaEnvironment(?string $host = null): ?string
 {
-    $value = strtolower(trim((string) ($host ?? ($_SERVER['HTTP_HOST'] ?? ''))));
-    if ($value === '') return null;
-    // Strip a port; hostname comparison is what matters.
-    if (str_contains($value, ':')) $value = (string) strstr($value, ':', true);
-
-    return match ($value) {
-        'osameh.dev', 'www.osameh.dev' => 'production',
-        'staging.osameh.dev' => 'staging',
-        default => null,
-    };
+    return portfolioEnvironment($host);
 }
 
 /** The hostname Google is expected to report for an environment. */
 function recaptchaExpectedHostname(string $environment): ?string
 {
-    return match ($environment) {
-        'production' => 'osameh.dev',
-        'staging' => 'staging.osameh.dev',
-        default => null,
-    };
+    return portfolioExpectedHostname($environment);
 }
 
 /**
@@ -76,14 +65,14 @@ function recaptchaExpectedHostname(string $environment): ?string
  * not be able to move it. The file may raise the minimum score, and a value
  * outside 0.1-1.0 is ignored in favour of the default rather than trusted.
  */
-function recaptchaConfig(?string $environment = null): ?array
+function recaptchaConfig(?string $environment = null, ?string $path = null): ?array
 {
     $environment ??= recaptchaEnvironment();
     if ($environment === null) return null;
     $expectedHostname = recaptchaExpectedHostname($environment);
     if ($expectedHostname === null) return null;
 
-    $private = recaptchaPrivateEntry($environment);
+    $private = recaptchaPrivateEntry($environment, $path);
     $secret = is_string($private['secret'] ?? null) ? trim((string) $private['secret']) : '';
     if ($secret === '') return null;
 
@@ -112,44 +101,28 @@ function recaptchaMinimumScore(array $private): float
 }
 
 /**
- * The environment's private entry, loaded exactly like GITHUB_TOKEN is.
+ * The environment's private entry, read through the one configuration
+ * resolver so the isolation contract is defined in a single place.
  *
- * Returns an empty array when nothing is configured, so every caller fails
- * closed instead of borrowing another environment's values.
+ * The file may document the hostname and action it was written for. Neither is
+ * trusted as configuration - a disagreement means the file was copied between
+ * environments, which is worth a safe diagnostic and nothing more, because code
+ * already owns both values.
  */
-function recaptchaPrivateEntry(string $environment): array
+function recaptchaPrivateEntry(string $environment, ?string $path = null): array
 {
-    $fromEnvironment = trim((string) getenv('RECAPTCHA_SECRET_' . strtoupper($environment)));
-    if ($fromEnvironment !== '') return ['secret' => $fromEnvironment];
+    $entry = portfolioRecaptchaEntry($environment, $path);
+    if (!$entry) return [];
 
-    $candidates = [];
-    $home = trim((string) getenv('HOME'));
-    if ($home !== '') $candidates[] = rtrim($home, '/') . '/.config/osameh-portfolio/secrets.php';
-    $documentRoot = realpath((string) ($_SERVER['DOCUMENT_ROOT'] ?? ''));
-    if ($documentRoot !== false) $candidates[] = dirname($documentRoot) . '/private/osameh-portfolio-secrets.php';
-
-    foreach (array_unique($candidates) as $path) {
-        if (!is_file($path) || !is_readable($path)) continue;
-        $config = require $path;
-        if (!is_array($config)) continue;
-        $entry = $config['RECAPTCHA'][$environment] ?? null;
-        if (!is_array($entry) || !is_string($entry['secret'] ?? null) || trim((string) $entry['secret']) === '') continue;
-
-        // The file documents the hostname and action it was written for. They
-        // are not trusted as configuration - a disagreement means the file was
-        // copied between environments, which is worth a safe diagnostic and
-        // nothing more, because code already owns both values.
-        $declaredHost = is_string($entry['hostname'] ?? null) ? strtolower(trim($entry['hostname'])) : '';
-        if ($declaredHost !== '' && $declaredHost !== recaptchaExpectedHostname($environment)) {
-            error_log('recaptcha: private ' . $environment . ' entry declares a different hostname; using the code constant');
-        }
-        $declaredAction = is_string($entry['action'] ?? null) ? trim($entry['action']) : '';
-        if ($declaredAction !== '' && $declaredAction !== RECAPTCHA_ACTION) {
-            error_log('recaptcha: private ' . $environment . ' entry declares action "' . $declaredAction . '"; the verified action is "' . RECAPTCHA_ACTION . '"');
-        }
-        return $entry;
+    $declaredHost = is_string($entry['hostname'] ?? null) ? strtolower(trim($entry['hostname'])) : '';
+    if ($declaredHost !== '' && $declaredHost !== portfolioExpectedHostname($environment)) {
+        error_log('recaptcha: private ' . $environment . ' entry declares a different hostname; using the code constant');
     }
-    return [];
+    $declaredAction = is_string($entry['action'] ?? null) ? trim($entry['action']) : '';
+    if ($declaredAction !== '' && $declaredAction !== RECAPTCHA_ACTION) {
+        error_log('recaptcha: private ' . $environment . ' entry declares a different action; the verified action is the code constant');
+    }
+    return $entry;
 }
 
 /**

@@ -1,6 +1,6 @@
 # osameh.dev Project Understanding Report
 
-**Review date:** 2026-09-08 (updated for v5.3.0)
+**Review date:** 2026-09-08 (updated for v5.3.1)
 **Repository:** `osameh.dev`
 **Review scope:** Tracked application source, configuration, workflows, tests, documentation, public endpoints, generated metadata, and static-asset inventory.
 
@@ -10,9 +10,9 @@ Companion references: [`ARCHITECTURE.md`](./ARCHITECTURE.md) for how the deploye
 
 ## 1. Detected version
 
-The repository version is **5.3.0**, codename **Vanta** under the Cyber Noir release theme (see [`ARCHITECTURE.md`](./ARCHITECTURE.md)). It is consistent across `package.json`, `package-lock.json`, `docs/CHANGELOG.md`, `README.md`, deployment documentation, and generated build metadata.
+The repository version is **5.3.1**, codename **Vanta** under the Cyber Noir release theme (see [`ARCHITECTURE.md`](./ARCHITECTURE.md)). It is consistent across `package.json`, `package-lock.json`, `docs/CHANGELOG.md`, `README.md`, deployment documentation, and generated build metadata.
 
-Generated build metadata is refreshed during validation and resolves the current release as v5.3.0 · VANTA.
+Generated build metadata is refreshed during validation and resolves the current release as v5.3.1 · VANTA.
 
 ## 2. Current branch and worktree
 
@@ -511,7 +511,25 @@ success, action, hostname and score and fails closed on every rejection path;
 rate limiting, CORS, CSP strictness and the Service Worker `/api/*` rule are
 unchanged.
 
-## 26. Current engineering priorities
+## 26. v5.3.1 Vanta additions
+
+**Configuration.** `backend/lib/config.php` is the single environment and
+private-path resolver. One candidate path per environment, no `$HOME` lookup, no
+cross-environment fallback, and fail-closed silence on anything missing or
+malformed.
+
+**Health.** `/api/health` reports contact-protection readiness and GitHub
+authentication as booleans, Contact depends on verification readiness, and both
+deployments gate on the result.
+
+**Navigation.** Project, Note and Case Study cards navigate from their whole
+surface through a stretched primary link, with secondary controls preserved.
+
+**Search readiness.** A stable root favicon from the approved artwork declared in
+the initial HTML, plus metadata, sitemap and legacy-placeholder guards. Search
+Console stays manual and SSR/prerendering stays deferred.
+
+## 27. Current engineering priorities
 
 1. Complete the v5.2.0 staging acceptance pass: release identity, Neural Cipher
    assets, active-tab auto-scroll, plus the mature 404, Source Explorer, Service

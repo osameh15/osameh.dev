@@ -1,9 +1,10 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { verifyBundleSecrets } from "./verify-secrets.mjs";
+import { verifyBuiltSearchAssets, verifySearchReadiness } from "./verify-search-readiness.mjs";
 
 const required = [
-  "dist/index.html", "dist/.htaccess", "dist/build-info.json", "dist/api/github.php", "dist/api/contact.php", "dist/api/recaptcha.php",
+  "dist/index.html", "dist/.htaccess", "dist/build-info.json", "dist/api/github.php", "dist/api/contact.php", "dist/api/recaptcha.php", "dist/api/config.php", "dist/favicon.ico", "dist/favicon-48x48.png",
   "dist/api/health.php", "dist/project.php", "dist/note.php", "dist/case-study.php", "dist/case-studies-index.json", "dist/sitemap.php", "dist/notes-index.json", "dist/sw.js"
 ];
 const missing = required.filter(file => !existsSync(resolve(file)));
@@ -21,6 +22,12 @@ for (const ref of localRefs) {
   const file = resolve(`dist${ref}`);
   if (!existsSync(file) && !ref.startsWith("/projects/") && !ref.startsWith("/notes/") && !ref.startsWith("/case-studies/")) throw new Error(`Broken built local reference: ${ref}`);
 }
+const searchFailures = [
+  ...verifySearchReadiness("dist/index.html"),
+  ...verifyBuiltSearchAssets("dist"),
+];
+if (searchFailures.length) throw new Error(`Search readiness check failed:\n  ${searchFailures.join("\n  ")}`);
+
 const secretFailures = verifyBundleSecrets("dist");
 if (secretFailures.length) throw new Error(`Secret leakage check failed:\n  ${secretFailures.join("\n  ")}`);
 

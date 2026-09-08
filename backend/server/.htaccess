@@ -29,7 +29,7 @@ RewriteRule ^api/github/meta/([A-Za-z0-9._-]+)/?$ api/github.php?meta=$1 [QSA,L]
 
   # Backend library includes are not endpoints. They are required by an API
   # entrypoint and must never be reachable on their own.
-  RewriteRule ^api/(?:lib/|recaptcha\.php$) - [F,L]
+  RewriteRule ^api/(?:lib/|recaptcha\.php$|config\.php$) - [F,L]
 
   # API requests must never fall through to the SPA document.
   RewriteRule ^api/ - [L]

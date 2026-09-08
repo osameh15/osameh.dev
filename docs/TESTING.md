@@ -1,6 +1,6 @@
 # Testing Reference
 
-**Applies to:** v5.3.0
+**Applies to:** v5.3.1
 **Scope:** what is tested, which command proves which contract, and — most
 importantly — what can be trusted locally versus what requires CI or staging.
 
@@ -368,3 +368,46 @@ that the frontend contains no PHP and imports no backend source; that the backen
 references no component; that `/lib/` is refused over the web; that the deploy
 assembler still publishes both halves into `dist/`; and that every Source
 Explorer entry point resolves to a real path.
+
+---
+
+## 9. v5.3.1 Vanta coverage
+
+### Configuration isolation (PHP, no secrets)
+
+`backend/tests/config-isolation.php` proves the contract with fixtures whose
+values are obviously fake: a production-only file exposes no staging secret and
+a staging-only file exposes no production secret; an unknown environment gets
+neither; the private path is derived from the environment's own document root;
+and a missing, malformed or empty file yields no configuration, no token and no
+verification config. It also asserts that loading a missing or malformed file
+prints nothing at all, because a raised `require` would print the server's
+filesystem path into the response.
+
+### Whole-card navigation
+
+Browser coverage clicks the card body - not the action link - for Projects,
+Notes and Case Studies, and asserts the right destination opens through the
+shared editor-tab lifecycle without duplicating a tab. It also asserts that a
+secondary control (Compare) performs its own action and navigates nothing, that
+the primary destination is a real anchor with a correct `href`, that keyboard
+activation works, that no anchor wraps a card and no card is a `role="button"`,
+and that the card stays usable at 320-768px.
+
+Modified clicks are asserted at the event level rather than by driving a real
+ctrl+click: whether the browser opens a background tab is the browser's
+business, and ours is only that the SPA handler does not intercept a modified or
+middle click.
+
+### Search readiness
+
+Repository and bundle checks assert the homepage title and description describe
+the portfolio, the canonical and `og:url` are `https://osameh.dev/`, the social
+card is the canonical image, the favicon is declared in the initial HTML at a
+stable unhashed path, no favicon is served from the hashed asset pipeline, the
+sitemap still lists exactly the intended documents, and no file anywhere carries
+the pre-portfolio hosting placeholder text. Browser coverage additionally
+asserts the favicon URLs return real images rather than the SPA shell, and that
+project, note and case-study `href`s are present in the rendered DOM.
+
+Nothing in this suite contacts Google or Search Console.

@@ -75,6 +75,11 @@ jobs:
       - name: PHP reCAPTCHA verification test
         run: php backend/tests/recaptcha-decision.php
 
+      # Environment-scoped configuration: one private path per environment, no
+      # cross-environment fallback, fail-closed on anything missing or malformed.
+      - name: PHP configuration isolation test
+        run: php backend/tests/config-isolation.php
+
       # One build for every environment. It is a normal, indexable
       # production-like bundle, which is what verify:dist, Playwright and the
       # strict Lighthouse SEO audit below all run against. Environment indexing
