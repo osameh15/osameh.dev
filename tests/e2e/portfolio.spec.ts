@@ -2031,7 +2031,7 @@ async function cardBodyPoint(card: Locator) {
 }
 
 test("clicking a project card body opens the project", async ({ page }) => {
-  await page.route("**/api/github/**", route => route.abort());
+  await page.route("**/api/github**", route => route.abort());
   await page.goto("/projects", { waitUntil: "domcontentloaded" });
   const card = page.locator(".project-card").first();
   await expect(card).toBeVisible();
@@ -2050,7 +2050,7 @@ test("clicking a project card body opens the project", async ({ page }) => {
 });
 
 test("a project card never opens twice", async ({ page }) => {
-  await page.route("**/api/github/**", route => route.abort());
+  await page.route("**/api/github**", route => route.abort());
   await page.goto("/projects", { waitUntil: "domcontentloaded" });
   const card = page.locator(".project-card").first();
   const href = (await card.locator("a.card-surface-link").getAttribute("href"))!;
@@ -2066,7 +2066,7 @@ test("a project card never opens twice", async ({ page }) => {
 });
 
 test("a project card secondary action does not navigate", async ({ page }) => {
-  await page.route("**/api/github/**", route => route.abort());
+  await page.route("**/api/github**", route => route.abort());
   await page.goto("/projects", { waitUntil: "domcontentloaded" });
   const card = page.locator(".project-card").first();
   await expect(card).toBeVisible();
@@ -2101,7 +2101,7 @@ test("clicking a case study card body opens the case study", async ({ page }) =>
 });
 
 test("card primary links are real anchors and keyboard operable", async ({ page }) => {
-  await page.route("**/api/github/**", route => route.abort());
+  await page.route("**/api/github**", route => route.abort());
   await page.goto("/projects", { waitUntil: "domcontentloaded" });
   const link = page.locator(".project-card").first().locator("a.card-surface-link");
   await expect(link).toHaveJSProperty("tagName", "A");
@@ -2117,7 +2117,7 @@ test("card primary links are real anchors and keyboard operable", async ({ page 
 });
 
 test("a modified click on a card is left to the browser", async ({ page }) => {
-  await page.route("**/api/github/**", route => route.abort());
+  await page.route("**/api/github**", route => route.abort());
   await page.goto("/projects", { waitUntil: "domcontentloaded" });
   const card = page.locator(".project-card").first();
   await expect(card.locator("a.card-surface-link")).toHaveAttribute("href", /^\/projects\/.+/);
@@ -2144,7 +2144,7 @@ test("a modified click on a card is left to the browser", async ({ page }) => {
 
 for (const width of [320, 360, 390, 412, 768]) {
   test(`project card navigation stays usable at ${width}px`, async ({ page }) => {
-    await page.route("**/api/github/**", route => route.abort());
+    await page.route("**/api/github**", route => route.abort());
     await page.setViewportSize({ width, height: 780 });
     await page.goto("/projects", { waitUntil: "domcontentloaded" });
     const card = page.locator(".project-card").first();
@@ -2204,7 +2204,7 @@ test("the favicon assets are served as images, not the SPA shell", async ({ requ
 });
 
 test("project, note and case study destinations are crawlable from the rendered page", async ({ page }) => {
-  await page.route("**/api/github/**", route => route.abort());
+  await page.route("**/api/github**", route => route.abort());
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await expect(page.locator(".project-card").first()).toBeVisible();
 
