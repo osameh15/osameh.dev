@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { codeProfiles, fontOptions, type CodeLanguage, type FontPreference, type ThemePreference } from "./workspacePreferences";
+import { useEffect, useRef, useState } from "react";
+import { DEFAULT_CODE_LANGUAGE, codeProfiles, fontOptions, type CodeLanguage, type FontPreference, type ThemePreference } from "./workspacePreferences";
 
 /**
  * Persisted workspace preferences: theme, interface font, and the code language
@@ -17,7 +17,11 @@ import { codeProfiles, fontOptions, type CodeLanguage, type FontPreference, type
 export function useWorkspacePreferences() {
   const [theme, setTheme] = useState<ThemePreference>("dark");
   const [font, setFont] = useState<FontPreference>("inter");
-  const [codeLanguage, setCodeLanguage] = useState<CodeLanguage>("typescript");
+  const [codeLanguage, setCodeLanguage] = useState<CodeLanguage>(DEFAULT_CODE_LANGUAGE);
+
+  // Restoration runs before anything is written back, so the default value can
+  // never overwrite a returning visitor's explicit choice.
+  const restored = useRef(false);
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("portfolio-theme") as ThemePreference | null;
@@ -26,6 +30,7 @@ export function useWorkspacePreferences() {
     if (savedTheme && ["dark", "light", "system"].includes(savedTheme)) setTheme(savedTheme);
     if (savedFont && fontOptions.some(option => option.id === savedFont)) setFont(savedFont);
     if (savedLanguage && codeProfiles[savedLanguage]) setCodeLanguage(savedLanguage);
+    restored.current = true;
   }, []);
 
   useEffect(() => {
@@ -46,6 +51,7 @@ export function useWorkspacePreferences() {
   }, [font]);
 
   useEffect(() => {
+    if (!restored.current) return;
     localStorage.setItem("portfolio-language", codeLanguage);
   }, [codeLanguage]);
 

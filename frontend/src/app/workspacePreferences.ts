@@ -7,6 +7,15 @@ export type FontPreference = "inter" | "mono" | "humanist" | "serif";
 
 export type CodeLanguage = "typescript" | "cpp" | "csharp" | "java" | "go" | "python" | "php";
 
+/**
+ * The language the workspace presents on a first visit.
+ *
+ * This is the portfolio's selectable presentation language, not a claim about
+ * how the site itself is built. A returning visitor's explicit choice always
+ * wins; this is only the fallback when there is no valid stored preference.
+ */
+export const DEFAULT_CODE_LANGUAGE: CodeLanguage = "cpp";
+
 export const codeProfiles: Record<CodeLanguage, { label: string; file: string; projects: string; stack: string; open: string; close: string; comment: string }> = {
   typescript: { label: "TypeScript", file: "home.tsx", projects: "projects.ts", stack: "stack.ts", open: "const engineer = {", close: "};", comment: "// based in Tehran, working globally" },
   cpp: { label: "C++", file: "main.cpp", projects: "projects.cpp", stack: "stack.cpp", open: "auto engineer = Engineer{", close: "};", comment: "// based in Tehran, working globally" },
