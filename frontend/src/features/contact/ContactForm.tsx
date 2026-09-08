@@ -2,7 +2,7 @@
 // refactor. Behavior is unchanged; only ownership moved.
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { LoaderCircle, Mail, Send, ShieldCheck } from "lucide-react";
+import { Clock3, LoaderCircle, Mail, Send, ShieldCheck } from "lucide-react";
 import { notify } from "../../lib/toast";
 import { trackEvent } from "../../lib/analytics";
 import { executeRecaptcha, loadRecaptcha, recaptchaSiteKey } from "../../config/recaptchaConfig";
@@ -134,6 +134,7 @@ export function ContactForm({ fileName = "send-message.ts" }: { fileName?: strin
     <div className="contact-form-actions">
       <button type="submit" className="primary-btn" disabled={pending}>{state === "verifying" ? <><ShieldCheck size={16} /> Verifying…</> : state === "sending" ? <><LoaderCircle className="spin" size={16} /> Sending…</> : <><Send size={16} /> Send message</>}</button>
       <p className={status ? `form-message ${status.tone}` : "form-message"} data-contact-status={state} role="status" aria-live="polite">{status?.message || (pending ? (state === "verifying" ? "Verifying this submission…" : "Sending your message…") : "")}</p>
+      {!status && !pending && <span className="contact-response-time"><Clock3 size={13} /> I reply within 24 hours</span>}
     </div>
     <p className="contact-recaptcha-note">Protected by reCAPTCHA. Google&rsquo;s <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a> and <a href="https://policies.google.com/terms" target="_blank" rel="noopener noreferrer">Terms of Service</a> apply.</p>
   </form>;

@@ -408,3 +408,11 @@ html[data-theme="light"] .contact-recaptcha-note{color:#5b6c60;border-color:#d3d
 html[data-theme="light"] .contact-recaptcha-note a{color:#2c6a2f}
 .contact-form-actions .form-message{margin-left:auto;text-align:right}
 @media (max-width:520px){.contact-form-actions{flex-wrap:wrap}.contact-form-actions .form-message{margin-left:0;text-align:left;width:100%}}
+
+/* v5.3.0 — Expected reply time beside the contact submit button. Replaced by
+   the live status region while a submission is verifying, sending or done. */
+.contact-response-time{display:inline-flex;align-items:center;gap:6px;margin-left:auto;color:#8b968d;font:9.5px var(--code-font);letter-spacing:.04em;white-space:nowrap}
+.contact-response-time svg{color:var(--green)}
+.contact-form-actions .form-message:empty{margin-left:0}
+html[data-theme="light"] .contact-response-time{color:#54655a}
+@media (max-width:520px){.contact-response-time{margin-left:0;width:100%}}

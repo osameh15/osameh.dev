@@ -488,7 +488,8 @@ test("mobile engineering-note TOC stays below the editor tabs", async ({ page })
     const tabsBox = await page.locator(".tabs-row").boundingBox();
     const tocBox = await toc.boundingBox();
     if (!tabsBox || !tocBox) return false;
-    return tocBox.y >= tabsBox.y + tabsBox.height + 10;
+    // Flush against the tabs: below them, with no margin of its own.
+    return Math.abs(tocBox.y - (tabsBox.y + tabsBox.height)) <= 1;
   }).toBe(true);
 });
 

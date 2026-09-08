@@ -43,6 +43,12 @@ export function EngineeringNotesSection({ onOpenNote }: { onOpenNote: (slug: str
 
 type TocItem = { id: string; label: string; level: number };
 
+/** The sticky gap between the editor tabs and the mobile TOC rail, in pixels. */
+function readTocGap() {
+  const value = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--note-toc-gap"));
+  return Number.isFinite(value) ? value : 0;
+}
+
 function prepareNoteHtml(markdown: string, namespace: string) {
   const raw = marked.parse(markdown, { gfm: true, breaks: false }) as string;
   // Transform first, sanitize last. DOMParser produces an inert document, so
@@ -152,7 +158,9 @@ export function EngineeringNoteView({ slug, onClose, onOpenNote }: { slug: strin
       if (!root) return;
       const tabsBottom = document.querySelector<HTMLElement>(".tabs-row")?.getBoundingClientRect().bottom ?? (window.innerWidth <= 720 ? 90 : 94);
       const mobileTocHeight = window.innerWidth <= 1000 ? (tocRef.current?.getBoundingClientRect().height ?? 48) : 0;
-      const tocGap = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--note-toc-gap")) || 8;
+      // Zero is a real value here - the rail sits flush under the tabs - so a
+      // falsy check would silently restore the old margin.
+      const tocGap = readTocGap();
       const probe = window.innerWidth <= 1000
         ? Math.ceil(tabsBottom + tocGap + mobileTocHeight + 12)
         : Math.max(110, Math.min(window.innerHeight * .24, 190));
@@ -213,7 +221,7 @@ export function EngineeringNoteView({ slug, onClose, onOpenNote }: { slug: strin
     setActiveTocId(id);
     const tabsBottom = document.querySelector<HTMLElement>(".tabs-row")?.getBoundingClientRect().bottom ?? (window.innerWidth <= 720 ? 90 : 94);
     const tocHeight = window.innerWidth <= 1000 ? (tocRef.current?.getBoundingClientRect().height ?? 48) : 0;
-    const tocGap = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--note-toc-gap")) || 8;
+    const tocGap = readTocGap();
     const stickyOffset = window.innerWidth <= 1000 ? Math.ceil(tabsBottom + tocGap + tocHeight + 12) : 116;
     const top = heading.getBoundingClientRect().top + window.scrollY - stickyOffset;
     window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
