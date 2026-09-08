@@ -413,6 +413,16 @@ html[data-theme="light"] .contact-recaptcha-note a{color:#2c6a2f}
    the live status region while a submission is verifying, sending or done. */
 .contact-response-time{display:inline-flex;align-items:center;gap:6px;margin-left:auto;color:#8b968d;font:9.5px var(--code-font);letter-spacing:.04em;white-space:nowrap}
 .contact-response-time svg{color:var(--green)}
-.contact-form-actions .form-message:empty{margin-left:0}
+
 html[data-theme="light"] .contact-response-time{color:#54655a}
 @media (max-width:520px){.contact-response-time{margin-left:0;width:100%}}
+
+/* v5.3.0 — Submission state moved into the form footer beside the reCAPTCHA
+   disclosure, so a validation message never displaces the expected reply time
+   next to the submit button. */
+.contact-form-footer{display:flex;align-items:baseline;justify-content:space-between;gap:14px;flex-wrap:wrap;border-top:1px solid #293129;padding:9px 13px 11px}
+.contact-form-footer .contact-recaptcha-note{border-top:0;padding:0;flex:1 1 260px}
+.contact-form-footer .form-message{margin:0;justify-content:flex-end;text-align:right;flex:0 1 auto}
+.contact-form-footer .form-message:empty{width:0;overflow:hidden}
+html[data-theme="light"] .contact-form-footer{border-color:#d3ddd4}
+@media (max-width:520px){.contact-form-footer{padding:9px 12px 11px}.contact-form-footer .form-message{text-align:left;justify-content:flex-start;flex-basis:100%}}

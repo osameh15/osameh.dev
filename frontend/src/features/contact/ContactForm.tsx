@@ -133,9 +133,15 @@ export function ContactForm({ fileName = "send-message.ts" }: { fileName?: strin
     <label className="honeypot" aria-hidden="true">Website<input name="website" tabIndex={-1} autoComplete="off" /></label>
     <div className="contact-form-actions">
       <button type="submit" className="primary-btn" disabled={pending}>{state === "verifying" ? <><ShieldCheck size={16} /> Verifying…</> : state === "sending" ? <><LoaderCircle className="spin" size={16} /> Sending…</> : <><Send size={16} /> Send message</>}</button>
-      <p className={status ? `form-message ${status.tone}` : "form-message"} data-contact-status={state} role="status" aria-live="polite">{status?.message || (pending ? (state === "verifying" ? "Verifying this submission…" : "Sending your message…") : "")}</p>
-      {!status && !pending && <span className="contact-response-time"><Clock3 size={13} /> I reply within 24 hours</span>}
+      <span className="contact-response-time"><Clock3 size={13} /> I reply within 24 hours</span>
     </div>
-    <p className="contact-recaptcha-note">Protected by reCAPTCHA. Google&rsquo;s <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a> and <a href="https://policies.google.com/terms" target="_blank" rel="noopener noreferrer">Terms of Service</a> apply.</p>
+    <div className="contact-form-footer">
+      <p className="contact-recaptcha-note">Protected by reCAPTCHA. Google&rsquo;s <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a> and <a href="https://policies.google.com/terms" target="_blank" rel="noopener noreferrer">Terms of Service</a> apply.</p>
+      {/* The outcome is announced here rather than beside the button, so the
+          expected reply time is never replaced by a transient message. The
+          toast carries the same text visually; this region carries it to
+          assistive technology. */}
+      <p className={status ? `form-message ${status.tone}` : "form-message"} data-contact-status={state} role="status" aria-live="polite">{status?.message || (pending ? (state === "verifying" ? "Verifying this submission…" : "Sending your message…") : "")}</p>
+    </div>
   </form>;
 }
