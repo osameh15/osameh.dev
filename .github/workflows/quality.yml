@@ -93,7 +93,7 @@ jobs:
 
       - name: Upload Playwright diagnostics on failure
         if: failure()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-diagnostics-${{ inputs.deploy_env || 'application' }}
           path: |
@@ -154,7 +154,7 @@ jobs:
 
       - name: Upload Lighthouse report on failure
         if: failure()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: lighthouse-report-${{ inputs.deploy_env || 'application' }}
           path: |
@@ -180,7 +180,7 @@ jobs:
 
       - name: Upload verified environment bundle
         if: ${{ inputs.artifact_name != '' && inputs.deploy_env != '' }}
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ inputs.artifact_name }}
           path: dist-${{ inputs.deploy_env }}/
