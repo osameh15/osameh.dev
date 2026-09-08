@@ -604,7 +604,14 @@ fresh token                      ->  POST /api/contact
 ```
 
 Nothing is requested during initial page load, so the portfolio's first paint
-carries no third-party request. A token is generated per attempt, is never
+carries no third-party request.
+
+Google's floating badge is hidden with `visibility: hidden`, which its terms
+permit only when the required branding text is shown near the form instead. That
+disclosure - "Protected by reCAPTCHA", with links to Google's Privacy Policy and
+Terms of Service - is rendered permanently in the contact form footer on every
+viewport, not just while a submission is in flight. `display: none` is
+deliberately not used: the widget still needs a layout box to execute. A token is generated per attempt, is never
 stored in `localStorage`/`sessionStorage`, and is never replayed: a retry asks
 Google for a new one.
 

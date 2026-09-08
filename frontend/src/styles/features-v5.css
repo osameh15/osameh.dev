@@ -426,3 +426,10 @@ html[data-theme="light"] .contact-response-time{color:#54655a}
 .contact-form-footer .form-message:empty{width:0;overflow:hidden}
 html[data-theme="light"] .contact-form-footer{border-color:#d3ddd4}
 @media (max-width:520px){.contact-form-footer{padding:9px 12px 11px}.contact-form-footer .form-message{text-align:left;justify-content:flex-start;flex-basis:100%}}
+
+/* v5.3.0 — The floating reCAPTCHA badge is hidden.
+   Google allows this only when the required branding text is shown near the
+   form instead, which .contact-recaptcha-note does, permanently and on every
+   viewport. visibility rather than display: the widget still needs its own
+   layout box, and display:none can break token execution. */
+.grecaptcha-badge{visibility:hidden}

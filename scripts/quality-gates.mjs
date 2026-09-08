@@ -448,6 +448,17 @@ if (!/default-src 'self'/.test(csp) || !/object-src 'none'/.test(csp) || !/frame
 } else pass("CSP keeps default-src, object-src, frame-ancestors and base-uri unchanged");
 if (/script-src[^;]*\shttps:(?:\s|;)/.test(csp) || /script-src[^;]*\*/.test(csp)) fail("CSP allows a wildcard script source");
 
+// Hiding Google's badge is allowed only alongside the required disclosure.
+const featureStyles = readFileSync(resolve("frontend/src/styles/features-v5.css"), "utf8");
+const badgeHidden = /\.grecaptcha-badge\{[^}]*visibility:\s*hidden/.test(featureStyles);
+const disclosureShown = /Protected by reCAPTCHA/.test(contactForm)
+  && /policies\.google\.com\/privacy/.test(contactForm)
+  && /policies\.google\.com\/terms/.test(contactForm);
+if (badgeHidden && !disclosureShown) fail("The reCAPTCHA badge is hidden without the required Privacy Policy and Terms disclosure");
+else if (!disclosureShown) fail("The contact form does not carry the reCAPTCHA Privacy Policy and Terms disclosure");
+else pass(badgeHidden ? "The reCAPTCHA badge is hidden and the required disclosure is shown instead" : "The reCAPTCHA badge is visible and the disclosure is shown as well");
+if (/\.grecaptcha-badge\{[^}]*display:\s*none/.test(featureStyles)) fail("The reCAPTCHA badge uses display:none, which can break token execution");
+
 // The contact origin allowlist stays exact.
 for (const origin of ["https://osameh.dev", "https://staging.osameh.dev"]) {
   if (!contactEndpoint.includes(origin)) fail(`The contact origin allowlist no longer contains ${origin}`);
