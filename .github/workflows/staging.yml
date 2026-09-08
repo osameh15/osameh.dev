@@ -132,6 +132,22 @@ jobs:
           bye
           LFTP
 
+      # Root returning 200 is not acceptance. Contact fails closed without
+      # verification, so a deploy that cannot load its environment-local
+      # configuration must fail here rather than sit quietly degraded.
+      - name: Verify staging service readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          health="$(curl -fsS -H 'Cache-Control: no-cache' "https://staging.osameh.dev/api/health?ci=${GITHUB_SHA}")"
+          environment="$(jq -r '.environment // .build.environment // empty' <<<"$health")"
+          recaptcha="$(jq -r '.services.recaptcha.configured // false' <<<"$health")"
+          contact="$(jq -r '.services.contact.status // empty' <<<"$health")"
+          echo "environment=$environment recaptcha_configured=$recaptcha contact=$contact"
+          [[ "$environment" == "staging" ]] || { echo "::error::staging reported environment $environment"; exit 1; }
+          [[ "$recaptcha" == "true" ]] || { echo "::error::Contact protection is not configured on staging"; exit 1; }
+          [[ "$contact" == "operational" ]] || { echo "::error::Contact is $contact on staging"; exit 1; }
+
       - name: Verify staging noindex and build
         shell: bash
         run: |
