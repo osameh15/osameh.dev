@@ -433,3 +433,22 @@ html[data-theme="light"] .contact-form-footer{border-color:#d3ddd4}
    viewport. visibility rather than display: the widget still needs its own
    layout box, and display:none can break token execution. */
 .grecaptcha-badge{visibility:hidden}
+
+/* v5.3.1 — Whole-card navigation.
+   The card's primary anchor is stretched over the card's non-interactive
+   surface with an ::after overlay. This is the accessible pattern: the anchor
+   stays a real link with one focus stop and native modified-click behaviour,
+   and no interactive element is ever nested inside another. Secondary controls
+   are lifted above the overlay so they keep their own action. */
+.project-card,.note-card,.case-study-card{position:relative}
+.card-surface-link::after{content:"";position:absolute;inset:0;z-index:1;border-radius:inherit}
+.card-surface-link:focus-visible::after{outline:2px solid var(--green);outline-offset:-2px}
+.card-surface-link:focus-visible{outline:none}
+/* Secondary actions sit above the primary overlay and stay independently
+   operable, so a Compare, npm or live-site click never navigates the card. */
+.project-card .compare-chip,
+.project-card .npm-chip,
+.case-study-card .case-study-live{position:relative;z-index:2}
+/* The whole card reads as clickable. */
+.project-card,.note-card,.case-study-card{cursor:pointer}
+.project-card .compare-chip,.project-card .npm-chip,.case-study-card .case-study-live{cursor:pointer}

@@ -33,9 +33,11 @@ import { getWorkspaceScrollPosition, useModalDialog } from "../lib/modalScroll";
 import { HOME_TAB_ID, noteTab, noteTabId, projectTab, projectTabId, tabAfterClose, type EditorTab } from "./editorTabs";
 import { codeProfiles, contactFiles, fontOptions, roles, skillSource, skills, type CodeLanguage, type FontPreference, type ThemePreference } from "./workspacePreferences";
 import { sectionByPath, sections, type SearchResult } from "./sections";
+import { useWorkspacePreferences } from "./useWorkspacePreferences";
 import { universalSearchScore, type PaletteCommand } from "../lib/universalSearch";
 import { fallbackRepos, npmPackages, npmUrl, type GithubRepo } from "../features/projects/repoTypes";
-import { GITHUB_OWNER, getMarkdownTools, mergeGalleryImages, readmeImage, readmeImages, readmeRepoRef, renderMarkdown, type RepoGalleryImage } from "../features/projects/readmeGallery";
+import { GITHUB_OWNER, getMarkdownTools, readmeRepoRef, renderMarkdown, type RepoGalleryImage } from "../features/projects/readmeGallery";
+import { useRepositoryContent } from "../features/projects/useRepositoryContent";
 import { BrandMark, HeroShowcase } from "../features/home/HeroShowcase";
 
 type ContextMenuState = {
@@ -59,9 +61,7 @@ export default function Home() {
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
   const [activeSectionPath, setActiveSectionPath] = useState<string>("/home");
   const [resumeOpen, setResumeOpen] = useState(false);
-  const [theme, setTheme] = useState<ThemePreference>("dark");
-  const [font, setFont] = useState<FontPreference>("inter");
-  const [codeLanguage, setCodeLanguage] = useState<CodeLanguage>("typescript");
+  const { theme, setTheme, font, setFont, codeLanguage, setCodeLanguage } = useWorkspacePreferences();
   const [skillsView, setSkillsView] = useState<"code" | "ui">("code");
   const [copied, setCopied] = useState(false);
   const [repos, setRepos] = useState<GithubRepo[]>(fallbackRepos);
@@ -84,14 +84,9 @@ export default function Home() {
   const activeNoteSlug = activeTab?.kind === "note" ? activeTab.slug : null;
   const openedRepos = editorTabs.flatMap(tab => tab.kind === "project" ? [tab.repo] : []);
   const [readmeHtml, setReadmeHtml] = useState<Record<string, string>>({});
+  const { loadReadme, loadGallery, loadingGalleries, readmeMarkdown, repoGalleries, repoImages } = useRepositoryContent();
   const [loadingReadmes, setLoadingReadmes] = useState<string[]>([]);
-  const [repoImages, setRepoImages] = useState<Record<string, string>>({});
-  const [readmeMarkdown, setReadmeMarkdown] = useState<Record<string, string>>({});
-  const [repoGalleries, setRepoGalleries] = useState<Record<string, RepoGalleryImage[]>>({});
-  const [loadingGalleries, setLoadingGalleries] = useState<string[]>([]);
   const [galleryLightbox, setGalleryLightbox] = useState<{ repo: string; index: number } | null>(null);
-  const readmeRequests = useRef<Map<string, Promise<string>>>(new Map());
-  const galleryRequests = useRef<Map<string, Promise<RepoGalleryImage[]>>>(new Map());
   const readmeRenderRequests = useRef<Set<string>>(new Set());
   const projectsSectionRef = useRef<HTMLElement>(null);
   const [projectsNearViewport, setProjectsNearViewport] = useState(false);
@@ -264,36 +259,6 @@ export default function Home() {
   }, []);
 
   useEffect(() => { trackEvent("page_view"); }, []);
-
-  useEffect(() => {
-    const savedTheme = localStorage.getItem("portfolio-theme") as ThemePreference | null;
-    const savedFont = localStorage.getItem("portfolio-font") as FontPreference | null;
-    const savedLanguage = localStorage.getItem("portfolio-language") as CodeLanguage | null;
-    if (savedTheme && ["dark", "light", "system"].includes(savedTheme)) setTheme(savedTheme);
-    if (savedFont && fontOptions.some(option => option.id === savedFont)) setFont(savedFont);
-    if (savedLanguage && codeProfiles[savedLanguage]) setCodeLanguage(savedLanguage);
-  }, []);
-
-  useEffect(() => {
-    const media = window.matchMedia("(prefers-color-scheme: light)");
-    const applyTheme = () => {
-      document.documentElement.dataset.theme = theme === "system" ? (media.matches ? "light" : "dark") : theme;
-      document.documentElement.dataset.themePreference = theme;
-    };
-    applyTheme();
-    localStorage.setItem("portfolio-theme", theme);
-    media.addEventListener("change", applyTheme);
-    return () => media.removeEventListener("change", applyTheme);
-  }, [theme]);
-
-  useEffect(() => {
-    document.documentElement.dataset.font = font;
-    localStorage.setItem("portfolio-font", font);
-  }, [font]);
-
-  useEffect(() => {
-    localStorage.setItem("portfolio-language", codeLanguage);
-  }, [codeLanguage]);
 
   useEffect(() => {
     const onToast = (event: Event) => {
@@ -610,81 +575,6 @@ export default function Home() {
     if (output) output.scrollTo({ top: output.scrollHeight, behavior: "smooth" });
   }, [terminalLines, searchResults, panelOpen, panelTab]);
 
-  const loadReadme = (repo: GithubRepo) => {
-    const cached = readmeRequests.current.get(repo.name);
-    if (cached) return cached;
-
-    const request = (async () => {
-      if (window.location.protocol === "file:") return "";
-
-      const controller = new AbortController();
-      const timeout = window.setTimeout(() => controller.abort(), 9000);
-      try {
-        const response = await fetch(`/api/github/readme/${encodeURIComponent(repo.name)}`, {
-          headers: { Accept: "text/markdown, text/plain;q=0.9" },
-          signal: controller.signal,
-          cache: "no-store",
-        });
-        if (!response.ok) return "";
-        const contentType = response.headers.get("content-type") || "";
-        const markdown = await response.text();
-        // Never accept a repository-list JSON response as README content.
-        if (/application\/json/i.test(contentType) || /^\s*\[\s*\{/.test(markdown)) return "";
-
-        setReadmeMarkdown(current => ({ ...current, [repo.name]: markdown }));
-        setRepoImages(current => ({ ...current, [repo.name]: readmeImage(markdown, repo) }));
-        return markdown;
-      } catch {
-        setReadmeMarkdown(current => ({ ...current, [repo.name]: "" }));
-        setRepoImages(current => ({ ...current, [repo.name]: "" }));
-        return "";
-      } finally {
-        window.clearTimeout(timeout);
-      }
-    })();
-
-    readmeRequests.current.set(repo.name, request);
-    return request;
-  };
-
-  const loadGallery = (repo: GithubRepo) => {
-    const cached = galleryRequests.current.get(repo.name);
-    if (cached) return cached;
-
-    const request = (async () => {
-      setLoadingGalleries(current => current.includes(repo.name) ? current : [...current, repo.name]);
-      try {
-        let repositoryImages: RepoGalleryImage[] = [];
-        if (window.location.protocol !== "file:") {
-          const response = await fetch(`/api/github/images/${encodeURIComponent(repo.name)}`, {
-            headers: { Accept: "application/json" },
-            cache: "no-store",
-          });
-          if (response.ok) {
-            const payload = await response.json() as RepoGalleryImage[];
-            if (Array.isArray(payload)) repositoryImages = payload.filter(image => image && typeof image.url === "string" && typeof image.path === "string");
-          }
-        }
-
-        const markdown = readmeMarkdown[repo.name] !== undefined ? readmeMarkdown[repo.name] : await loadReadme(repo);
-        const fromReadme = markdown ? readmeImages(markdown, repo) : [];
-        const merged = mergeGalleryImages(repositoryImages, fromReadme);
-        setRepoGalleries(current => ({ ...current, [repo.name]: merged }));
-        if (merged.length) setRepoImages(current => current[repo.name] ? current : ({ ...current, [repo.name]: merged[0].url }));
-        return merged;
-      } catch {
-        const markdown = readmeMarkdown[repo.name] || "";
-        const fromReadme = markdown ? readmeImages(markdown, repo) : [];
-        setRepoGalleries(current => ({ ...current, [repo.name]: fromReadme }));
-        return fromReadme;
-      } finally {
-        setLoadingGalleries(current => current.filter(name => name !== repo.name));
-      }
-    })();
-
-    galleryRequests.current.set(repo.name, request);
-    return request;
-  };
 
   useEffect(() => {
     if (activeRepo || activeNoteSlug || notFoundPath || resumeOpen) return;
@@ -1859,7 +1749,7 @@ export default function Home() {
                   <p className="project-type">{repoMetadata[project.name]?.project.type || project.language || "Repository"} · Updated {new Date(project.updated_at).toLocaleDateString("en", { month: "short", year: "numeric" })}{repoMetadata[project.name]?.project.featured ? " · Featured" : ""}</p>
                   <h3>{repoMetadata[project.name]?.project.name || project.name}</h3><p className="project-desc">{repoMetadata[project.name]?.project.tagline || project.description || "Explore the source, architecture, and latest work in this repository."}</p>
                   <div className="tags">{[project.language, ...project.topics].filter(Boolean).slice(0, 4).map(tag => <span key={tag}>{tag}</span>)}</div>
-                  <div className="project-links"><a className="open-detail" href={`/projects/${encodeURIComponent(project.name)}`} onClick={event => { if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return; event.preventDefault(); openProject(project); }}>Open project details <ArrowUpRight size={14} /></a><button className={compareRepos.some(item => item.id === project.id) ? "compare-chip active" : "compare-chip"} onClick={() => toggleCompareRepo(project)} aria-pressed={compareRepos.some(item => item.id === project.id)}><Code2 size={13} /> {compareRepos.some(item => item.id === project.id) ? "Selected" : "Compare"}</button>{npmUrl(project.name) && <a className="npm-chip" href={npmUrl(project.name)} target="_blank" rel="noreferrer" aria-label={'View ' + npmPackages[project.name] + ' on npm'}><Package size={13} /> npm <ArrowUpRight size={12} /></a>}</div>
+                  <div className="project-links"><a className="open-detail card-surface-link" href={`/projects/${encodeURIComponent(project.name)}`} onClick={event => { if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return; event.preventDefault(); openProject(project); }}>Open project details <ArrowUpRight size={14} /></a><button className={compareRepos.some(item => item.id === project.id) ? "compare-chip active" : "compare-chip"} onClick={() => toggleCompareRepo(project)} aria-pressed={compareRepos.some(item => item.id === project.id)}><Code2 size={13} /> {compareRepos.some(item => item.id === project.id) ? "Selected" : "Compare"}</button>{npmUrl(project.name) && <a className="npm-chip" href={npmUrl(project.name)} target="_blank" rel="noreferrer" aria-label={'View ' + npmPackages[project.name] + ' on npm'}><Package size={13} /> npm <ArrowUpRight size={12} /></a>}</div>
                 </article>
               ))}</div>
               {!filteredRepos.length && <div className="project-empty"><Search size={20} /><p>No project matches the current search/filter.</p><button onClick={() => { setProjectQuery(""); setProjectTech("all"); }}>Reset filters</button></div>}
