@@ -4,6 +4,32 @@ All notable changes to **osameh.dev** are documented here.
 
 The project follows [Semantic Versioning](https://semver.org/). The early production releases were shipped in rapid succession while the portfolio was moved from its hosted prototype to the current ParsPack/CDN deployment.
 
+## 5.3.1 - 2026-09-08 — Vanta
+
+Stabilization release in the **Vanta** family.
+
+### Navigation
+- Project, Engineering Note, and Case Study cards are now navigable across their whole surface, not only through their explicit action link.
+- The card's primary destination stays a real link, so modified clicks, new-tab actions, copy-link and keyboard activation keep working, and secondary controls such as Compare, npm and a client's live site keep performing their own action.
+
+### Configuration & isolation
+- Private configuration now resolves through one authoritative path: the `private/` directory beside the environment's own document root, and nothing else.
+- Removed the shared `$HOME` lookup that three server files still carried. Both environments run as the same operating-system user, so that path was a route from one environment's code to the other's credentials.
+- A missing, unreadable or malformed configuration file now fails closed and can no longer surface a PHP warning carrying the server's filesystem path.
+
+### Health & observability
+- `/api/health` now reports whether contact verification is configured, and Contact is reported unavailable when it is not - previously Contact could read operational while submissions were failing closed.
+- Health also reports whether the GitHub proxy is running authenticated. No token, secret, prefix, length or scope is exposed.
+- Staging and production deployments now fail if the deployed environment cannot report a configured, operational contact path.
+
+### Architecture
+- Extracted persisted workspace preferences and the repository README/gallery content layer out of the application shell.
+
+### Search readiness
+- Published the approved Neural Cipher favicon at a stable, never-hashed root path and declared it in the initial HTML.
+- Added repository and bundle checks for homepage metadata, canonical URL, favicon declarations, sitemap membership, and the absence of the pre-portfolio hosting placeholder text.
+- Search Console remains manually managed, and SSR/prerendering remains deferred.
+
 ## 5.3.0 - 2026-09-08 — Vanta
 
 First release in the **Vanta** family. Every 5.3.x patch inherits the codename.

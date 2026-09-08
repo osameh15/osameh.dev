@@ -506,6 +506,13 @@ The site also includes an in-app resume viewer and download/open controls.
 
 The **six most recent releases** are summarized here. See **[CHANGELOG.md](docs/CHANGELOG.md)** for the complete production history. This section is intentionally capped at six releases.
 
+### v5.3.1 — Vanta
+
+- **Whole-card navigation.** Project, Note, and Case Study cards open from anywhere on the card, while secondary controls (Compare, npm, a client's live site) keep their own action and the destination stays a real link.
+- **Environment-scoped configuration.** Private configuration resolves to exactly one path per environment, with no shared `$HOME` lookup and no cross-environment fallback; anything missing or malformed fails closed without leaking a filesystem path.
+- **Observable contact health.** `/api/health` reports contact-protection readiness, Contact depends on it, and both deployments now gate on it.
+- **Search readiness.** A stable root favicon from the approved artwork, declared in the initial HTML, plus checks for homepage metadata, canonical, sitemap membership and legacy placeholder text.
+
 ### v5.3.0 — Vanta
 
 - Separated **frontend** and **backend** source trees, reorganized the frontend by feature, and decomposed the largest mixed-responsibility modules. The deploy artifact and every public URL are unchanged.
@@ -540,17 +547,6 @@ The **six most recent releases** are summarized here. See **[CHANGELOG.md](docs/
 - Release codenames under the **Cyber Noir** theme. Starting with 5.2, each official major/minor family receives one codename, so every 5.2.x patch is Cipher. The version and codename appear in the status bar, Build Information, and Terminal.
 - Refreshed social sharing artwork.
 - Editor tabs now scroll the active tab into view on narrow screens instead of leaving it off-strip.
-
-### v5.1.1 — Editor tabs, Source Explorer, Service Worker, 404 & mobile tour hotfix
-
-- Hardened GitHub repository path normalization so dot-prefixed directories stay previewable while traversal, absolute paths, and protocol injection remain blocked.
-- Source Explorer now recovers from a failed or stale file request: the tree stays usable, the failure is shown inline with a retry, and a late response can no longer replace the file you selected.
-- Fixed the Service Worker `Response.clone()` failure and kept `/api/` responses out of the cache entirely.
-- Made the Recruiter Mode tour fully usable on 320-412px mobile viewports.
-- Unknown URLs return a real HTTP 404 while keeping the custom IDE 404 UI.
-- Unified the editor-tab lifecycle: projects and Engineering Notes coexist as independent tabs, selecting Home no longer closes them, closing a tab activates the one to its left, and returning Home restores the section that tab came from.
-- Closing a project returns to the Projects section.
-- The build-information panel reports the environment it is actually running in.
 
 ## Documentation
 

@@ -1,6 +1,6 @@
 # CI/CD Pipeline — Technical Reference
 
-**Applies to:** v5.3.0
+**Applies to:** v5.3.1
 **Scope:** how code reaches `staging.osameh.dev` and `osameh.dev`, what blocks a
 deployment, and why the pipeline is shaped the way it is.
 
@@ -69,6 +69,8 @@ TypeScript                    npm run typecheck
 PHP lint                      find backend -name '*.php' | xargs -n1 php -l
    v
 PHP reCAPTCHA contract        php backend/tests/recaptcha-decision.php
+   v
+PHP configuration contract    php backend/tests/config-isolation.php
    v
 Build tested application bundle   npm run build      -> dist/   (indexable)
    v

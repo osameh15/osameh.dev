@@ -1,6 +1,6 @@
 # Runtime Architecture
 
-**Applies to:** v5.3.0
+**Applies to:** v5.3.1
 **Scope:** how the deployed system behaves at runtime — request path, routing,
 server-side metadata, the SPA shell, the GitHub proxy, the Service Worker, and
 the shared UI invariants.
@@ -650,3 +650,99 @@ Content-Security-Policy gains exactly two allowances - the reCAPTCHA script
 origins and its challenge frame origins - with no `unsafe-eval`, no inline
 scripts and no wildcard hosts. The Service Worker still returns early for
 `/api/`, so no submission, token or verification response is ever cached.
+
+---
+
+## 13. Environment-scoped private configuration
+
+`backend/lib/config.php` is the only place that resolves an environment or a
+private path. Every endpoint, the GitHub proxy, the social-image renderer, the
+metadata layers and the health endpoint go through it.
+
+### One path, no fallback
+
+```text
+DOCUMENT_ROOT  ->  dirname(DOCUMENT_ROOT)/private/osameh-portfolio-secrets.php
+
+production   .../osameh.dev/public_html          ->  .../osameh.dev/private/...
+staging      .../osameh.dev/subdomains/staging   ->  .../osameh.dev/subdomains/private/...
+```
+
+Exactly one candidate is consulted. There is no second path, no walk up the
+directory tree, and no `$HOME` lookup. That last one mattered: three server
+files previously also checked `$HOME/.config/osameh-portfolio/secrets.php`, and
+because both environments run as the same operating-system user, it was a route
+from one environment's code to the other's credentials. Separate document roots
+exist precisely to prevent that, so the shared path is gone.
+
+An environment that cannot load its own configuration fails closed. It does not
+borrow another environment's, and an unknown host resolves to no environment at
+all rather than to production.
+
+### Failure is silent to the client and loud to the log
+
+A missing, unreadable or non-array configuration file yields an empty
+configuration and a short server-side log line. `require` is deliberately not
+used on an unverified path: raising there prints the absolute filesystem path
+into the response body, which is exactly what leaked from staging once already.
+
+---
+
+## 14. Health as a deployment gate
+
+`/api/health` answers HTTP 200 even while degraded, so monitoring can tell an
+application outage apart from one unavailable subsystem. It reports:
+
+```json
+{
+  "status": "operational",
+  "environment": "production",
+  "services": {
+    "contact":   { "status": "operational" },
+    "recaptcha": { "configured": true, "status": "operational" },
+    "github":    { "status": "operational", "authenticated": true }
+  }
+}
+```
+
+Contact **depends on** verification readiness. Contact fails closed without a
+verification configuration, so reporting it operational while submissions were
+being refused was a false positive - and it is what hid a missing staging
+configuration until a visitor tried to send a message.
+
+`checks[]` is unchanged and still drives the System Health panel; `services` is
+the machine-readable view the deployment gates read. Both staging and production
+deploys now fail when the deployed environment reports an unconfigured or
+non-operational contact path. A root URL answering 200 is not acceptance.
+
+Nothing about a credential is exposed: `authenticated` and `configured` are
+booleans, and no token, prefix, length or scope appears anywhere.
+
+---
+
+## 15. Whole-card navigation
+
+Project, Engineering Note and Case Study cards are navigable across their whole
+surface. The pattern is one stretched primary link, not a wrapped card:
+
+```text
+article.card                     (position: relative)
+  ├── title / description / meta          non-interactive
+  ├── a.card-surface-link                 the primary destination
+  │     └── ::after  inset:0  z-index:1   covers the card surface
+  └── secondary controls  z-index:2       Compare, npm, live site
+```
+
+Wrapping the card in an anchor would nest its buttons and its external links
+inside a link, which is invalid and unusable with a keyboard. The stretched
+overlay avoids that: there is exactly one focus stop for the primary action, the
+destination is a real `href` so modified clicks, middle clicks, "Open in new
+tab", copy-link and keyboard activation all behave natively, and secondary
+controls sit above the overlay and keep their own action.
+
+A plain left click is still handed to the existing SPA lifecycle, so a card
+opens or activates its editor tab without duplicating one. No card carries
+`role="button"`, and no non-interactive container is given a tabindex.
+
+These are also the internal links search engines follow to reach project, note
+and case-study URLs, which is why they are asserted in the quality gates.
