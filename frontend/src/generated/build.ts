@@ -1,6 +1,6 @@
 // AUTO-GENERATED. Do not edit manually.
 export const BUILD_VERSION = "5.3.0";
 export const BUILD_CODENAME = "Vanta";
-export const BUILD_ID = "v5.3.0-20260908T075719Z";
-export const BUILD_DISPLAY = "v5.3.0 · VANTA · 0908.0757Z";
-export const BUILD_TIME = "2026-09-08T07:57:19.010Z";
+export const BUILD_ID = "v5.3.0-20260908T080448Z";
+export const BUILD_DISPLAY = "v5.3.0 · VANTA · 0908.0804Z";
+export const BUILD_TIME = "2026-09-08T08:04:48.112Z";

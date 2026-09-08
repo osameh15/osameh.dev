@@ -6,7 +6,7 @@ const files = [
   ["backend/server/.htaccess", "dist/.htaccess"],
   ["backend/api/github.php", "dist/api/github.php"],
   ["backend/api/contact.php", "dist/api/contact.php"],
-  ["backend/lib/recaptcha.php", "dist/lib/recaptcha.php"],
+  ["backend/lib/recaptcha.php", "dist/api/recaptcha.php"],
   ["backend/api/analytics.php", "dist/api/analytics.php"],
   ["backend/api/health.php", "dist/api/health.php"],
   ["backend/seo/project.php", "dist/project.php"],

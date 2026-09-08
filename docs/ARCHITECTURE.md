@@ -82,9 +82,11 @@ docs/                         this documentation set
 
 - The frontend imports no backend source, and the backend references no
   component. Quality gates assert both.
-- `backend/lib/` is reached only through an API entrypoint. `.htaccess` refuses
-  `/lib/` over the web, and the deployed tree mirrors `backend/` exactly, so one
-  include path is correct in both places.
+- `backend/lib/` is reached only through an API entrypoint. It is published
+  beside that entrypoint as `dist/api/recaptcha.php` - a directory the document
+  root already has, so a deployment never has to create a new top-level one -
+  and `.htaccess` refuses it over the web. The endpoint resolves either
+  location, so one include line is correct in the repository and in the deploy.
 - Configuration is layered rather than mixed: **public** frontend config
   (`frontend/src/config/`), **private** server secrets (outside the repository
   entirely, see [`DEPLOYMENT.md`](./DEPLOYMENT.md)), **release** metadata
@@ -94,7 +96,7 @@ docs/                         this documentation set
 
 ```text
 frontend/  --vite build-->  dist/            index.html, assets/, public files
-backend/   --assembler-->   dist/api/, dist/lib/, dist/*.php, dist/.htaccess
+backend/   --assembler-->   dist/api/, dist/*.php, dist/.htaccess
                                  |
                     dist-staging/ | dist-production/     indexing policy only
                                  |

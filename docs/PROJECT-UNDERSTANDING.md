@@ -496,8 +496,8 @@ configuration change; the code changes in v5.1.1 are defensive hardening
 the same deploy artifact. The public runtime contract is unchanged: `dist/`
 mirrored into the document root, APIs at `/api/...`. `AdvancedUI.tsx` was
 decomposed into eleven feature modules, and App's module-scope model moved into
-`app/` and `features/`. Backend includes live in `backend/lib/`, are published to
-`dist/lib/`, and are refused over the web.
+`app/` and `features/`. Backend includes live in `backend/lib/`, are published
+beside the endpoint that requires them, and are refused over the web.
 
 **Adjacent Engineering Notes.** Every Note links to its neighbours, ordered by
 the same authoritative `engineeringNotes` array the index renders, as real

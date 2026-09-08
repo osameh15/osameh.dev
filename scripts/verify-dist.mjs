@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { verifyBundleSecrets } from "./verify-secrets.mjs";
 
 const required = [
-  "dist/index.html", "dist/.htaccess", "dist/build-info.json", "dist/api/github.php", "dist/api/contact.php", "dist/lib/recaptcha.php",
+  "dist/index.html", "dist/.htaccess", "dist/build-info.json", "dist/api/github.php", "dist/api/contact.php", "dist/api/recaptcha.php",
   "dist/api/health.php", "dist/project.php", "dist/note.php", "dist/case-study.php", "dist/case-studies-index.json", "dist/sitemap.php", "dist/notes-index.json", "dist/sw.js"
 ];
 const missing = required.filter(file => !existsSync(resolve(file)));

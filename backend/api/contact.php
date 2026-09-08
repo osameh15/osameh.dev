@@ -5,7 +5,9 @@ declare(strict_types=1);
 // server fault, not a request fault. Fail closed with a clean JSON response:
 // letting require_once raise would print the server's filesystem layout into
 // the response body.
-$recaptchaLibrary = __DIR__ . '/../lib/recaptcha.php';
+// Deployed flat beside this endpoint; in the repository it lives under
+// backend/lib/. Both are checked so one include line is correct in both trees.
+$recaptchaLibrary = is_file(__DIR__ . '/recaptcha.php') ? __DIR__ . '/recaptcha.php' : __DIR__ . '/../lib/recaptcha.php';
 if (!is_file($recaptchaLibrary)) {
     http_response_code(503);
     header('Content-Type: application/json; charset=utf-8');

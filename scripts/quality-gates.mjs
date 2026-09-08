@@ -409,7 +409,7 @@ if (verificationIndex < 0 || mailIndex < 0 || verificationIndex > mailIndex) fai
 else pass("The contact endpoint verifies reCAPTCHA before handing anything to the mail service");
 if (rateLimitIndex < 0) fail("The contact endpoint no longer rate limits submissions");
 else pass("The contact endpoint still rate limits submissions alongside reCAPTCHA");
-if (!/\$recaptchaLibrary = __DIR__ \. '\/\.\.\/lib\/recaptcha\.php';/.test(contactEndpoint) || !/require_once \$recaptchaLibrary;/.test(contactEndpoint)) fail("The contact endpoint does not include the shared reCAPTCHA verifier");
+if (!/\$recaptchaLibrary = is_file\(__DIR__ \. '\/recaptcha\.php'\)/.test(contactEndpoint) || !/require_once \$recaptchaLibrary;/.test(contactEndpoint)) fail("The contact endpoint does not include the shared reCAPTCHA verifier");
 // A missing library must not surface as a PHP warning: that would print the
 // server's filesystem layout into the response.
 else if (!/if \(!is_file\(\$recaptchaLibrary\)\)/.test(contactEndpoint)) fail("The contact endpoint would leak a filesystem path when the reCAPTCHA library is missing");
@@ -490,12 +490,12 @@ if (!failures.some(item => item.includes("imports backend source") || item.inclu
 
 // Backend library includes are reached through an API entrypoint, never served.
 const serverConfig = readFileSync(resolve("backend/server/.htaccess"), "utf8");
-if (!/RewriteRule \^lib\/ - \[F,L\]/.test(serverConfig)) fail("Backend library includes are not blocked from direct web access");
+if (!/RewriteRule \^api\/\(\?:lib\/\|recaptcha\\\.php\$\) - \[F,L\]/.test(serverConfig)) fail("Backend library includes are not blocked from direct web access");
 else pass("Backend library includes are not directly reachable over the web");
 
 // The deploy assembler must publish both trees into the one artifact contract.
 const assembler = readFileSync(resolve("scripts/ensure-deploy-files.mjs"), "utf8");
-for (const required of ['["backend/server/.htaccess", "dist/.htaccess"]', '["backend/api/contact.php", "dist/api/contact.php"]', '["backend/lib/recaptcha.php", "dist/lib/recaptcha.php"]']) {
+for (const required of ['["backend/server/.htaccess", "dist/.htaccess"]', '["backend/api/contact.php", "dist/api/contact.php"]', '["backend/lib/recaptcha.php", "dist/api/recaptcha.php"]']) {
   if (!assembler.includes(required)) fail(`The deploy assembler no longer publishes ${required}`);
 }
 if (!failures.some(item => item.includes("deploy assembler no longer publishes"))) {

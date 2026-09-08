@@ -437,7 +437,6 @@ public_html/
 │   ├── contact.php
 │   ├── analytics.php
 │   └── health.php
-├── lib/
 │   └── recaptcha.php        (internal include, refused over the web)
 ├── notes-content/
 ├── notes-index.json

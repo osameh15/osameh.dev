@@ -47,7 +47,7 @@ export function verifyBundleSecrets(root) {
     // Text assets only. A secret would have to be readable to be leaked.
     if (!/\.(?:js|mjs|cjs|map|html|json|php|txt|css|webmanifest|xml)$/i.test(name)) continue;
     const source = readFileSync(path, "utf8");
-    if (/RECAPTCHA_SECRET/i.test(source) && !name.startsWith("lib/recaptcha.php")) {
+    if (/RECAPTCHA_SECRET/i.test(source) && !name.startsWith("api/recaptcha.php")) {
       failures.push(`${root}/${name} references a reCAPTCHA secret name outside the server-side verifier`);
     }
     // The client bundle must never carry a secret-shaped assignment.
