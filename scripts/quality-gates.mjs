@@ -28,6 +28,8 @@ import { verifyBrandAssets } from "./verify-brand-assets.mjs";
 import { verifyReadmeAssetUrls } from "./verify-readme-assets.mjs";
 import { verifyRepositorySecrets } from "./verify-secrets.mjs";
 import { verifySearchReadiness } from "./verify-search-readiness.mjs";
+import { verifyErrorConfiguration } from "./verify-error-pages.mjs";
+import { ERROR_STATUSES } from "./error-pages.mjs";
 import { resolveReleaseCodename } from "../frontend/src/lib/releaseMetadataCore.js";
 
 const failures = [];
@@ -518,8 +520,11 @@ if (!failures.some(item => item.includes("imports backend source") || item.inclu
 }
 
 // Backend library includes are reached through an API entrypoint, never served.
+// The refusal is answered by the API's own JSON endpoint, so an /api/ client
+// never receives an HTML error document; verifyErrorConfiguration owns the
+// detail of that contract.
 const serverConfig = readFileSync(resolve("backend/server/.htaccess"), "utf8");
-if (!/RewriteRule \^api\/\(\?:lib\/\|recaptcha\\.php\$\|config\\.php\$\|health-probe\\.php\$\) - \[F,L\]/.test(serverConfig)) fail("Backend library includes are not blocked from direct web access");
+if (!/RewriteRule \^api\/\(\?:lib\/\|recaptcha\\.php\$\|config\\.php\$\|health-probe\\.php\$\) api\/forbidden\.php \[L\]/.test(serverConfig)) fail("Backend library includes are not blocked from direct web access");
 else pass("Backend library includes are not directly reachable over the web");
 
 // The deploy assembler must publish both trees into the one artifact contract.
@@ -604,6 +609,25 @@ if (!brandFailures.length) pass("Neural Cipher icon pack, manifest icons, and so
 const readmeAssetFailures = verifyReadmeAssetUrls();
 for (const failure of readmeAssetFailures) fail(failure);
 if (!readmeAssetFailures.length) pass("README asset URLs normalize exactly once and preserve third-party hosts");
+
+// ---- v5.3.3 Vanta: branded HTTP error experience ----
+//
+// The origin answers its own errors. ErrorDocument is an internal subrequest,
+// so the original status survives; /api/ keeps its JSON contract because every
+// API refusal carries its own body and Apache replaces only bodyless errors.
+const errorConfigurationFailures = verifyErrorConfiguration();
+for (const failure of errorConfigurationFailures) fail(failure);
+if (!errorConfigurationFailures.length) pass(`Branded ErrorDocument coverage for ${ERROR_STATUSES.length} statuses, with /api/ refusals staying machine-readable`);
+
+// The deploy assembler must publish the error documents ErrorDocument targets.
+if (!assembler.includes("errorPageFiles()")) fail("The deploy assembler no longer writes the branded error documents");
+else pass("The deploy artifact assembles the branded error documents");
+
+// Error documents are never discoverable: not in either sitemap, not linked.
+for (const { status } of ERROR_STATUSES) {
+  if (sitemapPhp.includes(`/errors/${status}`) || sitemapXml.includes(`/errors/${status}`)) fail(`Error document ${status} appears in a sitemap`);
+}
+if (!failures.some(item => item.includes("appears in a sitemap"))) pass("Error documents stay out of both sitemaps");
 
 // The service worker only registers over HTTPS, so no local browser run loads
 // it. Execute it against a minimal worker environment here instead.
