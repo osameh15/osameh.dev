@@ -85,6 +85,11 @@ jobs:
       - name: PHP GitHub health test
         run: php backend/tests/github-health.php
 
+      # Every API refusal carries its own body. A bodyless status is what Apache
+      # would replace with a branded error document, handing an API client HTML.
+      - name: PHP API error shape test
+        run: php backend/tests/api-error-shape.php
+
       # One build for every environment. It is a normal, indexable
       # production-like bundle, which is what verify:dist, Playwright and the
       # strict Lighthouse SEO audit below all run against. Environment indexing

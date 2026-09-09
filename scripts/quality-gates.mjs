@@ -623,6 +623,18 @@ if (!errorConfigurationFailures.length) pass(`Branded ErrorDocument coverage for
 if (!assembler.includes("errorPageFiles()")) fail("The deploy assembler no longer writes the branded error documents");
 else pass("The deploy artifact assembles the branded error documents");
 
+// CI runs each PHP suite as its own step, so a suite added to the local runner
+// alone is linted but never executed. The two lists must agree.
+const phpRunner = readFileSync(resolve("scripts/php-tests.mjs"), "utf8");
+const phpSuites = [...phpRunner.matchAll(/"(backend\/tests\/[a-z-]+\.php)"/g)].map(match => match[1]);
+for (const suite of phpSuites) {
+  if (!existsSync(resolve(suite))) fail(`php-tests.mjs runs a suite that does not exist: ${suite}`);
+  if (!qualityWorkflow.includes(`php ${suite}`)) fail(`${suite} runs locally but has no CI step, so CI would never execute it`);
+}
+if (!failures.some(item => item.includes("has no CI step") || item.includes("does not exist: backend/tests"))) {
+  pass(`All ${phpSuites.length} PHP suites run both locally and in CI`);
+}
+
 // A branded document error and a machine-readable API error are two different
 // contracts, and neither is observable from a static preview server. Both
 // deployments must therefore prove them against the live environment, using a

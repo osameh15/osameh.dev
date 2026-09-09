@@ -465,6 +465,10 @@ PHP is not installed on every workstation. `npm run test:php` reports
 `PHP TEST NOT RUN — PHP EXECUTABLE UNAVAILABLE` and exits 0 in that case; CI is
 the authoritative result.
 
+CI runs each suite as its own named step rather than through the local runner, so
+a suite added to `scripts/php-tests.mjs` alone would be linted and never
+executed. A quality gate now asserts the two lists agree.
+
 ### Live error acceptance (deployment workflows)
 
 No preview server can prove a status code, so both deployment workflows assert
