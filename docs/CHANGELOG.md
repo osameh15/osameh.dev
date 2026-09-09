@@ -4,6 +4,31 @@ All notable changes to **osameh.dev** are documented here.
 
 The project follows [Semantic Versioning](https://semver.org/). The early production releases were shipped in rapid succession while the portfolio was moved from its hosted prototype to the current ParsPack/CDN deployment.
 
+## 5.4.0 - 2026-09-09 - Phantom
+
+First release in the **Phantom** family. Every 5.4.x patch inherits the codename. The theme is portfolio experience and UX refinement; the work is what a measured audit found, not a redesign.
+
+### Accessibility
+- Text that carries meaning now meets WCAG AA contrast in both themes. The light theme was the weaker of the two: several IDE shell labels had no light-theme rule at all and were inheriting greys chosen for a near-black canvas.
+- The mobile menu button - the only navigation affordance below 720px, and previously the smallest target on the site at 20x20 - now offers a 44x44 target while the icon keeps its size.
+- An editor tab can now be closed with the keyboard. The close control was an icon with a click handler: unreachable by keyboard, and 12px across. It is now a real button with its own label, focus state and expanded hit area, placed beside the tab's activation button rather than inside it.
+- Compact controls in the status bar, terminal head and note breadcrumb gained full touch targets. Where the interface benefits from compact chrome, the visual element is unchanged and only the touchable area grew.
+- Line numbers remain deliberately subordinate, but no longer sit at 1.7:1 against the canvas.
+
+### Identity and metadata
+- Added the official X identity: `twitter:site`, `twitter:creator`, and `https://x.com/OsamehIr` in the Person schema. No existing identity was removed.
+- One description now reaches every consumer. `twitter:description` was drifting because the runtime synchronised only the page and Open Graph descriptions; it is now part of that same synchronisation, and the static document carries the same sentence, so a crawler that runs no JavaScript reads what one that does reads.
+
+### Packaging
+- Stopped deploying `og-cover-social.png`, a 717 KB authoring master that nothing referenced. The active social image, `og-cover-social.jpg`, its URL, and every preview are unchanged.
+
+### Verification
+- Contrast is now asserted from rendered pixels. The audit demonstrated that computed-CSS checks both miss real failures and invent false ones - one element computed at 2.49:1 measured 11.75:1 once the painted pixels were read.
+- Added touch-target assertions at 390px covering only controls that perform an action, and a keyboard-only editor tab close test that re-asserts the full tab lifecycle.
+
+### Unchanged
+- The editor tab contract, the branded HTTP error architecture, the `/api/` JSON contract, the Service Worker network-only rule, the lazy reCAPTCHA contract, the 17-URL sitemap, canonical strategy, robots policy, favicon URLs and the Open Graph image URL are all untouched.
+
 ## 5.3.4 - 2026-09-09 - Vanta
 
 Patch release in the **Vanta** family, correcting the mobile Engineering Note table of contents.
