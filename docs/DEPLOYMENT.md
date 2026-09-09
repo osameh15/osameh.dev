@@ -251,18 +251,37 @@ a direct request; that is what makes the internal subrequest work. It carries
 `noindex,nofollow,noarchive` in both the meta tag and a scoped `X-Robots-Tag`
 header, is in neither sitemap, and is linked from nothing.
 
-Smoke-test status and body together, as with the 404 contract:
+**The document-level acceptance surface.** `/icons/` is a real, permanent asset
+directory with no index document, so Apache refuses it under `Options -Indexes`.
+It is the natural forbidden *document* on this site: nothing was created in
+order to be denied, and no public debug or crash endpoint exists. It is what
+both deployments probe.
+
+Smoke-test status and body together, as with the 404 contract. The document and
+the API prove two different contracts and must be checked separately:
 
 ```bash
-curl -sI https://osameh.dev/api/recaptcha.php               # expect 403
-curl -s  https://osameh.dev/api/recaptcha.php               # expect JSON, not HTML
+# A forbidden DOCUMENT: 403 carrying the branded workspace, no redirect.
+curl -sI https://osameh.dev/icons/                          # expect 403, text/html
+curl -s  https://osameh.dev/icons/ | grep error_403.cpp     # expect a match
+
+# A forbidden API path: 403 carrying JSON, never the branded page.
+curl -sI https://osameh.dev/api/recaptcha.php               # expect 403, application/json
+curl -s  https://osameh.dev/api/recaptcha.php               # expect {"error":"Forbidden"}
+
 curl -sI https://osameh.dev/errors/403.html                 # expect 200 + X-Robots-Tag noindex
 curl -s  https://osameh.dev/this-route-does-not-exist | grep "404 — Route not found"
 ```
 
 A forbidden document request must show the portfolio's error workspace. Seeing
 the hosting provider's template instead means either the bundle is missing
-`errors/`, or the CDN is not showing origin errors.
+`errors/`, or the CDN is not showing origin errors. Seeing the branded page on
+`/api/recaptcha.php` would be the opposite regression and is equally a failure.
+
+Both deployment workflows run exactly these assertions after mirroring the
+bundle, so a release cannot reach the next stage while either contract is
+broken. They also assert `num_redirects == 0`: a branded error reached through a
+`302` would mean the original status was discarded.
 
 ## 6. Smoke tests
 

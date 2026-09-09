@@ -623,6 +623,22 @@ if (!errorConfigurationFailures.length) pass(`Branded ErrorDocument coverage for
 if (!assembler.includes("errorPageFiles()")) fail("The deploy assembler no longer writes the branded error documents");
 else pass("The deploy artifact assembles the branded error documents");
 
+// A branded document error and a machine-readable API error are two different
+// contracts, and neither is observable from a static preview server. Both
+// deployments must therefore prove them against the live environment, using a
+// forbidden surface that already exists rather than an endpoint created to fail.
+for (const [name, workflow] of [["staging", stagingWorkflow], ["production", productionWorkflow]]) {
+  if (!workflow.includes("- name: Verify branded document errors and the API error contract")) {
+    fail(`The ${name} deployment no longer verifies the branded error experience against the live environment`);
+  }
+  if (!workflow.includes("/icons/?ci=")) fail(`The ${name} deployment no longer probes a real forbidden document`);
+  if (!workflow.includes("/api/recaptcha.php?ci=")) fail(`The ${name} deployment no longer probes a forbidden API path`);
+  if (!/num_redirects/.test(workflow)) fail(`The ${name} deployment does not assert that a forbidden document is answered without a redirect`);
+}
+if (!failures.some(item => item.includes("branded error experience") || item.includes("forbidden document") || item.includes("forbidden API path"))) {
+  pass("Both deployments prove a branded document 403 and a JSON API 403 against the live environment");
+}
+
 // Error documents are never discoverable: not in either sitemap, not linked.
 for (const { status } of ERROR_STATUSES) {
   if (sitemapPhp.includes(`/errors/${status}`) || sitemapXml.includes(`/errors/${status}`)) fail(`Error document ${status} appears in a sitemap`);

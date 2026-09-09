@@ -24,6 +24,7 @@ Stabilization release in the **Vanta** family, unifying the browser-facing HTTP 
 ### Reliability
 - Added packaging and repository guards covering error-document presence, the status shown, the `noindex` directive, the absence of scripts and bundle dependencies, foreign hosting branding, and `ErrorDocument` targets resolving to packaged files.
 - Both the staging and production bundles are verified to ship the error documents.
+- Both deployments now prove the two contracts against the live environment before a release can advance: a forbidden document answers 403 with the branded workspace and no redirect, and a forbidden API path answers 403 with JSON. The document probed is an existing asset directory refused by `Options -Indexes`; nothing was created in order to be forbidden.
 
 ### Search
 - Every error document is `noindex,nofollow,noarchive` in both the meta tag and the response header, is absent from both sitemaps, and publishes no canonical URL. The 17-URL sitemap contract is unchanged.

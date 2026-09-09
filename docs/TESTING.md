@@ -465,6 +465,24 @@ PHP is not installed on every workstation. `npm run test:php` reports
 `PHP TEST NOT RUN — PHP EXECUTABLE UNAVAILABLE` and exits 0 in that case; CI is
 the authoritative result.
 
+### Live error acceptance (deployment workflows)
+
+No preview server can prove a status code, so both deployment workflows assert
+the two contracts against the deployed environment immediately after mirroring
+the bundle:
+
+- `/icons/` - a real asset directory with no index, refused by `Options -Indexes`
+  - must answer `403`, `text/html`, with `error_403.cpp` in the body, zero
+    redirects, and none of `Index of`, `DirectAdmin`, `cPanel`, `Apache/`,
+    `Server at`, `Fatal error`, `Warning:`, `/home/` or `.php`
+- `/api/recaptcha.php` - must answer `403`, `application/json`,
+  `{"error":"Forbidden"}`, and must contain no HTML and no `error_403.cpp`
+- `/errors/403.html` - must exist in the artifact and answer `200` directly
+
+The document surface is deliberately one the site already has. Nothing is
+created in order to be forbidden, and no public debug or crash endpoint exists.
+A quality gate asserts both workflows still carry these probes.
+
 ### Repository and bundle gates
 
 See [`CI-CD.md` section 6.2](./CI-CD.md) for the configuration and bundle checks,
