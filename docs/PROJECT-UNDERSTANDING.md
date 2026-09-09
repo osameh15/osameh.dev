@@ -549,7 +549,16 @@ rather than by Apache, and every API refusal now carries a body.
 ParsPack CDN before a request reaches the origin and cannot be customised here.
 They are documented, not claimed.
 
-## 28. Current engineering priorities
+## 28. v5.3.4 Vanta additions
+
+**Mobile Note TOC.** Below 720px the sticky table-of-contents rail cancels the
+reading layout's 18px side padding with negative margins to span the screen. An
+inherited `max-width:100%` resolved against the padded containing block and
+over-constrained the box, so the rail was flush left and inset 36px on the
+right. `max-width:none` at that breakpoint restores the intended bleed, and
+browser coverage asserts both edges from 320px to 719px.
+
+## 29. Current engineering priorities
 
 1. Complete the outstanding staging acceptance pass carried since v5.2.0:
    release identity, Neural Cipher assets, active-tab auto-scroll, plus the

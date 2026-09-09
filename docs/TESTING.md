@@ -492,3 +492,17 @@ A quality gate asserts both workflows still carry these probes.
 See [`CI-CD.md` section 6.2](./CI-CD.md) for the configuration and bundle checks,
 which run inside `npm run quality`, `npm run verify:dist`, and both
 `npm run verify:<env>` commands.
+
+## 11. v5.3.4 Vanta coverage
+
+### Mobile Note TOC bleed
+
+Six tests, taking the suite to **137**. At 320, 360, 390, 412, 600 and 719px the
+sticky table-of-contents rail must reach both screen edges - `left <= 0.5` and
+`viewport - right <= 0.5` - while the page itself still does not scroll
+horizontally.
+
+The assertion is on measured geometry rather than on a CSS declaration, so it
+fails for any cause of the same symptom, not only the `max-width` that produced
+it. Reverting the fix makes the 390px case fail with `Received: 36`, the exact
+gap that was reported.

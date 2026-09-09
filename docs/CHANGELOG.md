@@ -4,6 +4,15 @@ All notable changes to **osameh.dev** are documented here.
 
 The project follows [Semantic Versioning](https://semver.org/). The early production releases were shipped in rapid succession while the portfolio was moved from its hosted prototype to the current ParsPack/CDN deployment.
 
+## 5.3.4 - 2026-09-09 - Vanta
+
+Patch release in the **Vanta** family, correcting the mobile Engineering Note table of contents.
+
+### Engineering Notes
+- The sticky table-of-contents rail now spans the full width of the screen below 720px. It previously sat flush against the left edge with a 36px gap on the right.
+- Cause: the rail cancels the reading layout's 18px side padding with negative margins to reach both edges, but an inherited `max-width:100%` resolved against the padded containing block. That over-constrained the box, so the negative left margin was honoured, the width was clamped 36px short, and the browser recomputed the right margin away. Only the sub-720px breakpoint was affected; between 721px and 1000px there are no negative margins.
+- Added browser regression coverage at 320, 360, 390, 412, 600 and 719px asserting the rail reaches both screen edges and that the page still does not scroll horizontally.
+
 ## 5.3.3 - 2026-09-09 - Vanta
 
 Stabilization release in the **Vanta** family, unifying the browser-facing HTTP error experience.
