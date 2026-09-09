@@ -5,6 +5,9 @@ import { FeaturePreferencesProvider } from "../features/portfolio/PortfolioFeatu
 import "../styles/globals.css";
 import "../styles/light-theme.css";
 import "../styles/features-v5.css";
+// Last: the Phantom accessibility corrections must not be overridden by a
+// feature stylesheet that happens to load after them.
+import "../styles/a11y-phantom.css";
 
 const root = document.getElementById("root");
 
