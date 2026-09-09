@@ -28,6 +28,8 @@ import { verifyBrandAssets } from "./verify-brand-assets.mjs";
 import { verifyReadmeAssetUrls } from "./verify-readme-assets.mjs";
 import { verifyRepositorySecrets } from "./verify-secrets.mjs";
 import { verifySearchReadiness } from "./verify-search-readiness.mjs";
+import { verifyErrorConfiguration } from "./verify-error-pages.mjs";
+import { ERROR_STATUSES } from "./error-pages.mjs";
 import { resolveReleaseCodename } from "../frontend/src/lib/releaseMetadataCore.js";
 
 const failures = [];
@@ -518,8 +520,11 @@ if (!failures.some(item => item.includes("imports backend source") || item.inclu
 }
 
 // Backend library includes are reached through an API entrypoint, never served.
+// The refusal is answered by the API's own JSON endpoint, so an /api/ client
+// never receives an HTML error document; verifyErrorConfiguration owns the
+// detail of that contract.
 const serverConfig = readFileSync(resolve("backend/server/.htaccess"), "utf8");
-if (!/RewriteRule \^api\/\(\?:lib\/\|recaptcha\\.php\$\|config\\.php\$\|health-probe\\.php\$\) - \[F,L\]/.test(serverConfig)) fail("Backend library includes are not blocked from direct web access");
+if (!/RewriteRule \^api\/\(\?:lib\/\|recaptcha\\.php\$\|config\\.php\$\|health-probe\\.php\$\) api\/forbidden\.php \[L\]/.test(serverConfig)) fail("Backend library includes are not blocked from direct web access");
 else pass("Backend library includes are not directly reachable over the web");
 
 // The deploy assembler must publish both trees into the one artifact contract.
@@ -604,6 +609,53 @@ if (!brandFailures.length) pass("Neural Cipher icon pack, manifest icons, and so
 const readmeAssetFailures = verifyReadmeAssetUrls();
 for (const failure of readmeAssetFailures) fail(failure);
 if (!readmeAssetFailures.length) pass("README asset URLs normalize exactly once and preserve third-party hosts");
+
+// ---- v5.3.3 Vanta: branded HTTP error experience ----
+//
+// The origin answers its own errors. ErrorDocument is an internal subrequest,
+// so the original status survives; /api/ keeps its JSON contract because every
+// API refusal carries its own body and Apache replaces only bodyless errors.
+const errorConfigurationFailures = verifyErrorConfiguration();
+for (const failure of errorConfigurationFailures) fail(failure);
+if (!errorConfigurationFailures.length) pass(`Branded ErrorDocument coverage for ${ERROR_STATUSES.length} statuses, with /api/ refusals staying machine-readable`);
+
+// The deploy assembler must publish the error documents ErrorDocument targets.
+if (!assembler.includes("errorPageFiles()")) fail("The deploy assembler no longer writes the branded error documents");
+else pass("The deploy artifact assembles the branded error documents");
+
+// CI runs each PHP suite as its own step, so a suite added to the local runner
+// alone is linted but never executed. The two lists must agree.
+const phpRunner = readFileSync(resolve("scripts/php-tests.mjs"), "utf8");
+const phpSuites = [...phpRunner.matchAll(/"(backend\/tests\/[a-z-]+\.php)"/g)].map(match => match[1]);
+for (const suite of phpSuites) {
+  if (!existsSync(resolve(suite))) fail(`php-tests.mjs runs a suite that does not exist: ${suite}`);
+  if (!qualityWorkflow.includes(`php ${suite}`)) fail(`${suite} runs locally but has no CI step, so CI would never execute it`);
+}
+if (!failures.some(item => item.includes("has no CI step") || item.includes("does not exist: backend/tests"))) {
+  pass(`All ${phpSuites.length} PHP suites run both locally and in CI`);
+}
+
+// A branded document error and a machine-readable API error are two different
+// contracts, and neither is observable from a static preview server. Both
+// deployments must therefore prove them against the live environment, using a
+// forbidden surface that already exists rather than an endpoint created to fail.
+for (const [name, workflow] of [["staging", stagingWorkflow], ["production", productionWorkflow]]) {
+  if (!workflow.includes("- name: Verify branded document errors and the API error contract")) {
+    fail(`The ${name} deployment no longer verifies the branded error experience against the live environment`);
+  }
+  if (!workflow.includes("/icons/?ci=")) fail(`The ${name} deployment no longer probes a real forbidden document`);
+  if (!workflow.includes("/api/recaptcha.php?ci=")) fail(`The ${name} deployment no longer probes a forbidden API path`);
+  if (!/num_redirects/.test(workflow)) fail(`The ${name} deployment does not assert that a forbidden document is answered without a redirect`);
+}
+if (!failures.some(item => item.includes("branded error experience") || item.includes("forbidden document") || item.includes("forbidden API path"))) {
+  pass("Both deployments prove a branded document 403 and a JSON API 403 against the live environment");
+}
+
+// Error documents are never discoverable: not in either sitemap, not linked.
+for (const { status } of ERROR_STATUSES) {
+  if (sitemapPhp.includes(`/errors/${status}`) || sitemapXml.includes(`/errors/${status}`)) fail(`Error document ${status} appears in a sitemap`);
+}
+if (!failures.some(item => item.includes("appears in a sitemap"))) pass("Error documents stay out of both sitemaps");
 
 // The service worker only registers over HTTPS, so no local browser run loads
 // it. Execute it against a minimal worker environment here instead.

@@ -1,8 +1,17 @@
 <?php
 declare(strict_types=1);
 
+// A status with no body is a response Apache is entitled to replace with its
+// ErrorDocument, which would hand an API client an HTML page. Every API refusal
+// therefore carries its own JSON body, however small.
 if (strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'POST')) !== 'POST') {
-    http_response_code(405); header('Allow: POST'); exit;
+    http_response_code(405);
+    header('Allow: POST');
+    header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: no-store');
+    header('X-Robots-Tag: noindex');
+    echo json_encode(['error' => 'Method not allowed'], JSON_UNESCAPED_SLASHES);
+    exit;
 }
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');

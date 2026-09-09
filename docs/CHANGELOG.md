@@ -4,6 +4,32 @@ All notable changes to **osameh.dev** are documented here.
 
 The project follows [Semantic Versioning](https://semver.org/). The early production releases were shipped in rapid succession while the portfolio was moved from its hosted prototype to the current ParsPack/CDN deployment.
 
+## 5.3.3 - 2026-09-09 - Vanta
+
+Stabilization release in the **Vanta** family, unifying the browser-facing HTTP error experience.
+
+### Error experience
+- Added branded IDE-style HTTP error documents for 400, 401, 403, 404, 405, 408, 429, 500, 502, 503 and 504, using the portfolio's Cyber Noir editor identity with a C++ file tab.
+- Origin-generated errors now replace the hosting provider's default error template. `ErrorDocument` resolves through an internal subrequest, never a redirect, so the original URL and the original status code both survive: a forbidden request still answers 403.
+- The reported defect is closed at its source. A document-level forbidden request previously fell through to the host's own error page because the origin configured no error documents at all.
+- Error documents are static HTML and CSS with no JavaScript, no bundle reference and no API call, so they still render when the application runtime is the thing that failed.
+- One shared, self-contained stylesheet serves all eleven documents and follows `prefers-color-scheme` without scripting.
+
+### API contract
+- API errors stay machine-readable. Apache substitutes an error document only for a response it generated itself with no body, so every application-generated JSON response is untouched.
+- Backend library includes are now refused by the API's own JSON endpoint rather than by an Apache error, so a client of `/api/` receives JSON rather than an HTML document. The include is still never executed or served.
+- The analytics endpoint's 405 now carries a JSON body. A bodyless status is exactly what an error document would have replaced.
+- `Allow` on 405 is preserved. No `WWW-Authenticate` or `Retry-After` behaviour is invented where the application does not already emit it.
+
+### Reliability
+- Added packaging and repository guards covering error-document presence, the status shown, the `noindex` directive, the absence of scripts and bundle dependencies, foreign hosting branding, and `ErrorDocument` targets resolving to packaged files.
+- Both the staging and production bundles are verified to ship the error documents.
+- Both deployments now prove the two contracts against the live environment before a release can advance: a forbidden document answers 403 with the branded workspace and no redirect, and a forbidden API path answers 403 with JSON. The document probed is an existing asset directory refused by `Options -Indexes`; nothing was created in order to be forbidden.
+
+### Search
+- Every error document is `noindex,nofollow,noarchive` in both the meta tag and the response header, is absent from both sitemaps, and publishes no canonical URL. The 17-URL sitemap contract is unchanged.
+- Edge-generated 502, 503 and 504 responses are produced before a request reaches this server and cannot be customised from the origin. They are documented as such rather than claimed.
+
 ## 5.3.2 - 2026-09-08 — Vanta
 
 Patch release in the **Vanta** family, correcting GitHub health reporting.

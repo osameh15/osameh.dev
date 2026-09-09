@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolveReleaseCodename } from "../../frontend/src/lib/releaseMetadataCore.js";
 import { adjacentNotes, engineeringNotes } from "../../frontend/src/features/notes/notesData";
 import { RECAPTCHA_ACTION, recaptchaSiteKey } from "../../frontend/src/config/recaptchaConfig";
+import { ERROR_STATUSES } from "../../scripts/error-pages.mjs";
 
 const availabilityFixture = JSON.parse(readFileSync(new URL("../../config/availability.json", import.meta.url), "utf8"));
 const releasesFixture = JSON.parse(readFileSync(new URL("../../config/releases.json", import.meta.url), "utf8"));
@@ -2280,3 +2281,72 @@ test("every language-aware surface follows one selection", async ({ page }) => {
   await page.reload();
   await expect(homeTab(page)).toHaveText("main.cpp");
 });
+
+// ---- v5.3.3 Vanta: branded HTTP error documents ----
+//
+// These are the server's fallback documents, served by Apache through
+// ErrorDocument. The preview server used here is static, so the live status
+// codes belong to staging/production acceptance; what is provable in a browser
+// is the document itself: its identity, its independence from the application
+// runtime, and its layout.
+
+test("every branded error document carries its own status identity", async ({ page }) => {
+  for (const { status, reason } of ERROR_STATUSES) {
+    await page.goto(`/errors/${status}.html`);
+    await expect(page.locator("h1 .status")).toHaveText(String(status));
+    await expect(page.locator("h1 .reason")).toHaveText(reason);
+    await expect(page.locator(".tab")).toHaveText(`error_${status}.cpp`);
+    await expect(page).toHaveTitle(`${status} — ${reason} | osameh.dev`);
+    const robots = await page.locator('meta[name="robots"]').getAttribute("content");
+    expect(robots).toBe("noindex,nofollow,noarchive");
+  }
+});
+
+test("an error document renders without the application runtime", async ({ page }) => {
+  const bundleRequests: string[] = [];
+  page.on("request", request => {
+    const path = new URL(request.url()).pathname;
+    if (path.startsWith("/assets/") || path.endsWith(".js")) bundleRequests.push(path);
+  });
+  await page.goto("/errors/403.html");
+
+  // No script of any kind: no bundle, no inline handler, no javascript: URL.
+  expect(await page.locator("script").count()).toBe(0);
+  expect(bundleRequests).toEqual([]);
+  expect(await page.locator('a[href^="javascript:"]').count()).toBe(0);
+
+  // The shared stylesheet is a real request that actually applied.
+  const background = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  expect(background).not.toBe("rgba(0, 0, 0, 0)");
+  const tabBorder = await page.evaluate(() => getComputedStyle(document.querySelector(".tab")!).borderTopWidth);
+  expect(tabBorder).toBe("2px");
+});
+
+test("an error document offers real recovery links", async ({ page }) => {
+  await page.goto("/errors/403.html");
+  const home = page.getByRole("link", { name: "Go Home" });
+  const portfolio = page.getByRole("link", { name: "Back to Portfolio" });
+  await expect(home).toHaveAttribute("href", "/");
+  await expect(portfolio).toHaveAttribute("href", "/projects");
+
+  // Keyboard operable with a visible focus ring, and a comfortable target.
+  await home.focus();
+  await expect(home).toBeFocused();
+  const outline = await home.evaluate(element => getComputedStyle(element).outlineStyle);
+  expect(outline).not.toBe("none");
+  const box = await home.boundingBox();
+  expect(box!.height).toBeGreaterThanOrEqual(44);
+
+  await home.click();
+  await expect(page).toHaveURL(/\/$/);
+});
+
+for (const width of [320, 360, 390, 412, 768]) {
+  test(`the error document has no horizontal overflow at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 720 });
+    await page.goto("/errors/500.html");
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow).toBeLessThanOrEqual(1);
+    await expect(page.locator("h1 .status")).toBeVisible();
+  });
+}

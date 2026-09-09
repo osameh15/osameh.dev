@@ -506,6 +506,14 @@ The site also includes an in-app resume viewer and download/open controls.
 
 The **six most recent releases** are summarized here. See **[CHANGELOG.md](docs/CHANGELOG.md)** for the complete production history. This section is intentionally capped at six releases.
 
+### v5.3.3 — Vanta
+
+- **Branded HTTP errors.** Origin-generated 400/401/403/404/405/408/429/500/502/503/504 responses now render the portfolio's IDE error workspace instead of the hosting provider's default page, with a C++ editor tab (`error_403.cpp`) matching the Cyber Noir identity.
+- **The status code survives.** `ErrorDocument` is an internal subrequest, never a redirect, so a forbidden request still answers `403` and an unknown route still answers `404` at the original URL.
+- **Failure-independent.** Error documents are static HTML plus one shared stylesheet: no JavaScript, no bundle reference, no API call, so they render when the application runtime is what failed.
+- **APIs stay machine-readable.** Every `/api/` refusal carries its own JSON body — including the library-include refusal, now answered by the API's own JSON endpoint — so no API response is ever replaced by an HTML document.
+- Error documents are `noindex` in both meta and header, are absent from both sitemaps, and the 17-URL sitemap contract is unchanged. Edge-generated gateway errors remain outside origin control and are documented rather than claimed.
+
 ### v5.3.2 — Vanta
 
 - The workspace now presents C++ by default (`main.cpp`), across the editor tab, Explorer and hero. Every other language remains selectable and an explicit choice is still remembered.
@@ -539,24 +547,6 @@ The **six most recent releases** are summarized here. See **[CHANGELOG.md](docs/
 - Aligned sitemap membership with independent canonical documents and clarified WebSite structured-data identity.
 - Improved native semantics, heading order, targeted contrast, and the hero status animation.
 - Decoupled core project rendering from live GitHub metadata; SSR/prerendering remains deferred pending Search Console evidence.
-
-### v5.2.1 — Cipher
-
-- Build Information now reports the runtime environment only once it is known, instead of briefly showing production while the metadata request is still in flight or after it fails.
-- HSTS is owned solely by the CDN edge, removing a duplicate header on error responses.
-- Staging and production run from separate document roots with directory-scoped deployment credentials.
-- Added guards preventing an origin HSTS directive and a fabricated environment label from returning.
-
-## Documentation
-
-| Document | Contents |
-| --- | --- |
-| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Runtime architecture — request path, routing and the true-404 contract, CDN contracts, GitHub proxy, Service Worker, shared modal foundation |
-| [`docs/CI-CD.md`](docs/CI-CD.md) | CI/CD pipeline reference — workflow inputs, step ordering, artifact phases, indexing contracts, quality gates, deployment gating |
-| [`docs/TESTING.md`](docs/TESTING.md) | What each command verifies, local vs CI vs staging boundaries, Playwright coverage, staging acceptance checklist |
-| [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | Hosting, CDN, DNS, FTPS credentials, 404 behavior, smoke tests, operational troubleshooting |
-| [`docs/PROJECT-UNDERSTANDING.md`](docs/PROJECT-UNDERSTANDING.md) | Feature-level onboarding — application structure, feature layers, fragile areas, current priorities |
-| [`docs/CHANGELOG.md`](docs/CHANGELOG.md) | Full release history. README summarizes only the six latest releases |
 
 ## License
 

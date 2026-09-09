@@ -757,3 +757,53 @@ opens or activates its editor tab without duplicating one. No card carries
 
 These are also the internal links search engines follow to reach project, note
 and case-study URLs, which is why they are asserted in the quality gates.
+
+## 16. Branded HTTP error documents
+
+The origin answers its own errors. Eleven static documents live at `/errors/`
+and are declared with `ErrorDocument`, which Apache serves through an internal
+subrequest, so the original URL and the original status code both survive.
+
+```text
+request  ->  Apache generates 403
+                   |
+                   v
+         ErrorDocument 403 /errors/403.html      internal subrequest
+                   |
+                   v
+         HTTP 403  +  the portfolio's error workspace
+```
+
+They are deliberately outside the application. There is no React, no bundle
+reference, no API call and no `<script>` of any kind, because the case they
+exist for is the one where the application runtime is what failed. One shared
+`errors/error.css` serves all eleven and follows `prefers-color-scheme` without
+scripting; an inline `<style>` block would also be refused by the strict
+`style-src 'self'` policy. The visual identity is the IDE shell - top bar, one
+editor tab named `error_<status>.cpp` after the workspace's default C++
+language, a small code block, and the status bar.
+
+`scripts/error-pages.mjs` is the single source of truth: one status table, one
+template, one stylesheet. `scripts/ensure-deploy-files.mjs` writes them into
+`dist/errors/` in the same post-build step that publishes `.htaccess` and the
+service worker, because they are part of the server contract rather than of the
+application bundle. `scripts/verify-error-pages.mjs` verifies both halves - the
+configuration in the repository, and the documents in the built and packaged
+bundles - so an `ErrorDocument` can never point at a file the artifact omits.
+
+**Document errors are branded; API errors are not.** Apache substitutes an error
+document only for a response it generated itself with no body, so every
+application-generated JSON response passes through untouched. That property is
+maintained deliberately rather than assumed: backend library includes are
+refused by `backend/api/forbidden.php` with a JSON `403` instead of by Apache's
+`[F]`, and every API refusal carries its own body, however small.
+
+Protocol semantics are preserved, not redesigned. `Allow` still accompanies a
+`405`. No `WWW-Authenticate` or `Retry-After` header is invented where the
+application does not already emit one, and the site uses no HTTP authentication,
+so `401` exists only as a fallback document.
+
+Errors the ParsPack edge generates before the request reaches this server -
+typically `502`, `504`, and an edge-level `503` or `429` - cannot be customised
+from the origin at all. The directives cover the origin-generated case, and the
+edge case is documented rather than claimed.

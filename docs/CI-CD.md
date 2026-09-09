@@ -192,6 +192,7 @@ others:
 - staging packaging applies noindex; production packaging never does
 - artifact upload sets `include-hidden-files`
 - Service Worker correctness (see below)
+- branded error-document coverage (see below)
 
 The ordering gate is regression-tested: reordering the workflow to package
 staging before Lighthouse — the original defect — makes `npm run quality` exit 1.
@@ -209,6 +210,37 @@ environment and asserts:
 It reproduces the v5.1.0 failure verbatim (`Failed to execute 'clone' on
 'Response': Response body is already used`) when run against the old worker. It
 is invoked from `quality-gates.mjs`, so CI runs it without a separate step.
+
+### 6.2 Branded error-document verification
+
+`scripts/verify-error-pages.mjs` is invoked from two places and checks two
+different contracts.
+
+From `quality-gates.mjs`, against the repository:
+
+- an `ErrorDocument` exists for each of the eleven covered statuses
+- no `ErrorDocument` points at an absolute URL, which would redirect and discard
+  the original status code
+- the error documents carry a scoped `X-Robots-Tag` noindex rule, and do not use
+  `Header always set`, which `verify-env.mjs` reads as a site-wide policy
+- backend library includes are refused by the JSON `/api/` endpoint
+- the analytics `405` carries a JSON body, because a bodyless status is what
+  Apache would replace with an HTML error document
+
+From `verify-dist.mjs` and `verify-env.mjs`, against `dist/` and both packaged
+bundles:
+
+- every `ErrorDocument` target exists in the bundle, plus the shared stylesheet
+- each document shows its status and reason phrase, uses the `error_<status>.cpp`
+  editor identity, and declares `noindex,nofollow,noarchive`
+- no document contains a script, a `javascript:` URL, an inline `<style>` block,
+  or a reference to a hashed application bundle asset
+- no document carries foreign hosting branding
+
+The bundle check runs against `dist-staging/` and `dist-production/` as well as
+`dist/`, because the server resolves `ErrorDocument` against the deployed
+document root: a target missing from the packaged bundle is exactly how a
+branded error silently reverts to the hosting provider's default page.
 
 ---
 

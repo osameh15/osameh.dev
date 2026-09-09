@@ -423,3 +423,72 @@ asserts the favicon URLs return real images rather than the SPA shell, and that
 project, note and case-study `href`s are present in the rendered DOM.
 
 Nothing in this suite contacts Google or Search Console.
+
+## 10. v5.3.3 Vanta coverage
+
+### What a browser can and cannot prove here
+
+The Playwright suite runs against `vite preview`, a static server. It executes no
+PHP and reads no `.htaccess`, so **no live error status is observable locally**.
+What is provable in a browser is the document itself; the status codes belong to
+the staging and production acceptance checks in
+[`DEPLOYMENT.md`](./DEPLOYMENT.md).
+
+### Error documents (browser)
+
+Eight tests, taking the suite to **131**:
+
+- every one of the eleven documents shows its status and reason phrase, uses the
+  `error_<status>.cpp` editor identity, has the matching title, and declares
+  `noindex,nofollow,noarchive`
+- an error document renders with **no script at all**, requests no bundle asset
+  and no `.js`, and contains no `javascript:` URL - the shared stylesheet is a
+  real request that actually applied, asserted through computed style rather
+  than through the markup
+- the recovery links are real anchors to `/` and `/projects`, keyboard focusable
+  with a visible focus ring and a target at least 44px tall, and following one
+  reaches the site root
+- no horizontal overflow at 320, 360, 390, 412 and 768px, with the status still
+  visible
+
+### API error shape (PHP, no secrets)
+
+`backend/tests/api-error-shape.php` executes `backend/api/forbidden.php` for real
+and asserts it answers `403` with a JSON object, no HTML, and no mention of the
+rule, path, filename or server software behind the refusal. It then reads each
+API endpoint and asserts that **every status at or above 400 is accompanied by a
+body**, because a bodyless status is precisely what Apache replaces with an
+error document - which would hand an API client an HTML page. It also asserts
+that each method refusal still sends its `Allow` header.
+
+PHP is not installed on every workstation. `npm run test:php` reports
+`PHP TEST NOT RUN — PHP EXECUTABLE UNAVAILABLE` and exits 0 in that case; CI is
+the authoritative result.
+
+CI runs each suite as its own named step rather than through the local runner, so
+a suite added to `scripts/php-tests.mjs` alone would be linted and never
+executed. A quality gate now asserts the two lists agree.
+
+### Live error acceptance (deployment workflows)
+
+No preview server can prove a status code, so both deployment workflows assert
+the two contracts against the deployed environment immediately after mirroring
+the bundle:
+
+- `/icons/` - a real asset directory with no index, refused by `Options -Indexes`
+  - must answer `403`, `text/html`, with `error_403.cpp` in the body, zero
+    redirects, and none of `Index of`, `DirectAdmin`, `cPanel`, `Apache/`,
+    `Server at`, `Fatal error`, `Warning:`, `/home/` or `.php`
+- `/api/recaptcha.php` - must answer `403`, `application/json`,
+  `{"error":"Forbidden"}`, and must contain no HTML and no `error_403.cpp`
+- `/errors/403.html` - must exist in the artifact and answer `200` directly
+
+The document surface is deliberately one the site already has. Nothing is
+created in order to be forbidden, and no public debug or crash endpoint exists.
+A quality gate asserts both workflows still carry these probes.
+
+### Repository and bundle gates
+
+See [`CI-CD.md` section 6.2](./CI-CD.md) for the configuration and bundle checks,
+which run inside `npm run quality`, `npm run verify:dist`, and both
+`npm run verify:<env>` commands.

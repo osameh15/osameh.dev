@@ -10,6 +10,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { verifyBundleSecrets } from "./verify-secrets.mjs";
+import { verifyErrorDocuments } from "./verify-error-pages.mjs";
 
 const target = process.argv[2];
 if (target !== "staging" && target !== "production") {
@@ -97,6 +98,13 @@ if (target === "production") {
   else pass("Production sitemap.xml is a valid urlset");
   if (/staging\.osameh\.dev/i.test(sitemap) || /staging\.osameh\.dev/i.test(robots)) fail("Production discovery files reference staging URLs");
 }
+
+// ErrorDocument targets are resolved by the server against the document root,
+// so the packaged bundle - not dist/ - is what decides whether a real error is
+// branded or falls through to the hosting provider's default page.
+const errorFailures = verifyErrorDocuments(`dist-${target}`);
+for (const failure of errorFailures) fail(failure);
+if (!errorFailures.length) pass(`${target} bundle ships every branded error document`);
 
 // A packaged bundle is what actually reaches the server, so the secret guard
 // runs against it too, not only against dist/.

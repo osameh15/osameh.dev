@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+import { errorPageFiles } from "./error-pages.mjs";
 
 const files = [
   ["backend/server/.htaccess", "dist/.htaccess"],
@@ -10,6 +11,7 @@ const files = [
   ["backend/lib/config.php", "dist/api/config.php"],
   ["backend/lib/health-probe.php", "dist/api/health-probe.php"],
   ["backend/api/analytics.php", "dist/api/analytics.php"],
+  ["backend/api/forbidden.php", "dist/api/forbidden.php"],
   ["backend/api/health.php", "dist/api/health.php"],
   ["backend/seo/project.php", "dist/project.php"],
   ["backend/seo/note.php", "dist/note.php"],
@@ -45,6 +47,15 @@ for (const [source, target] of files) {
   if (!existsSync(from)) throw new Error(`Missing deployment file: ${source}`);
   mkdirSync(dirname(to), { recursive: true });
   copyFileSync(from, to);
+}
+
+// The branded HTTP error documents Apache serves through ErrorDocument. They are
+// assembled here, beside .htaccess and the service worker, because they are part
+// of the server contract rather than of the application bundle.
+for (const [relativePath, contents] of errorPageFiles()) {
+  const target = resolve("dist", relativePath);
+  mkdirSync(dirname(target), { recursive: true });
+  writeFileSync(target, contents);
 }
 
 // Vite copies public/ wholesale, including authoring-only design/master

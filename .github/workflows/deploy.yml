@@ -166,3 +166,58 @@ jobs:
           [[ "$environment" == "production" ]] || { echo "::error::production reported environment $environment"; exit 1; }
           [[ "$recaptcha" == "true" ]] || { echo "::error::Contact protection is not configured on production"; exit 1; }
           [[ "$contact" == "operational" ]] || { echo "::error::Contact is $contact on production"; exit 1; }
+
+      # Live acceptance for the branded error experience. Two different
+      # contracts, proved on the deployed environment because neither is
+      # observable from a static preview:
+      #
+      #   a forbidden DOCUMENT  -> 403 + the branded Vanta error workspace
+      #   a forbidden /api/ URL -> 403 + JSON
+      #
+      # The document surface is a real, permanent asset directory with no index,
+      # refused by "Options -Indexes". Nothing is created to be forbidden, and
+      # no public debug or crash endpoint exists.
+      - name: Verify branded document errors and the API error contract
+        shell: bash
+        env:
+          BASE_URL: https://osameh.dev
+        run: |
+          set -euo pipefail
+          body="$(mktemp)"; trap 'rm -f "$body"' EXIT
+
+          # No -f (it would discard the error body) and no -L (a branded error
+          # must never be reached through a redirect).
+          read -r status type redirects < <(curl -sS -o "$body" \
+            -w '%{http_code} %{content_type} %{num_redirects}\n' \
+            -H 'Cache-Control: no-cache' "${BASE_URL}/icons/?ci=${GITHUB_SHA}")
+          echo "document 403 probe: status=$status content_type=$type redirects=$redirects"
+
+          [[ "$status" == "403" ]] || { echo "::error::Forbidden document answered $status, expected 403"; exit 1; }
+          [[ "$redirects" == "0" ]] || { echo "::error::Forbidden document was redirected $redirects time(s); the status must survive"; exit 1; }
+          grep -qi '^text/html' <<<"$type" || { echo "::error::Forbidden document Content-Type is $type, expected text/html"; exit 1; }
+          grep -q 'error_403.cpp' "$body" || { echo "::error::Forbidden document is not the branded error workspace"; exit 1; }
+          grep -q 'Forbidden' "$body" || { echo "::error::Forbidden document does not state its reason"; exit 1; }
+
+          # The hosting provider's template, a directory listing, and anything
+          # that would describe the server or the rule behind the refusal.
+          for leak in 'Index of' 'DirectAdmin' 'cPanel' 'Apache/' 'Server at' 'Fatal error' 'Warning:' '/home/' '.php'; do
+            if grep -qF "$leak" "$body"; then echo "::error::Forbidden document leaks or carries foreign branding: $leak"; exit 1; fi
+          done
+
+          # The API keeps its own contract. A branded HTML page here would be a
+          # regression in the opposite direction.
+          read -r api_status api_type < <(curl -sS -o "$body" \
+            -w '%{http_code} %{content_type}\n' \
+            -H 'Cache-Control: no-cache' "${BASE_URL}/api/recaptcha.php?ci=${GITHUB_SHA}")
+          echo "api 403 probe: status=$api_status content_type=$api_type"
+
+          [[ "$api_status" == "403" ]] || { echo "::error::Forbidden API path answered $api_status, expected 403"; exit 1; }
+          grep -qi '^application/json' <<<"$api_type" || { echo "::error::Forbidden API Content-Type is $api_type, expected application/json"; exit 1; }
+          jq -e '.error == "Forbidden"' "$body" >/dev/null || { echo "::error::Forbidden API response is not the documented JSON refusal"; exit 1; }
+          if grep -qiE '<html|error_403\.cpp' "$body"; then echo "::error::An API response was replaced by a branded HTML error document"; exit 1; fi
+
+          # The ErrorDocument target must be present and reachable in its own
+          # right; that direct 200 is what makes the internal subrequest work.
+          test -f dist/errors/403.html || { echo "::error::The deployed artifact is missing errors/403.html"; exit 1; }
+          target="$(curl -sS -o /dev/null -w '%{http_code}' "${BASE_URL}/errors/403.html?ci=${GITHUB_SHA}")"
+          [[ "$target" == "200" ]] || { echo "::error::/errors/403.html answered $target, expected 200"; exit 1; }
