@@ -2379,3 +2379,125 @@ for (const width of [320, 360, 390, 412, 600, 719]) {
     expect(overflow).toBeLessThanOrEqual(1);
   });
 }
+
+// ---- v5.4.0 Phantom: accessibility regressions ----
+//
+// The Phantom audit established that computed-CSS contrast checks both miss real
+// failures and invent false ones: one element computed at 2.49:1 measured 11.75:1
+// once the actual pixels were read, because the walker never saw the background
+// that was really painted. These tests therefore screenshot each element and
+// measure what was rendered. They assert a contrast outcome, not a declaration,
+// so they survive any refactor that keeps the result readable.
+
+/** Best-case contrast present in an element's rendered pixels. */
+async function renderedContrast(page: import("@playwright/test").Page, selector: string) {
+  const target = page.locator(selector).first();
+  await expect(target, `contrast target ${selector}`).toBeVisible({ timeout: 10_000 });
+  const shot = await target.screenshot();
+  return page.evaluate(async (dataUrl: string) => {
+    const image = new Image();
+    image.src = dataUrl;
+    await image.decode();
+    const canvas = document.createElement("canvas");
+    canvas.width = image.naturalWidth;
+    canvas.height = image.naturalHeight;
+    const context = canvas.getContext("2d")!;
+    context.drawImage(image, 0, 0);
+    const { data } = context.getImageData(0, 0, canvas.width, canvas.height);
+    const luminance = (r: number, g: number, b: number) => {
+      const [rr, gg, bb] = [r, g, b].map(channel => {
+        const value = channel / 255;
+        return value <= .03928 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4;
+      });
+      return .2126 * rr + .7152 * gg + .0722 * bb;
+    };
+    let min = 1, max = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      const value = luminance(data[i], data[i + 1], data[i + 2]);
+      if (value < min) min = value;
+      if (value > max) max = value;
+    }
+    return (max + .05) / (min + .05);
+  }, `data:image/png;base64,${shot.toString("base64")}`);
+}
+
+// Each entry failed AA in the Phantom audit at the ratio noted.
+const LIGHT_CONTRAST_TARGETS: [string, number, string][] = [
+  [".now-grid article p", 4.5, "Now section body copy (was 2.38)"],
+  [".changelog-node.active .changelog-node-content small", 4.5, "LATEST badge (was 1.39)"],
+  [".explorer-title", 4.5, "EXPLORER heading (was 1.98)"],
+  [".stack-explorer > span", 4.5, "Explore by stack (was 2.68)"],
+  [".explorer-footer button", 4.5, "OUTLINE (was 2.83)"],
+  [".explorer-plugins-title", 4.5, "PORTFOLIO PLUGINS (was 2.83)"],
+  [".line-nums", 4.5, "line numbers (was 2.99)"],
+  [".vertical-name", 4.5, "vertical wordmark (was 3.83)"],
+];
+
+const DARK_CONTRAST_TARGETS: [string, number, string][] = [
+  [".code-close span", 4.5, "based in Tehran (was 3.52)"],
+  [".changelog-node-pending", 4.5, "older releases (was 3.53)"],
+  [".showcase-card-primary header span", 4.5, "Live focus (was 3.31)"],
+  [".showcase-stack-context span", 4.5, "language selector copy (was 3.08)"],
+  [".line-nums", 4.5, "line numbers (was 1.69)"],
+];
+
+for (const [theme, targets] of [["light", LIGHT_CONTRAST_TARGETS], ["dark", DARK_CONTRAST_TARGETS]] as const) {
+  test(`${theme} theme meets AA contrast in rendered pixels`, async ({ page }) => {
+    await page.addInitScript(themeName => localStorage.setItem("portfolio-theme", themeName), theme);
+    await page.goto("/");
+    await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+    for (const [selector, minimum, label] of targets) {
+      expect(await renderedContrast(page, selector), `${label} — ${selector}`).toBeGreaterThanOrEqual(minimum);
+    }
+  });
+}
+
+// Only controls that perform an action. Informational labels are excluded on
+// purpose: padding a label to 44px would be bloat, not accessibility.
+test("interactive controls meet the touch-target floor at 390px", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+
+  const hitBox = (selector: string) => page.locator(selector).first().evaluate(element => {
+    const own = element.getBoundingClientRect();
+    // A control may keep compact chrome while an ::after overlay carries the
+    // real target, so the effective area is the union of both.
+    const after = getComputedStyle(element, "::after");
+    const inset = (value: string) => Math.abs(parseFloat(value) || 0);
+    const grownX = after.content !== "none" ? inset(after.left) + inset(after.right) : 0;
+    const grownY = after.content !== "none" ? inset(after.top) + inset(after.bottom) : 0;
+    return { width: own.width + grownX, height: own.height + grownY };
+  });
+
+  const menu = await hitBox(".menu-button");
+  expect(menu.width, "mobile menu width").toBeGreaterThanOrEqual(44);
+  expect(menu.height, "mobile menu height").toBeGreaterThanOrEqual(44);
+
+  await page.goto("/notes/repository-driven-portfolio");
+  await expect(page.locator(".editor-tab.project-tab .editor-tab-close").first()).toBeVisible();
+  const close = await hitBox(".editor-tab.project-tab .editor-tab-close");
+  expect(close.width, "tab close width").toBeGreaterThanOrEqual(26);
+  expect(close.height, "tab close height").toBeGreaterThanOrEqual(26);
+});
+
+test("an editor tab can be closed with the keyboard alone", async ({ page }) => {
+  await page.goto("/notes");
+  await page.locator('a[href^="/notes/"]').first().click();
+  await expect(page.locator(".editor-tab.project-tab")).toHaveCount(1);
+
+  const closeButton = page.locator(".editor-tab.project-tab .editor-tab-close").first();
+  // A real button: reachable, focusable, and operable without a pointer.
+  await expect(closeButton).toHaveJSProperty("tagName", "BUTTON");
+  await closeButton.focus();
+  await expect(closeButton).toBeFocused();
+  await page.keyboard.press("Enter");
+
+  await expect(page.locator(".editor-tab.project-tab")).toHaveCount(0);
+  await expect(page.locator(".editor-tab.active")).toHaveText("main.cpp");
+});
+
+test("the Home tab exposes no close control", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator(".editor-tab").first()).toBeVisible();
+  expect(await page.locator(".editor-tab").first().locator(".editor-tab-close").count()).toBe(0);
+});
