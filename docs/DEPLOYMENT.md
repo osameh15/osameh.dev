@@ -193,6 +193,77 @@ The last command must match: it proves the body is the portfolio shell rather
 than a CDN error page. A static preview server runs no PHP, so none of this is
 observable locally; it is a staging acceptance check after every deployment.
 
+## Branded HTTP error documents (v5.3.3)
+
+Unknown routes keep the 404 behaviour described above: it is a PHP response with
+its own body, and nothing here replaces it. This section covers every *other*
+error, which until v5.3.3 fell through to the hosting provider's default page.
+
+The origin now declares an `ErrorDocument` for each status it can answer:
+
+```apache
+ErrorDocument 400 /errors/400.html
+ErrorDocument 401 /errors/401.html
+ErrorDocument 403 /errors/403.html
+ErrorDocument 404 /errors/404.html
+ErrorDocument 405 /errors/405.html
+ErrorDocument 408 /errors/408.html
+ErrorDocument 429 /errors/429.html
+ErrorDocument 500 /errors/500.html
+ErrorDocument 502 /errors/502.html
+ErrorDocument 503 /errors/503.html
+ErrorDocument 504 /errors/504.html
+```
+
+**The status code survives.** A local `ErrorDocument` path is an internal
+subrequest, not a redirect, so a forbidden request answers `403` carrying our
+body at the original URL. Any `ErrorDocument` rewritten to an absolute URL would
+turn the error into a `302` plus a `200` and is refused by a quality gate.
+
+**Who generates what.** Only errors this server produces can be branded here:
+
+| Status | Origin | Branded at the origin |
+| --- | --- | --- |
+| 400, 401, 405, 408 | Apache | yes, when Apache generates the error |
+| 403 | Apache (`Options -Indexes`, protected paths) | yes |
+| 404 | `not-found.php` and the three metadata layers | yes, by PHP; the error document is the fallback |
+| 429 | ParsPack edge, or an application rate limit | application 429 is JSON; an edge 429 is not ours |
+| 500 | Apache/PHP | yes, when the origin faults |
+| 502, 503, 504 | usually the ParsPack edge, before the origin | **no** - the request never reaches this server |
+
+An edge-generated gateway error is CDN configuration, not code. It is not
+claimed as branded. `Show origin server errors` must stay enabled for any origin
+error body to reach a visitor at all - the same CDN setting the 404 contract
+already depends on.
+
+**APIs are never branded.** Apache substitutes an error document only for a
+response it generated itself with no body. Every `/api/` endpoint writes its own
+JSON body, so no API response is replaced. Two rules keep that true:
+
+- Backend library includes are refused by `backend/api/forbidden.php`, a JSON
+  `403`, rather than by Apache's `[F]`. The include is still never executed or
+  served; the refusal is simply machine-readable.
+- Every API refusal carries a body. A bodyless `4xx` is exactly what Apache is
+  entitled to replace, which is why the analytics `405` now returns JSON.
+
+**Direct access.** `/errors/403.html` is a real static file and answers `200` on
+a direct request; that is what makes the internal subrequest work. It carries
+`noindex,nofollow,noarchive` in both the meta tag and a scoped `X-Robots-Tag`
+header, is in neither sitemap, and is linked from nothing.
+
+Smoke-test status and body together, as with the 404 contract:
+
+```bash
+curl -sI https://osameh.dev/api/recaptcha.php               # expect 403
+curl -s  https://osameh.dev/api/recaptcha.php               # expect JSON, not HTML
+curl -sI https://osameh.dev/errors/403.html                 # expect 200 + X-Robots-Tag noindex
+curl -s  https://osameh.dev/this-route-does-not-exist | grep "404 — Route not found"
+```
+
+A forbidden document request must show the portfolio's error workspace. Seeing
+the hosting provider's template instead means either the bundle is missing
+`errors/`, or the CDN is not showing origin errors.
+
 ## 6. Smoke tests
 
 ### Site
