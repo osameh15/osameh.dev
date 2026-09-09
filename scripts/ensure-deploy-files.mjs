@@ -69,6 +69,10 @@ const nonRuntimeAssets = [
   "dist/icons/app-icon-192x192.png",
   "dist/icons/app-icon-512x512.png",
   "dist/og-cover-background.png",
+  // The authoring master for the social cover. The runtime metadata, the
+  // service worker and the three PHP metadata layers all reference
+  // og-cover-social.jpg; nothing references this PNG, and it is 717 KB.
+  "dist/og-cover-social.png",
 ];
 for (const asset of nonRuntimeAssets) rmSync(resolve(asset), { force: true });
 
