@@ -2393,6 +2393,11 @@ for (const width of [320, 360, 390, 412, 600, 719]) {
 async function renderedContrast(page: import("@playwright/test").Page, selector: string) {
   const target = page.locator(selector).first();
   await expect(target, `contrast target ${selector}`).toBeVisible({ timeout: 10_000 });
+  // An element far down the page can screenshot as a uniform blank, which reads
+  // as a contrast of exactly 1 and would fail for a reason that has nothing to
+  // do with colour. Bring it into view and let layout settle first.
+  await target.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(250);
   const shot = await target.screenshot();
   return page.evaluate(async (dataUrl: string) => {
     const image = new Image();
