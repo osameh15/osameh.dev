@@ -506,6 +506,12 @@ The site also includes an in-app resume viewer and download/open controls.
 
 The **six most recent releases** are summarized here. See **[CHANGELOG.md](docs/CHANGELOG.md)** for the complete production history. This section is intentionally capped at six releases.
 
+### v5.3.4 — Vanta
+
+- **Mobile Note TOC alignment.** The sticky table-of-contents rail on an Engineering Note now spans the full width of the screen below 720px, instead of sitting flush left with a 36px gap on the right.
+- An inherited `max-width:100%` resolved against the padded reading column and over-constrained the rail, cancelling the negative right margin that produces the edge-to-edge layout.
+- Added browser regression coverage from 320px to 719px asserting the rail reaches both screen edges without introducing horizontal page scroll.
+
 ### v5.3.3 — Vanta
 
 - **Branded HTTP errors.** Origin-generated 400/401/403/404/405/408/429/500/502/503/504 responses now render the portfolio's IDE error workspace instead of the hosting provider's default page, with a C++ editor tab (`error_403.cpp`) matching the Cyber Noir identity.
@@ -540,13 +546,6 @@ The **six most recent releases** are summarized here. See **[CHANGELOG.md](docs/
 - Fixed double URL-encoding of GitHub README asset paths, which returned HTTP 404 for filenames containing spaces or existing percent escapes.
 - Stopped rewriting third-party `raw.githubusercontent.com` assets onto this repository; well-formed raw URLs keep their own owner, repository and ref.
 - Added idempotent, segment-safe path normalization covering Unicode, reserved characters, malformed escapes, and encoded slashes.
-
-### v5.2.2 — Cipher
-
-- Added crawlable native links for Projects, Engineering Notes, and the Amorella Beauty Case Study while preserving SPA/editor-tab behavior; **Explore my work** now consistently opens Projects.
-- Aligned sitemap membership with independent canonical documents and clarified WebSite structured-data identity.
-- Improved native semantics, heading order, targeted contrast, and the hero status animation.
-- Decoupled core project rendering from live GitHub metadata; SSR/prerendering remains deferred pending Search Console evidence.
 
 ## License
 

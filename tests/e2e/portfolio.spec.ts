@@ -2350,3 +2350,32 @@ for (const width of [320, 360, 390, 412, 768]) {
     await expect(page.locator("h1 .status")).toBeVisible();
   });
 }
+
+// ---- v5.3.4 Vanta: mobile Note TOC bleed ----
+//
+// Below 720px the sticky TOC rail cancels the reading layout's 18px side
+// padding with negative margins so it spans the viewport. An inherited
+// max-width:100% used to resolve against the padded containing block, which
+// over-constrained the box: the negative left margin was honoured, the width
+// was clamped 36px short, and the browser recomputed the right margin away.
+// The result was a rail flush left and inset 36px on the right.
+
+for (const width of [320, 360, 390, 412, 600, 719]) {
+  test(`the note TOC rail spans the viewport at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 780 });
+    await page.goto("/notes/repository-driven-portfolio");
+    await page.waitForSelector(".note-toc button");
+
+    const rail = await page.evaluate(() => {
+      const toc = document.querySelector(".note-toc")!.getBoundingClientRect();
+      return { left: toc.left, right: toc.right, viewport: document.documentElement.clientWidth };
+    });
+
+    expect(rail.left).toBeLessThanOrEqual(0.5);
+    expect(rail.viewport - rail.right).toBeLessThanOrEqual(0.5);
+
+    // Full bleed must not come at the cost of a horizontally scrolling page.
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow).toBeLessThanOrEqual(1);
+  });
+}
