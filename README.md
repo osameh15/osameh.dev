@@ -506,6 +506,14 @@ The site also includes an in-app resume viewer and download/open controls.
 
 The **six most recent releases** are summarized here. See **[CHANGELOG.md](docs/CHANGELOG.md)** for the complete production history. This section is intentionally capped at six releases.
 
+### v5.4.0 - Phantom
+
+- **Contrast to WCAG AA** in both themes for text that carries meaning, fixed through light-theme tokens rather than one-off selectors. Verified against rendered pixels, not declared colours.
+- **Touch targets.** The mobile menu button went from 20x20 to a 44x44 target; the editor tab close, status bar, terminal and breadcrumb controls gained full hit areas with no visual bloat.
+- **Keyboard-closable editor tabs.** The close control is now a real `<button>` beside the tab's activation button, with a label and focus state. The tab lifecycle is unchanged.
+- **One description** across page, Open Graph and X metadata, from a single source; added the official X identity to the metadata and Person schema.
+- Stopped deploying a 717 KB authoring image nothing referenced. The live social image is untouched.
+
 ### v5.3.4 — Vanta
 
 - **Mobile Note TOC alignment.** The sticky table-of-contents rail on an Engineering Note now spans the full width of the screen below 720px, instead of sitting flush left with a 36px gap on the right.
@@ -540,12 +548,6 @@ The **six most recent releases** are summarized here. See **[CHANGELOG.md](docs/
 - Added **Google reCAPTCHA v3** to server-side contact submission: a fresh token per attempt, generated at submit time, verified server-side for success, action, hostname and score.
 - Environment-specific public site keys are selected by exact hostname; an unknown host gets no configuration rather than production. Private secrets stay server-side and never enter the repository or a build.
 - Rate limiting, the exact origin allowlist, the strict CSP, and the Service Worker `/api/*` network-only rule are unchanged.
-
-### v5.2.3 — Cipher
-
-- Fixed double URL-encoding of GitHub README asset paths, which returned HTTP 404 for filenames containing spaces or existing percent escapes.
-- Stopped rewriting third-party `raw.githubusercontent.com` assets onto this repository; well-formed raw URLs keep their own owner, repository and ref.
-- Added idempotent, segment-safe path normalization covering Unicode, reserved characters, malformed escapes, and encoded slashes.
 
 ## License
 

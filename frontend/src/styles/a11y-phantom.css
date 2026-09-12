@@ -1,0 +1,214 @@
+/* v5.4.0 Phantom — accessibility corrections.
+ *
+ * Loaded last, after features-v5.css, so these values win without needing
+ * inflated selectors. Every rule here exists because a measurement failed, and
+ * each one is pinned by a regression test that asserts rendered pixels rather
+ * than a declaration.
+ *
+ * Two rules of thumb the audit produced:
+ *   - Muted greys tuned for the dark canvas are not muted on the light canvas,
+ *     they are simply low contrast. The light theme needs its own muted token.
+ *   - Compact editor chrome may stay visually small, but its hit area may not.
+ */
+
+/* ---------- PH-1: light theme, meaningful text to WCAG AA ---------- */
+/*
+ * These shell labels had no light-theme override at all and were inheriting
+ * greys chosen for a near-black canvas. They now resolve through the light
+ * muted token, which measures 4.6:1 on the light canvas.
+ */
+html[data-theme="light"] .explorer-title,
+html[data-theme="light"] .explorer-plugins-title,
+html[data-theme="light"] .explorer-plugin-copy small,
+html[data-theme="light"] .explorer-footer button,
+html[data-theme="light"] .explorer-footer p,
+html[data-theme="light"] .vertical-name,
+html[data-theme="light"] .stack-explorer,
+html[data-theme="light"] .stack-explorer > span,
+html[data-theme="light"] .changelog-node-pending,
+html[data-theme="light"] .now-grid article > span,
+html[data-theme="light"] .showcase-stack-context span,
+html[data-theme="light"] .showcase-card-primary header span {
+  color: #4c5c51;
+}
+
+/* The Now-section copy is body text, not decorative chrome, so it takes the
+   primary light text colour rather than a muted one. */
+html[data-theme="light"] .now-grid article p {
+  color: var(--light-text);
+}
+
+/* Accent-coloured labels on light surfaces. The dark theme's lime green is
+   unreadable on a light canvas; the light accent is the same hue, darker. */
+html[data-theme="light"] .changelog-node-content small,
+html[data-theme="light"] .now-grid small,
+html[data-theme="light"] .featured-projects > header > div {
+  color: var(--light-accent-strong);
+}
+
+/* Line numbers stay visually subordinate, but must remain legible. */
+html[data-theme="light"] .line-nums {
+  color: #5f6f64;
+}
+
+/* ---------- PH-2: dark theme, meaningful text to WCAG AA ---------- */
+/*
+ * Only text that carries meaning is raised. The dark palette itself is
+ * unchanged: the canvas, accents and borders all keep their Cyber Noir values.
+ */
+.code-close span {
+  color: #77b487;
+}
+
+.showcase-card-primary header span,
+.showcase-stack-context span,
+.changelog-node-pending,
+.now-grid article > span {
+  color: #8d9b92;
+}
+
+/* Subordinate by design, but no longer at 1.7:1 against the canvas. These sit
+   on the hero's gradient rather than the flat canvas, which costs roughly a
+   quarter of a point of contrast, so the value is set against the gradient
+   rather than against #090c0a. Still far dimmer than body text. */
+.line-nums {
+  color: #78857b;
+}
+
+/* ---------- PH-3: mobile menu hit area ---------- */
+/*
+ * The icon keeps its size; the button grows around it. This is the only
+ * navigation affordance below 720px, so it was also the worst place on the
+ * site to have the smallest target.
+ */
+.menu-button {
+  min-width: 44px;
+  min-height: 44px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  margin-right: -10px;
+  cursor: pointer;
+}
+
+@media (max-width: 720px) {
+  .menu-button {
+    display: inline-flex;
+  }
+}
+
+/* ---------- PH-5: interactive hit areas ---------- */
+/*
+ * Applied only to controls that actually perform an action. Informational
+ * labels are left alone, and compact chrome keeps its visual size while the
+ * touch area is expanded around it.
+ */
+@media (max-width: 720px) {
+  .status-build-button,
+  .terminal-head button,
+  .panel-close,
+  .text-btn {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* The status bar is a fixed-height strip. Growing the control inside it
+     would grow the strip, so the hit area is extended with a pseudo-element
+     that overlays the bar without changing layout. */
+  .status-bar .status-build-button,
+  .status-bar button {
+    position: relative;
+    min-height: 0;
+  }
+
+  .status-bar .status-build-button::after,
+  .status-bar button::after {
+    content: "";
+    position: absolute;
+    inset: -12px -8px;
+  }
+
+  .note-detail-breadcrumb button {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+}
+
+/* ---------- PH-4: editor tab close ---------- */
+/*
+ * The close control is now a real button beside the activation button rather
+ * than a click handler on an icon. The tab keeps its exact visual box: the
+ * activation button fills it, and the close button is a 28px target inside a
+ * 36px-tall strip, extended to a full 44px touch area on coarse pointers.
+ */
+.editor-tab-open {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.editor-tab-open > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editor-tab-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  margin-right: -6px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  color: inherit;
+  opacity: .7;
+  cursor: pointer;
+}
+
+.editor-tab-close:hover,
+.editor-tab-close:focus-visible {
+  opacity: 1;
+  background: #232b25;
+}
+
+html[data-theme="light"] .editor-tab-close:hover,
+html[data-theme="light"] .editor-tab-close:focus-visible {
+  background: #d3ded5;
+}
+
+/* A coarse pointer gets the full 44x44 target without changing the visual
+ * chrome or the 36px tab row. The overlay is a pseudo-element, so it adds no
+ * layout: it extends 9px past the 26px control on every side. Leftward that
+ * covers the end of the tab title, which is the usual behaviour for a close
+ * affordance; rightward it reaches roughly 3px into the next tab's padding,
+ * where the later sibling paints above it and keeps its own target intact. */
+@media (pointer: coarse) {
+  .editor-tab-close {
+    position: relative;
+  }
+
+  .editor-tab-close::after {
+    content: "";
+    position: absolute;
+    inset: -9px;
+  }
+}

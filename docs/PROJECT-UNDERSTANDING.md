@@ -558,7 +558,30 @@ over-constrained the box, so the rail was flush left and inset 36px on the
 right. `max-width:none` at that breakpoint restores the intended bleed, and
 browser coverage asserts both edges from 320px to 719px.
 
-## 29. Current engineering priorities
+## 29. v5.4.0 Phantom additions
+
+**Accessibility.** `frontend/src/styles/a11y-phantom.css` loads last, after
+`features-v5.css`, so contrast and hit-area corrections win without inflated
+selectors. Light-theme shell labels resolve through the light muted token
+instead of inheriting greys chosen for the dark canvas; dark-theme meaningful
+text is raised while the palette itself is unchanged.
+
+**Editor tab close.** A tab is now a wrapper carrying the class, data
+attributes and visual box, holding two real buttons: one activates, one closes.
+A button cannot legally contain another, which is why the close control was
+previously an icon with a click handler - unreachable by keyboard. The
+lifecycle is untouched: the same `openProject`/`openNote` and `closeTab` calls,
+in the same order, with `stopPropagation` keeping a close from also activating.
+
+**Metadata.** One description reaches the page, Open Graph and X, synchronised
+at the same runtime point and matching the static document. The official X
+identity appears in `twitter:site`, `twitter:creator` and Person `sameAs`.
+
+**Verification.** Contrast is asserted from rendered pixels. Computed-CSS
+contrast checks were shown to both miss real failures and invent false ones, so
+they are no longer trusted alone.
+
+## 30. Current engineering priorities
 
 1. Complete the outstanding staging acceptance pass carried since v5.2.0:
    release identity, Neural Cipher assets, active-tab auto-scroll, plus the

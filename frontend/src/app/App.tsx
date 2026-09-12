@@ -1617,19 +1617,40 @@ export default function Home() {
         <div className="editor">
           <div className="tabs-row" ref={tabsRowRef}>
             <button aria-current={activeTabId === HOME_TAB_ID && !notFoundPath ? "page" : undefined} className={activeTabId !== HOME_TAB_ID || notFoundPath ? "editor-tab" : "editor-tab active"} onClick={() => showHome(true, true, activeTab?.homeSection)}><FileCode2 size={14} /> {code.file}</button>
-            {editorTabs.map(tab => <button
+            {/* Two real buttons per tab: one activates, one closes. A button
+                cannot legally contain another, so the tab box is the wrapper
+                and keeps its class, data attributes and visual chrome. The
+                lifecycle below is unchanged - the same openProject/openNote and
+                closeTab calls, in the same order. */}
+            {editorTabs.map(tab => <span
               key={tab.id}
-              aria-current={activeTabId === tab.id && !notFoundPath ? "page" : undefined}
               data-tab-id={tab.id}
               data-tab-kind={tab.kind}
               className={activeTabId === tab.id && !notFoundPath ? "editor-tab project-tab active" : "editor-tab project-tab"}
-              onClick={() => tab.kind === "project" ? openProject(tab.repo) : openNote(tab.slug)}
             >
-              {tab.kind === "project" ? <Code2 size={14} /> : <Braces size={14} />}
-              <span>{tab.title}</span>
-              <X size={12} aria-label={`Close ${tab.title}`} onClick={event => { event.stopPropagation(); closeTab(tab.id); }} />
-            </button>)}
-            {notFoundPath && <button className="editor-tab project-tab error-tab active"><FileCode2 size={14} /><span>404.md</span><X size={12} onClick={event => { event.stopPropagation(); showHome(); }} /></button>}
+              <button
+                type="button"
+                className="editor-tab-open"
+                aria-current={activeTabId === tab.id && !notFoundPath ? "page" : undefined}
+                onClick={() => tab.kind === "project" ? openProject(tab.repo) : openNote(tab.slug)}
+              >
+                {tab.kind === "project" ? <Code2 size={14} /> : <Braces size={14} />}
+                <span>{tab.title}</span>
+              </button>
+              {/* stopPropagation keeps closing from also activating the tab. */}
+              <button
+                type="button"
+                className="editor-tab-close"
+                aria-label={`Close ${tab.title}`}
+                onClick={event => { event.stopPropagation(); closeTab(tab.id); }}
+              >
+                <X size={12} aria-hidden="true" />
+              </button>
+            </span>)}
+            {notFoundPath && <span className="editor-tab project-tab error-tab active">
+              <span className="editor-tab-open" aria-current="page"><FileCode2 size={14} /><span>404.md</span></span>
+              <button type="button" className="editor-tab-close" aria-label="Close 404.md" onClick={event => { event.stopPropagation(); showHome(); }}><X size={12} aria-hidden="true" /></button>
+            </span>}
           </div>
 
           {notFoundPath ? <section className="not-found-view">

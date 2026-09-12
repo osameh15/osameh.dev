@@ -8,10 +8,10 @@
   },
   "families": {
     "5.2": { "codename": "Cipher" },
-    "5.3": { "codename": "Vanta" }
+    "5.3": { "codename": "Vanta" },
+    "5.4": { "codename": "Phantom" }
   },
   "reserved": {
-    "5.4": "Phantom",
     "5.5": "Null",
     "5.6": "Raven",
     "6.0": "Obsidian"

@@ -150,8 +150,13 @@ export function FeaturePreferencesProvider({ children }: { children: ReactNode }
     if (!isDetailRoute) {
       document.title = "Osameh Irandoust — Software Engineer";
       const description = "Osameh Irandoust's software engineering portfolio: projects, case studies, engineering notes, and experience across backend, full-stack, and systems work.";
+      // One description reaches every consumer. Twitter was previously left at
+      // its static value while the other two were synced here, so the three
+      // drifted apart; the static document now carries this same sentence, so
+      // a crawler that runs no JavaScript reads exactly what one that does.
       document.querySelector<HTMLMetaElement>('meta[name="description"]')?.setAttribute("content", description);
       document.querySelector<HTMLMetaElement>('meta[property="og:description"]')?.setAttribute("content", description);
+      document.querySelector<HTMLMetaElement>('meta[name="twitter:description"]')?.setAttribute("content", description);
       document.querySelector<HTMLMetaElement>('meta[property="og:locale"]')?.setAttribute("content", "en_US");
     }
   }, []);

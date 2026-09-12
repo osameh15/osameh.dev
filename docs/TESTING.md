@@ -506,3 +506,33 @@ The assertion is on measured geometry rather than on a CSS declaration, so it
 fails for any cause of the same symptom, not only the `max-width` that produced
 it. Reverting the fix makes the 390px case fail with `Received: 36`, the exact
 gap that was reported.
+
+## 12. v5.4.0 Phantom coverage
+
+### Contrast, measured from pixels
+
+Two tests, one per theme, screenshot each element and compute the best-case
+contrast actually present in its rendered pixels. If even the best case is below
+the threshold, the failure is real.
+
+This method exists because the Phantom audit disproved the alternatives. A
+computed-CSS walker reported one element at 2.49:1 that measured **11.75:1** once
+the painted pixels were read, and missed failures down to 1.39:1 elsewhere. The
+Lighthouse gate is a **90** threshold, not 100, and axe samples rather than
+enumerates. The earlier computed-CSS light-theme test is kept - it is cheap and
+catches token regressions - but it is no longer the only contrast evidence.
+
+### Touch targets
+
+Asserted at 390px against an enumerated list of controls that perform an action.
+Informational labels are deliberately excluded: padding a label to 44px is bloat,
+not accessibility. The helper measures the union of the element box and any
+`::after` overlay, because compact chrome may keep its visual size while the
+touchable area is expanded around it.
+
+### Keyboard tab close
+
+Opens a note tab, focuses the close button, activates it with Enter alone, and
+asserts the tab closes and the correct tab becomes active. It also asserts the
+control really is a `BUTTON`, and that the Home tab exposes no close control.
+The full existing tab-lifecycle suite is retained unchanged.
