@@ -536,3 +536,40 @@ Opens a note tab, focuses the close button, activates it with Enter alone, and
 asserts the tab closes and the correct tab becomes active. It also asserts the
 control really is a `BUTTON`, and that the Home tab exposes no close control.
 The full existing tab-lifecycle suite is retained unchanged.
+
+## 13. v5.5.0 Null coverage
+
+### Technology normalization
+
+Alias resolution is pure, so it is asserted directly rather than through the UI:
+every Android, C#, .NET, Nuxt, Vue, PostgreSQL, Qt and QML spelling seen in live
+repository metadata maps to its expected canonical key. Two negative assertions
+matter as much as the positive ones: `C# / .NET` must resolve to **both** keys,
+and a descriptive concept must resolve to **none**.
+
+A browser test then asserts the user-visible consequence - the Command Palette
+exposes no duplicated technology filter, and at most one Android entry.
+
+### Skill provenance
+
+Every skill claiming public-work evidence must appear among the real project
+filter options, and every professional-only skill must not. A second test asserts
+the rendered semantics: C++ is a `SPAN` labelled Professional, TypeScript is a
+linked button labelled Public work.
+
+### Related content
+
+Asserts at most three suggestions, the explicit relationship ranking first with
+its stated reason, identical ordering across a reload (no randomness), that
+following a suggestion opens through the editor-tab lifecycle without duplicating
+a tab, and no horizontal overflow at 320 and 412px.
+
+### Filter state
+
+Covers `?stack=` appearing on selection, Back restoring the unfiltered list,
+Forward restoring the filter, and a directly-loaded filtered URL restoring it -
+asserting the canonical key appears in the address, never an alias.
+
+### Stale claims
+
+A repository-level assertion that the two superseded claims cannot return.

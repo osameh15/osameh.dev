@@ -51,14 +51,72 @@ export const roles = [
   { years: "2019 — 2021", company: "Arrap Startup", role: "Android Developer", detail: "End-to-end Android products with Java and Kotlin, backed by Laravel, MySQL, and Python automation." },
 ];
 
-export const skills = [
-  ["Frontend", "Nuxt 3 / 4", "Vue", "TypeScript", "JavaScript"],
-  ["Backend", "C# / .NET", "Laravel / PHP", "Ruby", "REST APIs"],
-  ["Desktop & Systems", "C++", "Qt / QML", "WPF", ".NET 8"],
-  ["Mobile & Games", "Android", "Java", "Kotlin", "Unity"],
-  ["Data & DevOps", "PostgreSQL", "MySQL", "Cassandra", "Docker", "ELK Stack"],
-  ["Tooling", "Linux", "Python", "Vitest", "GitHub Actions", "Git"],
+/**
+ * Where a skill can actually be checked.
+ *
+ *   public-repo  a public repository in this portfolio demonstrates it
+ *   professional an employment role listed in `roles` used it
+ *   freelance    published client work or a capability area covers it
+ *
+ * A skill may carry several. None of these are rankings: there are no scores,
+ * no percentages and no invented years anywhere in this model. "public-repo"
+ * is a promise the test suite enforces - every skill claiming it must resolve
+ * to at least one real project through the canonical technology registry.
+ */
+export type SkillEvidenceSource = "public-repo" | "professional" | "freelance";
+
+export type Skill = {
+  /** Canonical technology key where one exists, otherwise a stable slug. */
+  key: string;
+  label: string;
+  group: string;
+  evidence: SkillEvidenceSource[];
+};
+
+export const skillCatalog: Skill[] = [
+  { key: "nuxt", label: "Nuxt 3 / 4", group: "Frontend", evidence: ["public-repo", "professional"] },
+  { key: "vue", label: "Vue", group: "Frontend", evidence: ["public-repo", "professional"] },
+  { key: "typescript", label: "TypeScript", group: "Frontend", evidence: ["public-repo", "professional"] },
+  { key: "javascript", label: "JavaScript", group: "Frontend", evidence: ["professional", "freelance"] },
+
+  { key: "csharp", label: "C# / .NET", group: "Backend", evidence: ["public-repo", "professional"] },
+  { key: "php", label: "Laravel / PHP", group: "Backend", evidence: ["public-repo", "professional", "freelance"] },
+  { key: "ruby", label: "Ruby", group: "Backend", evidence: ["professional"] },
+  { key: "rest-api", label: "REST APIs", group: "Backend", evidence: ["professional"] },
+
+  { key: "cpp", label: "C++", group: "Desktop & Systems", evidence: ["professional"] },
+  { key: "qt", label: "Qt / QML", group: "Desktop & Systems", evidence: ["professional"] },
+  { key: "wpf", label: "WPF", group: "Desktop & Systems", evidence: ["public-repo"] },
+  { key: "dotnet", label: ".NET 8", group: "Desktop & Systems", evidence: ["public-repo", "professional"] },
+
+  { key: "android", label: "Android", group: "Mobile & Games", evidence: ["public-repo", "professional"] },
+  { key: "java", label: "Java", group: "Mobile & Games", evidence: ["public-repo", "professional"] },
+  { key: "kotlin", label: "Kotlin", group: "Mobile & Games", evidence: ["public-repo", "professional"] },
+  { key: "unity", label: "Unity", group: "Mobile & Games", evidence: ["professional"] },
+
+  { key: "postgresql", label: "PostgreSQL", group: "Data & DevOps", evidence: ["professional"] },
+  { key: "mysql", label: "MySQL", group: "Data & DevOps", evidence: ["professional"] },
+  { key: "cassandra", label: "Cassandra", group: "Data & DevOps", evidence: ["professional"] },
+  { key: "docker", label: "Docker", group: "Data & DevOps", evidence: ["professional"] },
+  { key: "elk", label: "ELK Stack", group: "Data & DevOps", evidence: ["professional"] },
+
+  { key: "linux", label: "Linux", group: "Tooling", evidence: ["professional"] },
+  { key: "python", label: "Python", group: "Tooling", evidence: ["professional"] },
+  { key: "vitest", label: "Vitest", group: "Tooling", evidence: ["professional"] },
+  { key: "github-actions", label: "GitHub Actions", group: "Tooling", evidence: ["professional"] },
+  { key: "git", label: "Git", group: "Tooling", evidence: ["professional", "freelance"] },
 ];
+
+export const skillGroups: string[] = Array.from(new Set(skillCatalog.map(skill => skill.group)));
+
+/** The grouped shape the workspace code renderer has always consumed. */
+export const skills: string[][] = skillGroups.map(group => [group, ...skillCatalog.filter(skill => skill.group === group).map(skill => skill.label)]);
+
+export const EVIDENCE_LABEL: Record<SkillEvidenceSource, string> = {
+  "public-repo": "Public work",
+  professional: "Professional",
+  freelance: "Freelance",
+};
 
 export function skillSource(language: CodeLanguage) {
   const values = skills.map(([group, ...items]) => ({ group, items }));

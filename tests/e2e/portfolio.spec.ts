@@ -3,6 +3,9 @@ import { readFileSync } from "node:fs";
 import { resolveReleaseCodename } from "../../frontend/src/lib/releaseMetadataCore.js";
 import { adjacentNotes, engineeringNotes } from "../../frontend/src/features/notes/notesData";
 import { RECAPTCHA_ACTION, recaptchaSiteKey } from "../../frontend/src/config/recaptchaConfig";
+import { canonicalKeys, technologyLabel } from "../../frontend/src/lib/technology";
+import { skillCatalog } from "../../frontend/src/app/workspacePreferences";
+import { relatedToCaseStudy, relatedToNote, relatedToProject, type RelatedSource } from "../../frontend/src/lib/relatedContent";
 import { ERROR_STATUSES } from "../../scripts/error-pages.mjs";
 
 const availabilityFixture = JSON.parse(readFileSync(new URL("../../config/availability.json", import.meta.url), "utf8"));
@@ -2543,4 +2546,301 @@ test("the Home tab exposes no close control", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator(".editor-tab").first()).toBeVisible();
   expect(await page.locator(".editor-tab").first().locator(".editor-tab-close").count()).toBe(0);
+});
+
+// ---- v5.5.0 Null: zero dead ends ----
+
+// Alias resolution is pure, so it is asserted directly rather than through the UI.
+test("technology aliases resolve to canonical keys", () => {
+  const cases: [string, string[]][] = [
+    ["android", ["android"]], ["Android", ["android"]], ["Android SDK", ["android"]],
+    ["Android Studio", ["android"]], ["android-app", ["android"]], ["android-application", ["android"]],
+    ["C#", ["csharp"]], ["C# 12", ["csharp"]], ["csharp", ["csharp"]],
+    [".NET 8", ["dotnet"]], [".NET 9", ["dotnet"]], ["dotnet CLI", ["dotnet"]],
+    ["Nuxt", ["nuxt"]], ["Nuxt 3", ["nuxt"]], ["Nuxt 4", ["nuxt"]], ["nuxt3", ["nuxt"]], ["nuxtjs", ["nuxt"]],
+    ["Vue", ["vue"]], ["Vue 3", ["vue"]], ["Vue 3.5", ["vue"]], ["vue3", ["vue"]], ["vuejs", ["vue"]],
+    ["PostgreSQL", ["postgresql"]], ["Postgres", ["postgresql"]],
+    ["Qt", ["qt"]], ["QML", ["qml"]],
+  ];
+  for (const [input, expected] of cases) {
+    expect(canonicalKeys(input), `${input} should resolve to ${expected.join("+")}`).toEqual(expected);
+  }
+
+  // Related but distinct technologies must never be collapsed into one.
+  expect(canonicalKeys("C# / .NET"), "C# / .NET names two technologies").toEqual(["csharp", "dotnet"]);
+  expect(canonicalKeys("Qt / QML"), "Qt / QML names two technologies").toEqual(["qt", "qml"]);
+  expect(canonicalKeys("Nuxt/Vue"), "Nuxt/Vue names two technologies").toEqual(["nuxt", "vue"]);
+  expect(canonicalKeys("csharp")).not.toEqual(canonicalKeys(".NET 8"));
+
+  // A descriptive concept is not a technology and resolves to nothing.
+  expect(canonicalKeys("Repository-driven portfolio")).toEqual([]);
+
+  // Labels stay human-readable regardless of the key.
+  expect(technologyLabel("dotnet")).toBe(".NET");
+  expect(technologyLabel("csharp")).toBe("C#");
+});
+
+test("the palette exposes one filter command per technology", async ({ page }) => {
+  await page.goto("/");
+  await page.keyboard.press("Control+Shift+P");
+  await page.getByRole("dialog").waitFor();
+  await page.keyboard.type("Filter projects by");
+  await page.waitForTimeout(700);
+
+  const labels: string[] = await page.evaluate(() => [...document.querySelectorAll('[role="dialog"] [role="option"], [role="dialog"] li, [role="dialog"] button')]
+    .map(node => (node.textContent || "").replace(/\s+/g, " ").trim())
+    .filter(text => /^Filter projects by /.test(text))
+    .map(text => text.replace(/^Filter projects by /, "").replace(/technology$/, "").trim()));
+
+  expect(labels.length, "filter commands exist").toBeGreaterThan(0);
+  expect(new Set(labels).size, "no duplicated technology filter").toBe(labels.length);
+  // The alias explosion that produced six Android entries must not return.
+  const androidish = labels.filter(label => /android/i.test(label));
+  expect(androidish.length, `one Android filter, saw ${androidish.join(" / ")}`).toBeLessThanOrEqual(1);
+  await page.keyboard.press("Escape");
+});
+
+test("a filter that matches nothing explains itself and can be cleared", async ({ page }) => {
+  await page.goto("/projects");
+  const search = page.locator('input[aria-label="Search projects"]').first();
+  await search.fill("zzzq-no-project-matches-this");
+  await expect(page.locator(".project-empty")).toBeVisible();
+  await expect(page.locator(".project-empty")).toContainText(/no project matches/i);
+  expect(await page.locator(".project-card").count()).toBe(0);
+
+  await page.locator(".project-empty button").click();
+  await expect(page.locator(".project-empty")).toHaveCount(0);
+  expect(await page.locator(".project-card").count()).toBeGreaterThan(0);
+  await expect(search).toHaveValue("");
+});
+
+for (const width of [320, 390]) {
+  test(`the zero-result state does not overflow at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto("/projects");
+    await page.locator('input[aria-label="Search projects"]').first().fill("zzzq-no-project-matches-this");
+    await expect(page.locator(".project-empty")).toBeVisible();
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow).toBeLessThanOrEqual(1);
+  });
+}
+
+test("the project filter lives in the URL and survives Back and Forward", async ({ page }) => {
+  await page.goto("/projects");
+  await page.waitForSelector(".project-card");
+  const total = await page.locator(".project-card").count();
+
+  await page.locator(".stack-explorer button", { hasText: "Vue" }).first().click();
+  await expect.poll(() => new URL(page.url()).searchParams.get("stack")).toBe("vue");
+  const filtered = await page.locator(".project-card").count();
+  expect(filtered).toBeGreaterThan(0);
+  expect(filtered).toBeLessThan(total);
+
+  await page.goBack();
+  await expect.poll(() => new URL(page.url()).searchParams.get("stack")).toBe(null);
+  await expect.poll(() => page.locator(".project-card").count()).toBe(total);
+
+  await page.goForward();
+  await expect.poll(() => new URL(page.url()).searchParams.get("stack")).toBe("vue");
+  await expect.poll(() => page.locator(".project-card").count()).toBe(filtered);
+});
+
+test("a filtered URL opened directly restores its filter", async ({ page }) => {
+  await page.goto("/projects?stack=vue");
+  await page.waitForSelector(".project-card");
+  await expect.poll(() => page.locator("select[aria-label='Filter by technology']").first().inputValue()).toBe("vue");
+  expect(await page.locator(".project-card").count()).toBeGreaterThan(0);
+  // An alias must never appear in the address; only the canonical key.
+  expect(new URL(page.url()).searchParams.get("stack")).toBe("vue");
+});
+
+test("every public-repo skill claim resolves to a real project", async ({ page }) => {
+  await page.goto("/projects");
+  await page.waitForSelector(".project-card");
+
+  const available: string[] = await page.evaluate(() => [...document.querySelectorAll("select[aria-label='Filter by technology'] option")]
+    .map(option => (option as HTMLOptionElement).value)
+    .filter(value => value !== "all"));
+
+  for (const skill of skillCatalog.filter(item => item.evidence.includes("public-repo"))) {
+    expect(available, `${skill.label} claims public-repo evidence`).toContain(skill.key);
+  }
+  // A skill with no public project must not pretend to have one.
+  const professionalOnly = skillCatalog.filter(item => !item.evidence.includes("public-repo"));
+  expect(professionalOnly.length, "some skills are professional-only").toBeGreaterThan(0);
+  for (const skill of professionalOnly) {
+    expect(available, `${skill.label} must not claim public-repo evidence`).not.toContain(skill.key);
+  }
+});
+
+test("professional-only skills render as text, not as project links", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Preview", exact: true }).click();
+  await page.waitForSelector(".skill-card");
+
+  const cpp = page.locator(".skill-chip", { hasText: "C++" }).first();
+  await expect(cpp).toBeVisible();
+  await expect(cpp).toHaveJSProperty("tagName", "SPAN");
+  await expect(cpp).toContainText("Professional");
+
+  const typescript = page.locator("button.skill-chip-linked", { hasText: "TypeScript" }).first();
+  await expect(typescript).toBeVisible();
+  await expect(typescript).toContainText("Public work");
+});
+
+test("continue exploring offers deterministic, valid destinations", async ({ page }) => {
+  await page.goto("/notes/repository-driven-portfolio");
+  const block = page.locator(".continue-exploring");
+  await expect(block).toBeVisible();
+
+  const links = block.locator("a.continue-exploring-link");
+  const count = await links.count();
+  expect(count, "at least one suggestion").toBeGreaterThan(0);
+  expect(count, "at most three suggestions").toBeLessThanOrEqual(3);
+
+  // The note names osameh.dev explicitly, so the explicit relation ranks first.
+  await expect(links.first()).toHaveAttribute("href", "/projects/osameh.dev");
+  await expect(links.first()).toContainText("This note is about it");
+
+  // Ordering is stable across reloads: no randomness, no personalization.
+  // Compared by href, which is the stable identity - a project title is read
+  // from repository metadata and legitimately changes once that arrives.
+  const hrefs = async () => page.locator(".continue-exploring a.continue-exploring-link").evaluateAll(nodes => nodes.map(node => node.getAttribute("href")));
+  const before = await hrefs();
+  await page.reload();
+  await expect(page.locator(".continue-exploring a.continue-exploring-link").first()).toBeVisible();
+  expect(await hrefs()).toEqual(before);
+});
+
+test("a continue exploring link opens through the editor tab lifecycle", async ({ page }) => {
+  await page.goto("/notes/repository-driven-portfolio");
+  const link = page.locator(".continue-exploring a.continue-exploring-link").first();
+  await link.click();
+
+  await expect(page).toHaveURL(/\/projects\/osameh\.dev$/);
+  await expect(page.locator(".editor-tab.active")).toContainText("osameh.dev");
+
+  // The lifecycle must not duplicate a tab for content already open.
+  const ids = await page.evaluate(() => [...document.querySelectorAll(".editor-tab")].map(tab => (tab as HTMLElement).dataset.tabId || "home"));
+  expect(new Set(ids).size, "no duplicate editor tabs").toBe(ids.length);
+});
+
+for (const width of [320, 412]) {
+  test(`continue exploring stacks without overflow at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto("/notes/repository-driven-portfolio");
+    await expect(page.locator(".continue-exploring")).toBeVisible();
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow).toBeLessThanOrEqual(1);
+  });
+}
+
+test("superseded portfolio claims are gone", () => {
+  const metadata = readFileSync(new URL("../../portfolio.json", import.meta.url), "utf8");
+  expect(metadata, "the product is English-only").not.toContain("Internationalization architecture");
+  expect(metadata, "there is one Command Palette, not a Universal Search").not.toContain("Universal search");
+});
+
+// The client case study surface has no live example yet: the one published
+// engagement has no public repository and no note written about it, so the block
+// correctly renders nothing rather than inventing a destination. The code path
+// and the ranking are therefore proved directly, against a fixed source.
+test("related content ranking is deterministic across every surface", () => {
+  const source: RelatedSource = {
+    projects: [
+      { name: "alpha", title: "Alpha", hint: "Nuxt module", technologies: ["Nuxt 3", "TypeScript"] },
+      { name: "beta", title: "Beta", hint: "Android app", technologies: ["Kotlin", "android-app"] },
+      { name: "gamma", title: "Gamma", hint: "Desktop", technologies: ["C# 12", "WPF"] },
+    ],
+    notes: [
+      { slug: "note-a", title: "Note A", hint: "Engineering note", tags: ["Nuxt"], relatedProjects: ["alpha"] },
+      { slug: "note-b", title: "Note B", hint: "Engineering note", tags: ["Nuxt"] },
+      { slug: "note-c", title: "Note C", hint: "Engineering note", tags: ["Cassandra"] },
+    ],
+    caseStudies: [
+      { id: "client-x", title: "Client X", hint: "Client case study", stack: ["Kotlin"], relatedProjects: ["beta"], relatedNotes: ["note-c"] },
+    ],
+  };
+
+  // A client case study: explicit relations outrank a shared technology, and the
+  // block never exceeds three items.
+  const caseStudy = relatedToCaseStudy("client-x", source);
+  expect(caseStudy.length).toBeLessThanOrEqual(3);
+  expect(caseStudy[0].href).toBe("/projects/beta");
+  expect(caseStudy[0].reason).toBe("Built for this engagement");
+  expect(caseStudy.map(item => item.href)).toContain("/notes/note-c");
+
+  // A note: the project it explicitly names ranks above a note sharing a tag.
+  const note = relatedToNote("note-a", source, "note-b");
+  expect(note[0].href).toBe("/projects/alpha");
+  expect(note[0].reason).toBe("This note is about it");
+
+  // A project: the note written about it outranks a project sharing a technology.
+  const project = relatedToProject("alpha", source);
+  expect(project[0].href).toBe("/notes/note-a");
+  expect(project[0].reason).toBe("Written about this project");
+
+  // Unrelated content is never invented.
+  expect(relatedToProject("gamma", source).map(item => item.href)).not.toContain("/notes/note-a");
+
+  // Deterministic: identical input, identical output, every time.
+  expect(relatedToCaseStudy("client-x", source)).toEqual(caseStudy);
+  expect(relatedToNote("note-a", source, "note-b")).toEqual(note);
+});
+
+// The filter has exactly one canonical address. An alias is rewritten to its
+// canonical key and an unrecognised value is dropped, on first load and equally
+// through history navigation - the two used to disagree, which left the controls
+// reading "All technologies" beside an empty result.
+test("an alias in the filter URL is rewritten to its canonical key", async ({ page }) => {
+  await page.goto("/projects?stack=Android");
+  await page.waitForSelector(".project-card, .project-empty");
+
+  await expect.poll(() => new URL(page.url()).searchParams.get("stack")).toBe("android");
+  await expect.poll(() => page.locator("select[aria-label='Filter by technology']").first().inputValue()).toBe("android");
+  expect(await page.locator(".project-card").count()).toBeGreaterThan(0);
+  await expect(page.locator(".project-empty")).toHaveCount(0);
+});
+
+test("an unrecognised filter key is dropped rather than shown as a broken state", async ({ page }) => {
+  // Uncaught exceptions and script errors only. The preview server runs no PHP,
+  // so /api/* resource 404s are an artefact of the environment, not the page.
+  const errors: string[] = [];
+  page.on("pageerror", error => errors.push("uncaught: " + String(error)));
+  page.on("console", message => {
+    if (message.type() !== "error") return;
+    const text = message.text();
+    if (/Failed to load resource/i.test(text)) return;
+    errors.push(text);
+  });
+
+  await page.goto("/projects?stack=this-does-not-exist");
+  await page.waitForSelector(".project-card");
+
+  // The address is cleaned, the full list is shown, and nothing claims to be empty.
+  await expect.poll(() => new URL(page.url()).searchParams.get("stack")).toBe(null);
+  await expect.poll(() => page.locator("select[aria-label='Filter by technology']").first().inputValue()).toBe("all");
+  expect(await page.locator(".project-card").count()).toBeGreaterThan(0);
+  await expect(page.locator(".project-empty")).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
+  expect(errors, "no console or page errors").toEqual([]);
+});
+
+test("history navigation resolves the filter key the same way a fresh load does", async ({ page }) => {
+  await page.goto("/projects");
+  await page.waitForSelector(".project-card");
+  const total = await page.locator(".project-card").count();
+
+  // Push an alias directly into history, then come back to it.
+  await page.evaluate(() => history.pushState({}, "", "/projects?stack=Android"));
+  await page.evaluate(() => history.pushState({}, "", "/projects"));
+  await page.goBack();
+
+  // Restored through popstate: canonical key, matching control, real results.
+  await expect.poll(() => new URL(page.url()).searchParams.get("stack")).toBe("android");
+  await expect.poll(() => page.locator("select[aria-label='Filter by technology']").first().inputValue()).toBe("android");
+  const filtered = await page.locator(".project-card").count();
+  expect(filtered).toBeGreaterThan(0);
+  expect(filtered).toBeLessThanOrEqual(total);
+  await expect(page.locator(".project-empty")).toHaveCount(0);
 });

@@ -506,6 +506,14 @@ The site also includes an in-app resume viewer and download/open controls.
 
 The **six most recent releases** are summarized here. See **[CHANGELOG.md](docs/CHANGELOG.md)** for the complete production history. This section is intentionally capped at six releases.
 
+### v5.5.0 - Null
+
+- **Zero dead ends.** Technology names resolve through one canonical registry, so the Command Palette offers a single filter per technology instead of eighty alias-derived commands - six of which were Android.
+- **Evidence-backed skills.** Each skill shows whether it is backed by public work, professional experience, or freelance work, and links to projects only where a public repository genuinely demonstrates it. No scores, bars or invented years.
+- **Continue exploring.** Projects, Notes and client case studies end with at most three deterministic suggestions, each naming why it appeared.
+- **Addressable filters.** `?stack=<key>` makes a filtered project view shareable, restorable and undoable with Back - as a query parameter on the existing document, so no new indexable URL is created and the 17-URL sitemap is unchanged.
+- Removed two superseded capability claims the product no longer matches.
+
 ### v5.4.0 - Phantom
 
 - **Contrast to WCAG AA** in both themes for text that carries meaning, fixed through light-theme tokens rather than one-off selectors. Verified against rendered pixels, not declared colours.
@@ -540,14 +548,6 @@ The **six most recent releases** are summarized here. See **[CHANGELOG.md](docs/
 - **Environment-scoped configuration.** Private configuration resolves to exactly one path per environment, with no shared `$HOME` lookup and no cross-environment fallback; anything missing or malformed fails closed without leaking a filesystem path.
 - **Observable contact health.** `/api/health` reports contact-protection readiness, Contact depends on it, and both deployments now gate on it.
 - **Search readiness.** A stable root favicon from the approved artwork, declared in the initial HTML, plus checks for homepage metadata, canonical, sitemap membership and legacy placeholder text.
-
-### v5.3.0 — Vanta
-
-- Separated **frontend** and **backend** source trees, reorganized the frontend by feature, and decomposed the largest mixed-responsibility modules. The deploy artifact and every public URL are unchanged.
-- Added **Previous / Next** navigation between Engineering Notes, ordered by the same authoritative Notes list the index renders, as real crawlable `/notes/{slug}` links that still open as editor tabs.
-- Added **Google reCAPTCHA v3** to server-side contact submission: a fresh token per attempt, generated at submit time, verified server-side for success, action, hostname and score.
-- Environment-specific public site keys are selected by exact hostname; an unknown host gets no configuration rather than production. Private secrets stay server-side and never enter the repository or a build.
-- Rate limiting, the exact origin allowlist, the strict CSP, and the Service Worker `/api/*` network-only rule are unchanged.
 
 ## License
 

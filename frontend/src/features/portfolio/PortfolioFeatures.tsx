@@ -279,7 +279,7 @@ export function CaseStudiesSection({ onOpen }: { onOpen: (study: CaseStudy) => v
   </section>;
 }
 
-export function CaseStudyModal({ study, onClose, restorePosition }: { study: CaseStudy | null; onClose: () => void; restorePosition?: { x: number; y: number } }) {
+export function CaseStudyModal({ study, onClose, restorePosition, related }: { study: CaseStudy | null; onClose: () => void; restorePosition?: { x: number; y: number }; related?: ReactNode }) {
   const { t } = usePortfolioFeatures();
   const dialogRef = useModalDialog<HTMLElement>(Boolean(study), onClose, restorePosition);
   if (!study) return null;
@@ -296,6 +296,7 @@ export function CaseStudyModal({ study, onClose, restorePosition }: { study: Cas
           <section><h3>{t("decisions")}</h3><ul>{study.decisions.map(item => <li key={item}>{item}</li>)}</ul></section>
           <section><h3>{t("outcomes")}</h3><ul>{study.outcomes.map(item => <li key={item}>{item}</li>)}</ul></section>
           <section><h3>{t("lessons")}</h3><ul>{study.lessons.map(item => <li key={item}>{item}</li>)}</ul></section>
+          {related}
         </div>
       </div>
     </section>

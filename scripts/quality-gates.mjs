@@ -289,7 +289,7 @@ if (!failures.some(item => item.includes("artifact file is missing") || item.inc
 
 // ---- Release codename architecture (config/releases.json is the only source) ----
 const releaseConfig = JSON.parse(readFileSync(resolve("config/releases.json"), "utf8"));
-const codenameCases = [["2.2.4", "Pixel"], ["3.1.0", "Shadow"], ["4.2.2", "Specter"], ["5.2.0", "Cipher"], ["5.2.1", "Cipher"], ["5.2.2", "Cipher"], ["5.2.42", "Cipher"], ["5.2.99", "Cipher"], ["5.3.0", "Vanta"], ["5.3.1", "Vanta"], ["5.3.99", "Vanta"], ["5.4.0", "Phantom"], ["5.4.99", "Phantom"], ["5.5.0", null], ["1.0.0", null], ["9.9.9", null], ["", null], ["garbage", null]];
+const codenameCases = [["2.2.4", "Pixel"], ["3.1.0", "Shadow"], ["4.2.2", "Specter"], ["5.2.0", "Cipher"], ["5.2.1", "Cipher"], ["5.2.2", "Cipher"], ["5.2.42", "Cipher"], ["5.2.99", "Cipher"], ["5.3.0", "Vanta"], ["5.3.1", "Vanta"], ["5.3.99", "Vanta"], ["5.4.0", "Phantom"], ["5.4.99", "Phantom"], ["5.5.0", "Null"], ["5.5.99", "Null"], ["5.6.0", null], ["1.0.0", null], ["9.9.9", null], ["", null], ["garbage", null]];
 const codenameFailures = codenameCases.filter(([version, expected]) => resolveReleaseCodename(releaseConfig, version) !== expected);
 if (releaseConfig.theme !== "Cyber Noir") fail("Release naming theme must be Cyber Noir");
 else if (Object.hasOwn(releaseConfig, "unnamed")) fail("Release metadata must not define an explicit unnamed-family policy");

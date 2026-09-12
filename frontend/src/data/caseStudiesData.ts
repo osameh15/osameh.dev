@@ -8,7 +8,13 @@ export type Capability = {
   technologies: string[];
 };
 
-export type CaseStudy = {
+/**
+ * A client engagement. Distinct from a project deep-dive, which is the
+ * per-repository narrative in portfolioData/portfolio.json and is keyed by
+ * repository name. Both were called "case study"; only this one is a client
+ * case study, and only this one appears under /case-studies.
+ */
+export type ClientCaseStudy = {
   id: string;
   title: string;
   client: string;
@@ -28,6 +34,10 @@ export type CaseStudy = {
   timeline: string;
   relatedSkills: string[];
   siteUrl?: string;
+  /** Repository names that evidence this client engagement. */
+  relatedProjects?: string[];
+  /** Engineering note slugs that discuss this engagement. */
+  relatedNotes?: string[];
 };
 
 // These are capability areas backed by Osameh's professional experience. They are
@@ -58,7 +68,7 @@ export const capabilities: Capability[] = [
 
 // Only publicly verifiable freelance/client work belongs here. Additional case
 // studies can be added later without changing the presentation architecture.
-export const caseStudies: CaseStudy[] = [
+export const caseStudies: ClientCaseStudy[] = [
   {
     id: "amorella-beauty",
     title: "Amorella Beauty",
@@ -81,3 +91,6 @@ export const caseStudies: CaseStudy[] = [
     siteUrl: "https://amorellabeauty.ir/",
   },
 ];
+
+/** @deprecated Use ClientCaseStudy. Kept so existing imports keep compiling. */
+export type CaseStudy = ClientCaseStudy;

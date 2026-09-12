@@ -95,8 +95,7 @@
       "Published client case studies and capability areas",
       "Availability control",
       "English-only product interface",
-      "Accessibility preferences",
-      "Universal search"
+      "Accessibility preferences"
     ]
   },
   "caseStudy": {
@@ -362,9 +361,7 @@
       "Source code tooling",
       "Responsive UI engineering",
       "Accessibility-aware navigation",
-      "Internationalization architecture",
       "Accessibility preferences",
-      "Universal search",
       "Case-study storytelling"
     ],
     "talkingPoints": [

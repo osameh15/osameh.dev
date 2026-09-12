@@ -4,6 +4,39 @@ All notable changes to **osameh.dev** are documented here.
 
 The project follows [Semantic Versioning](https://semver.org/). The early production releases were shipped in rapid succession while the portfolio was moved from its hosted prototype to the current ParsPack/CDN deployment.
 
+## 5.5.0 - 2026-09-12 - Null
+
+First release in the **Null** family. Every 5.5.x patch inherits the codename. The theme is *zero dead ends*: when a visitor finds one useful thing, the next relevant thing should be reachable.
+
+### Technology identity
+- Technology names now resolve through one canonical registry. The same platform arrived from four places with four spellings - GitHub's lowercase topics, a repository's `portfolio.json` stack, the skills catalog and the capability cards - which produced eighty project-filter commands in the Command Palette, six of them Android.
+- Filtering, related content and skill evidence all match on canonical keys, while displayed labels are unchanged: a project listing `Nuxt 3` still reads `Nuxt 3`.
+- Related but distinct technologies are kept distinct. `C# / .NET` resolves to both C# and .NET rather than collapsing into one, and the same is true of `Qt / QML` and `Nuxt/Vue`.
+- Descriptive `portfolio.json` concepts are no longer offered as filters. They remain real metadata; they were simply never something to filter projects by.
+
+### Evidence
+- Skills now carry provenance: public work, professional, or freelance, and may carry several. There are no percentages, proficiency bars, scores or invented years.
+- A skill links to projects only when a public repository genuinely demonstrates it. A professional-only skill renders as plain text naming its evidence rather than linking nowhere - C++ and Qt are real professional experience with no public repository behind them, and the portfolio now says so instead of implying otherwise.
+- A test enforces the promise: every public-work claim must resolve to a real project, and no professional-only skill may claim one.
+
+### Discovery
+- Projects, Engineering Notes and client case studies end with a short **Continue exploring** block: at most three suggestions, each naming why it appeared.
+- Ordering is deterministic - explicit relationship, then same repository, then case-study relationship, then shared canonical technology, then adjacent note order. No personalization, no randomness, no recommendations.
+- Notes and client case studies gained optional explicit relationship fields; manual relationships stay authoritative over any derived match.
+- The two different things called *case study* are now distinct in code: `ClientCaseStudy` is the client engagement, while the per-repository narrative remains the project deep-dive. No visible wording changed.
+
+### Filters
+- The project technology filter now lives in the URL as `?stack=<key>`, so a filtered view can be shared, restored on a direct load, and undone with Back or redone with Forward.
+- Filter state is a query parameter on the existing document, not a new route. No new indexable URL class is introduced, the sitemap stays at 17 URLs, and the canonical is unchanged.
+- The zero-result state, which already existed, now clears the URL as well as the filter and names the filter that matched nothing.
+
+### Metadata
+- Removed two superseded claims from this repository's own `portfolio.json`: *Internationalization architecture*, contradicted by the deliberately English-only product contract in its own README, and *Universal search*, superseded when the search surfaces were consolidated into one Command Palette in v5.1.0. Historical changelog entries that describe them are untouched.
+
+### Unchanged
+- The editor tab lifecycle, Notes Previous/Next and TOC geometry, whole-card navigation, the Command Palette shortcut, Terminal, modal stack, Phantom's contrast and touch-target work, the branded HTTP error architecture, the `/api/` JSON contract, Service Worker network-only, reCAPTCHA lazy-loading, sitemap, canonical strategy, favicon and Open Graph image URL.
+- No new dependency, no new GitHub API request, no search or graph library, no SSR or prerendering.
+
 ## 5.4.0 - 2026-09-09 - Phantom
 
 First release in the **Phantom** family. Every 5.4.x patch inherits the codename. The theme is portfolio experience and UX refinement; the work is what a measured audit found, not a redesign.
