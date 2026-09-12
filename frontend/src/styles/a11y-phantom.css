@@ -212,3 +212,96 @@ html[data-theme="light"] .editor-tab-close:focus-visible {
     inset: -9px;
   }
 }
+
+/* ---------- v5.5.0 Null: zero-result reset ---------- */
+/* The zero-result state already existed; only its control needed a real target. */
+.project-empty button {
+  min-height: 44px;
+  padding: 0 12px;
+}
+
+/* ---------- v5.5.0 Null: skill evidence ---------- */
+/*
+ * Evidence is a quiet second line, not a badge wall. A linked chip is a button
+ * because it filters in place; an unlinked one is plain text because it has
+ * nowhere honest to go.
+ */
+.skill-chip {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.skill-evidence {
+  color: var(--muted);
+  font: 8.5px var(--code-font);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.skill-chip-linked .skill-evidence {
+  opacity: .85;
+}
+
+@media (max-width: 720px) {
+  .skill-chip {
+    min-height: 44px;
+    justify-content: center;
+  }
+}
+
+/* ---------- v5.5.0 Null: Continue exploring ---------- */
+/*
+ * The end of a project, note or case study. Deliberately a short vertical list:
+ * three items maximum, stacked on every width, so mobile never grows a forest
+ * of horizontal chips.
+ */
+.continue-exploring {
+  margin: 48px 0 0;
+  padding: 20px 0 0;
+  border-top: 1px solid var(--line);
+}
+
+.continue-exploring-title {
+  margin: 0 0 12px;
+  color: var(--green);
+  font: 9px var(--code-font);
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+
+.continue-exploring ul {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.continue-exploring-link {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: "kind arrow" "name arrow" "reason arrow";
+  gap: 2px 12px;
+  align-items: center;
+  min-height: 44px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.continue-exploring-link:hover,
+.continue-exploring-link:focus-visible {
+  border-color: var(--green);
+}
+
+.continue-exploring-kind { grid-area: kind; display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font: 9px var(--code-font); letter-spacing: .1em; text-transform: uppercase; }
+.continue-exploring-name { grid-area: name; font: 600 15px var(--ui-font); }
+.continue-exploring-reason { grid-area: reason; color: var(--muted); font: 12px var(--code-font); }
+.continue-exploring-arrow { grid-area: arrow; color: var(--green); }
+
+html[data-theme="light"] .continue-exploring-link { background: var(--light-surface); border-color: var(--light-border); }
