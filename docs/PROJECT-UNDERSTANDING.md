@@ -581,7 +581,35 @@ identity appears in `twitter:site`, `twitter:creator` and Person `sameAs`.
 contrast checks were shown to both miss real failures and invent false ones, so
 they are no longer trusted alone.
 
-## 30. Current engineering priorities
+## 30. v5.5.0 Null additions
+
+**Canonical technology.** `frontend/src/lib/technology.ts` is the single matching
+authority. Keys are internal and stable, labels are what a human reads, and
+nothing rewrites a display string the portfolio already shows. Combined tokens
+resolve to several keys: `C# / .NET` is C# *and* .NET, never one merged entry.
+A token that is not a technology resolves to nothing, which is how descriptive
+`portfolio.json` concepts stopped appearing as project filters.
+
+**Skill evidence.** `skillCatalog` carries `evidence: ("public-repo" |
+"professional" | "freelance")[]`. A public-work claim is a promise the test
+suite enforces against real project data; a professional-only skill renders as
+text rather than linking to a project that does not exist.
+
+**Related content.** `frontend/src/lib/relatedContent.ts` derives at most three
+suggestions from data already loaded - no index file, no extra request, no graph
+library. Priority is fixed: explicit relationship, same repository, case-study
+relationship, shared canonical technology, adjacent note order.
+
+**Filter state.** `?stack=<canonical key>` on the existing document. A query
+parameter, never a route, so no new indexable URL class exists and the canonical
+is untouched. `exploreTech` normalises the path first and writes the filter
+afterwards, because the reverse order discarded the query string.
+
+**Case study naming.** `ClientCaseStudy` is the client engagement; the
+per-repository narrative remains the project deep-dive. Both were called "case
+study", which made the relationship model ambiguous.
+
+## 31. Current engineering priorities
 
 1. Complete the outstanding staging acceptance pass carried since v5.2.0:
    release identity, Neural Cipher assets, active-tab auto-scroll, plus the
