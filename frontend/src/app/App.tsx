@@ -1085,8 +1085,11 @@ export default function Home() {
       }
       const noteMatch = path.match(/^\/notes\/([a-z0-9-]+)\/?$/i);
       // The filter is part of the address, so Back and Forward restore it
-      // before any route decision is made.
-      setProjectTech(stackParamValue());
+      // before any route decision is made. The value is resolved rather than
+      // trusted: history can carry an alias or a key that no longer exists.
+      const restored = resolveStackParam(stackParamValue());
+      setProjectTech(restored);
+      normalizeStackParam(restored);
       if (noteMatch) {
         const slug = noteMatch[1].toLowerCase();
         if (engineeringNotes.some(note => note.slug === slug)) { openNote(slug, false); return; }
@@ -1119,6 +1122,30 @@ export default function Home() {
   // document rather than a new route, so no new indexable URL class is created
   // and the canonical stays the one the page already declares.
   const stackParamValue = () => new URLSearchParams(window.location.search).get("stack") || "all";
+
+  /**
+   * The one canonical reading of ?stack=. An alias resolves to its canonical
+   * key, and anything that names no available technology resolves to "all" -
+   * so a stale or hand-typed value can never leave the controls showing "All
+   * technologies" beside an empty result.
+   */
+  const resolveStackParam = (raw: string): string => {
+    if (!raw || raw === "all") return "all";
+    if (projectTechOptions.includes(raw)) return raw;
+    const [canonical] = canonicalKeys(raw);
+    return canonical && projectTechOptions.includes(canonical) ? canonical : "all";
+  };
+
+  /** Rewrite the address to the canonical form, without adding history noise. */
+  const normalizeStackParam = (resolved: string) => {
+    const url = new URL(window.location.href);
+    const raw = url.searchParams.get("stack");
+    if (raw === null) return;
+    if (resolved === "all") url.searchParams.delete("stack");
+    else if (raw !== resolved) url.searchParams.set("stack", resolved);
+    else return;
+    window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
+  };
 
   const writeStackParam = (key: string) => {
     const url = new URL(window.location.href);
@@ -1565,8 +1592,9 @@ export default function Home() {
   // A filtered URL opened directly restores its filter once the options exist.
   useEffect(() => {
     if (!repos.length) return;
-    const requested = stackParamValue();
-    if (requested !== "all" && requested !== projectTech && projectTechOptions.includes(requested)) setProjectTech(requested);
+    const resolved = resolveStackParam(stackParamValue());
+    if (resolved !== projectTech) setProjectTech(resolved);
+    normalizeStackParam(resolved);
   }, [repos.length, projectTechOptions.join("|")]);
 
   const projectShareUrl = (repo: GithubRepo) => `${window.location.origin}/projects/${encodeURIComponent(repo.name)}`;

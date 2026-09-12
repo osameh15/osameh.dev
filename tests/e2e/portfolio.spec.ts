@@ -2787,3 +2787,60 @@ test("related content ranking is deterministic across every surface", () => {
   expect(relatedToCaseStudy("client-x", source)).toEqual(caseStudy);
   expect(relatedToNote("note-a", source, "note-b")).toEqual(note);
 });
+
+// The filter has exactly one canonical address. An alias is rewritten to its
+// canonical key and an unrecognised value is dropped, on first load and equally
+// through history navigation - the two used to disagree, which left the controls
+// reading "All technologies" beside an empty result.
+test("an alias in the filter URL is rewritten to its canonical key", async ({ page }) => {
+  await page.goto("/projects?stack=Android");
+  await page.waitForSelector(".project-card, .project-empty");
+
+  await expect.poll(() => new URL(page.url()).searchParams.get("stack")).toBe("android");
+  await expect.poll(() => page.locator("select[aria-label='Filter by technology']").first().inputValue()).toBe("android");
+  expect(await page.locator(".project-card").count()).toBeGreaterThan(0);
+  await expect(page.locator(".project-empty")).toHaveCount(0);
+});
+
+test("an unrecognised filter key is dropped rather than shown as a broken state", async ({ page }) => {
+  // Uncaught exceptions and script errors only. The preview server runs no PHP,
+  // so /api/* resource 404s are an artefact of the environment, not the page.
+  const errors: string[] = [];
+  page.on("pageerror", error => errors.push("uncaught: " + String(error)));
+  page.on("console", message => {
+    if (message.type() !== "error") return;
+    const text = message.text();
+    if (/Failed to load resource/i.test(text)) return;
+    errors.push(text);
+  });
+
+  await page.goto("/projects?stack=this-does-not-exist");
+  await page.waitForSelector(".project-card");
+
+  // The address is cleaned, the full list is shown, and nothing claims to be empty.
+  await expect.poll(() => new URL(page.url()).searchParams.get("stack")).toBe(null);
+  await expect.poll(() => page.locator("select[aria-label='Filter by technology']").first().inputValue()).toBe("all");
+  expect(await page.locator(".project-card").count()).toBeGreaterThan(0);
+  await expect(page.locator(".project-empty")).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
+  expect(errors, "no console or page errors").toEqual([]);
+});
+
+test("history navigation resolves the filter key the same way a fresh load does", async ({ page }) => {
+  await page.goto("/projects");
+  await page.waitForSelector(".project-card");
+  const total = await page.locator(".project-card").count();
+
+  // Push an alias directly into history, then come back to it.
+  await page.evaluate(() => history.pushState({}, "", "/projects?stack=Android"));
+  await page.evaluate(() => history.pushState({}, "", "/projects"));
+  await page.goBack();
+
+  // Restored through popstate: canonical key, matching control, real results.
+  await expect.poll(() => new URL(page.url()).searchParams.get("stack")).toBe("android");
+  await expect.poll(() => page.locator("select[aria-label='Filter by technology']").first().inputValue()).toBe("android");
+  const filtered = await page.locator(".project-card").count();
+  expect(filtered).toBeGreaterThan(0);
+  expect(filtered).toBeLessThanOrEqual(total);
+  await expect(page.locator(".project-empty")).toHaveCount(0);
+});
