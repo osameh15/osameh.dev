@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import DOMPurify from "dompurify";
 import { marked } from "marked";
 import { ArrowLeft, ArrowRight, ArrowUpRight, BookOpen, CalendarDays, Check, ChevronDown, Clock3, Copy, Hash, LoaderCircle, Share2 } from "lucide-react";
@@ -114,7 +114,7 @@ function AdjacentNoteLink({ note, direction, onOpenNote }: { note: EngineeringNo
   </a>;
 }
 
-export function EngineeringNoteView({ slug, onClose, onOpenNote }: { slug: string; onClose: () => void; onOpenNote: (slug: string) => void }) {
+export function EngineeringNoteView({ slug, onClose, onOpenNote, related }: { slug: string; onClose: () => void; onOpenNote: (slug: string) => void; related?: ReactNode }) {
   const note = useMemo(() => engineeringNotes.find(item => item.slug === slug), [slug]);
   const { previous, next } = useMemo(() => adjacentNotes(slug), [slug]);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
@@ -278,6 +278,7 @@ export function EngineeringNoteView({ slug, onClose, onOpenNote }: { slug: strin
           {previous ? <AdjacentNoteLink note={previous} direction="previous" onOpenNote={onOpenNote} /> : <span className="note-adjacent-empty" aria-hidden="true" />}
           {next ? <AdjacentNoteLink note={next} direction="next" onOpenNote={onOpenNote} /> : <span className="note-adjacent-empty" aria-hidden="true" />}
         </nav>}
+        {related}
       </main>
     </div>
   </section>;

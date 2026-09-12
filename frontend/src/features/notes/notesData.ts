@@ -6,6 +6,10 @@ export type EngineeringNote = {
   updatedAt: string;
   readingMinutes: number;
   tags: string[];
+  /** Repository names this note is actually about. Manual and authoritative. */
+  relatedProjects?: string[];
+  /** Client case-study ids this note is actually about. */
+  relatedCaseStudies?: string[];
 };
 
 export const engineeringNotes: EngineeringNote[] = [
@@ -17,6 +21,7 @@ export const engineeringNotes: EngineeringNote[] = [
     updatedAt: "2026-09-01",
     readingMinutes: 7,
     tags: ["Architecture", "GitHub", "React", "PHP"],
+    relatedProjects: ["osameh.dev"],
   },
   {
     slug: "pinned-ftps-deployments",
@@ -26,6 +31,7 @@ export const engineeringNotes: EngineeringNote[] = [
     updatedAt: "2026-09-01",
     readingMinutes: 6,
     tags: ["CI/CD", "Security", "GitHub Actions", "FTPS"],
+    relatedProjects: ["osameh.dev"],
   },
   {
     slug: "safe-github-source-explorer",
@@ -35,6 +41,7 @@ export const engineeringNotes: EngineeringNote[] = [
     updatedAt: "2026-09-01",
     readingMinutes: 8,
     tags: ["Security", "GitHub API", "UX", "Caching"],
+    relatedProjects: ["osameh.dev"],
   },
   {
     slug: "shared-hosting-cache-strategy",
