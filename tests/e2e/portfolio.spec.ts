@@ -2485,6 +2485,44 @@ test("interactive controls meet the touch-target floor at 390px", async ({ page 
   expect(close.height, "tab close height").toBeGreaterThanOrEqual(26);
 });
 
+// A coarse pointer is the case the 44px floor exists for, so it is asserted in a
+// real touch context rather than inferred from the desktop box. The overlay is a
+// pseudo-element, so the effective target is the control plus its negative insets.
+test.describe("coarse pointer", () => {
+  test.use({ hasTouch: true, isMobile: true, viewport: { width: 412, height: 915 } });
+
+  test("the editor tab close offers a 44px touch target without growing the tab row", async ({ page }) => {
+    await page.goto("/notes");
+    await page.locator('a[href^="/notes/"]').first().click();
+    await page.waitForSelector(".editor-tab-close");
+
+    const measured = await page.evaluate(() => {
+      const element = document.querySelector(".editor-tab-close")!;
+      const box = element.getBoundingClientRect();
+      const after = getComputedStyle(element, "::after");
+      const inset = (value: string) => -(parseFloat(value) || 0);
+      const present = after.content && after.content !== "none";
+      const grow = present
+        ? { top: inset(after.top), right: inset(after.right), bottom: inset(after.bottom), left: inset(after.left) }
+        : { top: 0, right: 0, bottom: 0, left: 0 };
+      return {
+        coarse: matchMedia("(pointer: coarse)").matches,
+        width: box.width + grow.left + grow.right,
+        height: box.height + grow.top + grow.bottom,
+        visualWidth: box.width,
+        tabRowHeight: document.querySelector(".tabs-row")!.getBoundingClientRect().height,
+      };
+    });
+
+    expect(measured.coarse, "test context is a coarse pointer").toBe(true);
+    expect(measured.width, "effective touch width").toBeGreaterThanOrEqual(44);
+    expect(measured.height, "effective touch height").toBeGreaterThanOrEqual(44);
+    // The icon and the tab strip must not have grown to achieve it.
+    expect(measured.visualWidth, "visual close icon stays compact").toBeLessThanOrEqual(28);
+    expect(measured.tabRowHeight, "tab row height unchanged").toBeLessThanOrEqual(37);
+  });
+});
+
 test("an editor tab can be closed with the keyboard alone", async ({ page }) => {
   await page.goto("/notes");
   await page.locator('a[href^="/notes/"]').first().click();

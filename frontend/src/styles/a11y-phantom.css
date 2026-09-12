@@ -195,7 +195,12 @@ html[data-theme="light"] .editor-tab-close:focus-visible {
   background: #d3ded5;
 }
 
-/* A coarse pointer gets the full target without changing the visual chrome. */
+/* A coarse pointer gets the full 44x44 target without changing the visual
+ * chrome or the 36px tab row. The overlay is a pseudo-element, so it adds no
+ * layout: it extends 9px past the 26px control on every side. Leftward that
+ * covers the end of the tab title, which is the usual behaviour for a close
+ * affordance; rightward it reaches roughly 3px into the next tab's padding,
+ * where the later sibling paints above it and keeps its own target intact. */
 @media (pointer: coarse) {
   .editor-tab-close {
     position: relative;
@@ -204,6 +209,6 @@ html[data-theme="light"] .editor-tab-close:focus-visible {
   .editor-tab-close::after {
     content: "";
     position: absolute;
-    inset: -9px -6px;
+    inset: -9px;
   }
 }
