@@ -222,30 +222,66 @@ html[data-theme="light"] .editor-tab-close:focus-visible {
 
 /* ---------- v5.5.0 Null: skill evidence ---------- */
 /*
- * Evidence is a quiet second line, not a badge wall. A linked chip is a button
- * because it filters in place; an unlinked one is plain text because it has
- * nowhere honest to go.
+ * A skill is a two-line chip: the technology, then where the claim can be
+ * checked. The selectors are scoped through `.skills-preview` because the
+ * existing button rule there is more specific than a bare class, and a span
+ * chip needs the same box as a button chip so a linked and an unlinked skill
+ * read as the same kind of thing.
  */
-.skill-chip {
+.skills-preview article > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.skills-preview article > div .skill-chip,
+.skills-preview article > div button.skill-chip {
   display: inline-flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 2px;
+  gap: 3px;
+  margin: 0;
+  padding: 7px 9px;
+  border: 1px solid #2f3831;
+  border-radius: 6px;
+  background: #121713;
+  color: #aeb6b0;
+  font: 9px var(--code-font);
+  line-height: 1.3;
+  text-align: left;
 }
 
-.skill-evidence {
+.skills-preview article > div span.skill-chip {
+  cursor: default;
+}
+
+.skills-preview article > div .skill-chip .skill-evidence {
+  display: block;
   color: var(--muted);
-  font: 8.5px var(--code-font);
+  font: 8px var(--code-font);
   letter-spacing: .06em;
   text-transform: uppercase;
+  opacity: .9;
 }
 
-.skill-chip-linked .skill-evidence {
-  opacity: .85;
+.skills-preview article > div button.skill-chip:hover,
+.skills-preview article > div button.skill-chip:focus-visible {
+  border-color: #5b7455;
+  color: var(--green);
+}
+
+html[data-theme="light"] .skills-preview article > div .skill-chip {
+  background: var(--light-surface);
+  border-color: var(--light-border);
+  color: var(--light-text);
+}
+
+html[data-theme="light"] .skills-preview article > div .skill-chip .skill-evidence {
+  color: #4c5c51;
 }
 
 @media (max-width: 720px) {
-  .skill-chip {
+  .skills-preview article > div .skill-chip {
     min-height: 44px;
     justify-content: center;
   }

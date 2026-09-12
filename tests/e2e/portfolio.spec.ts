@@ -5,6 +5,7 @@ import { adjacentNotes, engineeringNotes } from "../../frontend/src/features/not
 import { RECAPTCHA_ACTION, recaptchaSiteKey } from "../../frontend/src/config/recaptchaConfig";
 import { canonicalKeys, technologyLabel } from "../../frontend/src/lib/technology";
 import { skillCatalog } from "../../frontend/src/app/workspacePreferences";
+import { relatedToCaseStudy, relatedToNote, relatedToProject, type RelatedSource } from "../../frontend/src/lib/relatedContent";
 import { ERROR_STATUSES } from "../../scripts/error-pages.mjs";
 
 const availabilityFixture = JSON.parse(readFileSync(new URL("../../config/availability.json", import.meta.url), "utf8"));
@@ -2702,10 +2703,13 @@ test("continue exploring offers deterministic, valid destinations", async ({ pag
   await expect(links.first()).toContainText("This note is about it");
 
   // Ordering is stable across reloads: no randomness, no personalization.
-  const before = await links.allInnerTexts();
+  // Compared by href, which is the stable identity - a project title is read
+  // from repository metadata and legitimately changes once that arrives.
+  const hrefs = async () => page.locator(".continue-exploring a.continue-exploring-link").evaluateAll(nodes => nodes.map(node => node.getAttribute("href")));
+  const before = await hrefs();
   await page.reload();
   await expect(page.locator(".continue-exploring a.continue-exploring-link").first()).toBeVisible();
-  expect(await page.locator(".continue-exploring a.continue-exploring-link").allInnerTexts()).toEqual(before);
+  expect(await hrefs()).toEqual(before);
 });
 
 test("a continue exploring link opens through the editor tab lifecycle", async ({ page }) => {
@@ -2735,4 +2739,51 @@ test("superseded portfolio claims are gone", () => {
   const metadata = readFileSync(new URL("../../portfolio.json", import.meta.url), "utf8");
   expect(metadata, "the product is English-only").not.toContain("Internationalization architecture");
   expect(metadata, "there is one Command Palette, not a Universal Search").not.toContain("Universal search");
+});
+
+// The client case study surface has no live example yet: the one published
+// engagement has no public repository and no note written about it, so the block
+// correctly renders nothing rather than inventing a destination. The code path
+// and the ranking are therefore proved directly, against a fixed source.
+test("related content ranking is deterministic across every surface", () => {
+  const source: RelatedSource = {
+    projects: [
+      { name: "alpha", title: "Alpha", hint: "Nuxt module", technologies: ["Nuxt 3", "TypeScript"] },
+      { name: "beta", title: "Beta", hint: "Android app", technologies: ["Kotlin", "android-app"] },
+      { name: "gamma", title: "Gamma", hint: "Desktop", technologies: ["C# 12", "WPF"] },
+    ],
+    notes: [
+      { slug: "note-a", title: "Note A", hint: "Engineering note", tags: ["Nuxt"], relatedProjects: ["alpha"] },
+      { slug: "note-b", title: "Note B", hint: "Engineering note", tags: ["Nuxt"] },
+      { slug: "note-c", title: "Note C", hint: "Engineering note", tags: ["Cassandra"] },
+    ],
+    caseStudies: [
+      { id: "client-x", title: "Client X", hint: "Client case study", stack: ["Kotlin"], relatedProjects: ["beta"], relatedNotes: ["note-c"] },
+    ],
+  };
+
+  // A client case study: explicit relations outrank a shared technology, and the
+  // block never exceeds three items.
+  const caseStudy = relatedToCaseStudy("client-x", source);
+  expect(caseStudy.length).toBeLessThanOrEqual(3);
+  expect(caseStudy[0].href).toBe("/projects/beta");
+  expect(caseStudy[0].reason).toBe("Built for this engagement");
+  expect(caseStudy.map(item => item.href)).toContain("/notes/note-c");
+
+  // A note: the project it explicitly names ranks above a note sharing a tag.
+  const note = relatedToNote("note-a", source, "note-b");
+  expect(note[0].href).toBe("/projects/alpha");
+  expect(note[0].reason).toBe("This note is about it");
+
+  // A project: the note written about it outranks a project sharing a technology.
+  const project = relatedToProject("alpha", source);
+  expect(project[0].href).toBe("/notes/note-a");
+  expect(project[0].reason).toBe("Written about this project");
+
+  // Unrelated content is never invented.
+  expect(relatedToProject("gamma", source).map(item => item.href)).not.toContain("/notes/note-a");
+
+  // Deterministic: identical input, identical output, every time.
+  expect(relatedToCaseStudy("client-x", source)).toEqual(caseStudy);
+  expect(relatedToNote("note-a", source, "note-b")).toEqual(note);
 });
