@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import { resolveReleaseCodename } from "../../frontend/src/lib/releaseMetadataCore.js";
 import { adjacentNotes, engineeringNotes } from "../../frontend/src/features/notes/notesData";
 import { RECAPTCHA_ACTION, recaptchaSiteKey } from "../../frontend/src/config/recaptchaConfig";
+import { canonicalKeys, technologyLabel } from "../../frontend/src/lib/technology";
+import { skillCatalog } from "../../frontend/src/app/workspacePreferences";
 import { ERROR_STATUSES } from "../../scripts/error-pages.mjs";
 
 const availabilityFixture = JSON.parse(readFileSync(new URL("../../config/availability.json", import.meta.url), "utf8"));
@@ -2543,4 +2545,194 @@ test("the Home tab exposes no close control", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator(".editor-tab").first()).toBeVisible();
   expect(await page.locator(".editor-tab").first().locator(".editor-tab-close").count()).toBe(0);
+});
+
+// ---- v5.5.0 Null: zero dead ends ----
+
+// Alias resolution is pure, so it is asserted directly rather than through the UI.
+test("technology aliases resolve to canonical keys", () => {
+  const cases: [string, string[]][] = [
+    ["android", ["android"]], ["Android", ["android"]], ["Android SDK", ["android"]],
+    ["Android Studio", ["android"]], ["android-app", ["android"]], ["android-application", ["android"]],
+    ["C#", ["csharp"]], ["C# 12", ["csharp"]], ["csharp", ["csharp"]],
+    [".NET 8", ["dotnet"]], [".NET 9", ["dotnet"]], ["dotnet CLI", ["dotnet"]],
+    ["Nuxt", ["nuxt"]], ["Nuxt 3", ["nuxt"]], ["Nuxt 4", ["nuxt"]], ["nuxt3", ["nuxt"]], ["nuxtjs", ["nuxt"]],
+    ["Vue", ["vue"]], ["Vue 3", ["vue"]], ["Vue 3.5", ["vue"]], ["vue3", ["vue"]], ["vuejs", ["vue"]],
+    ["PostgreSQL", ["postgresql"]], ["Postgres", ["postgresql"]],
+    ["Qt", ["qt"]], ["QML", ["qml"]],
+  ];
+  for (const [input, expected] of cases) {
+    expect(canonicalKeys(input), `${input} should resolve to ${expected.join("+")}`).toEqual(expected);
+  }
+
+  // Related but distinct technologies must never be collapsed into one.
+  expect(canonicalKeys("C# / .NET"), "C# / .NET names two technologies").toEqual(["csharp", "dotnet"]);
+  expect(canonicalKeys("Qt / QML"), "Qt / QML names two technologies").toEqual(["qt", "qml"]);
+  expect(canonicalKeys("Nuxt/Vue"), "Nuxt/Vue names two technologies").toEqual(["nuxt", "vue"]);
+  expect(canonicalKeys("csharp")).not.toEqual(canonicalKeys(".NET 8"));
+
+  // A descriptive concept is not a technology and resolves to nothing.
+  expect(canonicalKeys("Repository-driven portfolio")).toEqual([]);
+
+  // Labels stay human-readable regardless of the key.
+  expect(technologyLabel("dotnet")).toBe(".NET");
+  expect(technologyLabel("csharp")).toBe("C#");
+});
+
+test("the palette exposes one filter command per technology", async ({ page }) => {
+  await page.goto("/");
+  await page.keyboard.press("Control+Shift+P");
+  await page.getByRole("dialog").waitFor();
+  await page.keyboard.type("Filter projects by");
+  await page.waitForTimeout(700);
+
+  const labels: string[] = await page.evaluate(() => [...document.querySelectorAll('[role="dialog"] [role="option"], [role="dialog"] li, [role="dialog"] button')]
+    .map(node => (node.textContent || "").replace(/\s+/g, " ").trim())
+    .filter(text => /^Filter projects by /.test(text))
+    .map(text => text.replace(/^Filter projects by /, "").replace(/technology$/, "").trim()));
+
+  expect(labels.length, "filter commands exist").toBeGreaterThan(0);
+  expect(new Set(labels).size, "no duplicated technology filter").toBe(labels.length);
+  // The alias explosion that produced six Android entries must not return.
+  const androidish = labels.filter(label => /android/i.test(label));
+  expect(androidish.length, `one Android filter, saw ${androidish.join(" / ")}`).toBeLessThanOrEqual(1);
+  await page.keyboard.press("Escape");
+});
+
+test("a filter that matches nothing explains itself and can be cleared", async ({ page }) => {
+  await page.goto("/projects");
+  const search = page.locator('input[aria-label="Search projects"]').first();
+  await search.fill("zzzq-no-project-matches-this");
+  await expect(page.locator(".project-empty")).toBeVisible();
+  await expect(page.locator(".project-empty")).toContainText(/no project matches/i);
+  expect(await page.locator(".project-card").count()).toBe(0);
+
+  await page.locator(".project-empty button").click();
+  await expect(page.locator(".project-empty")).toHaveCount(0);
+  expect(await page.locator(".project-card").count()).toBeGreaterThan(0);
+  await expect(search).toHaveValue("");
+});
+
+for (const width of [320, 390]) {
+  test(`the zero-result state does not overflow at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto("/projects");
+    await page.locator('input[aria-label="Search projects"]').first().fill("zzzq-no-project-matches-this");
+    await expect(page.locator(".project-empty")).toBeVisible();
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow).toBeLessThanOrEqual(1);
+  });
+}
+
+test("the project filter lives in the URL and survives Back and Forward", async ({ page }) => {
+  await page.goto("/projects");
+  await page.waitForSelector(".project-card");
+  const total = await page.locator(".project-card").count();
+
+  await page.locator(".stack-explorer button", { hasText: "Vue" }).first().click();
+  await expect.poll(() => new URL(page.url()).searchParams.get("stack")).toBe("vue");
+  const filtered = await page.locator(".project-card").count();
+  expect(filtered).toBeGreaterThan(0);
+  expect(filtered).toBeLessThan(total);
+
+  await page.goBack();
+  await expect.poll(() => new URL(page.url()).searchParams.get("stack")).toBe(null);
+  await expect.poll(() => page.locator(".project-card").count()).toBe(total);
+
+  await page.goForward();
+  await expect.poll(() => new URL(page.url()).searchParams.get("stack")).toBe("vue");
+  await expect.poll(() => page.locator(".project-card").count()).toBe(filtered);
+});
+
+test("a filtered URL opened directly restores its filter", async ({ page }) => {
+  await page.goto("/projects?stack=vue");
+  await page.waitForSelector(".project-card");
+  await expect.poll(() => page.locator("select[aria-label='Filter by technology']").first().inputValue()).toBe("vue");
+  expect(await page.locator(".project-card").count()).toBeGreaterThan(0);
+  // An alias must never appear in the address; only the canonical key.
+  expect(new URL(page.url()).searchParams.get("stack")).toBe("vue");
+});
+
+test("every public-repo skill claim resolves to a real project", async ({ page }) => {
+  await page.goto("/projects");
+  await page.waitForSelector(".project-card");
+
+  const available: string[] = await page.evaluate(() => [...document.querySelectorAll("select[aria-label='Filter by technology'] option")]
+    .map(option => (option as HTMLOptionElement).value)
+    .filter(value => value !== "all"));
+
+  for (const skill of skillCatalog.filter(item => item.evidence.includes("public-repo"))) {
+    expect(available, `${skill.label} claims public-repo evidence`).toContain(skill.key);
+  }
+  // A skill with no public project must not pretend to have one.
+  const professionalOnly = skillCatalog.filter(item => !item.evidence.includes("public-repo"));
+  expect(professionalOnly.length, "some skills are professional-only").toBeGreaterThan(0);
+  for (const skill of professionalOnly) {
+    expect(available, `${skill.label} must not claim public-repo evidence`).not.toContain(skill.key);
+  }
+});
+
+test("professional-only skills render as text, not as project links", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Preview", exact: true }).click();
+  await page.waitForSelector(".skill-card");
+
+  const cpp = page.locator(".skill-chip", { hasText: "C++" }).first();
+  await expect(cpp).toBeVisible();
+  await expect(cpp).toHaveJSProperty("tagName", "SPAN");
+  await expect(cpp).toContainText("Professional");
+
+  const typescript = page.locator("button.skill-chip-linked", { hasText: "TypeScript" }).first();
+  await expect(typescript).toBeVisible();
+  await expect(typescript).toContainText("Public work");
+});
+
+test("continue exploring offers deterministic, valid destinations", async ({ page }) => {
+  await page.goto("/notes/repository-driven-portfolio");
+  const block = page.locator(".continue-exploring");
+  await expect(block).toBeVisible();
+
+  const links = block.locator("a.continue-exploring-link");
+  const count = await links.count();
+  expect(count, "at least one suggestion").toBeGreaterThan(0);
+  expect(count, "at most three suggestions").toBeLessThanOrEqual(3);
+
+  // The note names osameh.dev explicitly, so the explicit relation ranks first.
+  await expect(links.first()).toHaveAttribute("href", "/projects/osameh.dev");
+  await expect(links.first()).toContainText("This note is about it");
+
+  // Ordering is stable across reloads: no randomness, no personalization.
+  const before = await links.allInnerTexts();
+  await page.reload();
+  await expect(page.locator(".continue-exploring a.continue-exploring-link").first()).toBeVisible();
+  expect(await page.locator(".continue-exploring a.continue-exploring-link").allInnerTexts()).toEqual(before);
+});
+
+test("a continue exploring link opens through the editor tab lifecycle", async ({ page }) => {
+  await page.goto("/notes/repository-driven-portfolio");
+  const link = page.locator(".continue-exploring a.continue-exploring-link").first();
+  await link.click();
+
+  await expect(page).toHaveURL(/\/projects\/osameh\.dev$/);
+  await expect(page.locator(".editor-tab.active")).toContainText("osameh.dev");
+
+  // The lifecycle must not duplicate a tab for content already open.
+  const ids = await page.evaluate(() => [...document.querySelectorAll(".editor-tab")].map(tab => (tab as HTMLElement).dataset.tabId || "home"));
+  expect(new Set(ids).size, "no duplicate editor tabs").toBe(ids.length);
+});
+
+for (const width of [320, 412]) {
+  test(`continue exploring stacks without overflow at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto("/notes/repository-driven-portfolio");
+    await expect(page.locator(".continue-exploring")).toBeVisible();
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow).toBeLessThanOrEqual(1);
+  });
+}
+
+test("superseded portfolio claims are gone", () => {
+  const metadata = readFileSync(new URL("../../portfolio.json", import.meta.url), "utf8");
+  expect(metadata, "the product is English-only").not.toContain("Internationalization architecture");
+  expect(metadata, "there is one Command Palette, not a Universal Search").not.toContain("Universal search");
 });
