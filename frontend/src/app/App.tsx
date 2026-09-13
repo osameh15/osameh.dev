@@ -11,6 +11,26 @@ import {
 import { BUILD_CODENAME, BUILD_DISPLAY, BUILD_ID, BUILD_TIME, BUILD_VERSION } from "../generated/build";
 import { formatReleaseLabel } from "../lib/releaseMetadata";
 import { canonicalKeys, canonicalKeysFor, technologyLabel, TECHNOLOGIES } from "../lib/technology";
+
+/**
+ * Curated project lifecycle, authored in each repository's portfolio.json.
+ *
+ *   active      currently being worked on
+ *   stable      finished and dependable; not a sign of neglect
+ *   maintained  kept working, updated when it needs it
+ *   legacy      from an earlier era of the portfolio, kept for the record
+ *
+ * These are the author's classifications, never derived from repository dates:
+ * `updated_at` moves when a description or a star changes, so it cannot stand
+ * in for code freshness. A project without metadata shows no lifecycle at all
+ * rather than an inferred one.
+ */
+const LIFECYCLE_LABEL: Record<string, string> = {
+  active: "Active",
+  stable: "Stable",
+  maintained: "Maintained",
+  legacy: "Legacy",
+};
 import { trackEvent } from "../lib/analytics";
 import { shareProject } from "../lib/share";
 import { ContactForm } from "../features/contact/ContactForm";
@@ -56,7 +76,7 @@ type ContextMenuState = {
   caseStudyId?: string;
 };
 
-type ToastState = { message: string; kind: ToastKind } | null;
+type ToastState = { message: string; kind: ToastKind; action?: { label: string; run: () => void } } | null;
 
 export default function Home() {
   const { t, setAccessibilityOpen, setAvailabilityOpen } = usePortfolioFeatures();
@@ -150,9 +170,12 @@ export default function Home() {
   const code = codeProfiles[codeLanguage];
   const skillLines = skillSource(codeLanguage);
 
-  const showActionToast = (message: string, kind: ToastKind = "info", duration = 3200) => {
-    setActionToast({ message, kind });
+  const showActionToast = (message: string, kind: ToastKind = "info", duration = 3200, action?: { label: string; run: () => void }) => {
+    setActionToast({ message, kind, action });
     if (actionToastTimerRef.current !== null) window.clearTimeout(actionToastTimerRef.current);
+    // A toast carrying an action stays until it is used or dismissed: it would
+    // be worse than useless if it vanished while being read.
+    if (action) return;
     actionToastTimerRef.current = window.setTimeout(() => setActionToast(null), duration);
   };
 
@@ -262,6 +285,25 @@ export default function Home() {
   }, []);
 
   useEffect(() => { trackEvent("page_view"); }, []);
+
+  // A newer application build has taken control of this page.
+  //
+  // The worker calls skipWaiting()/clients.claim(), so after a deploy it takes
+  // over while this document still renders the previous bundle - Build Info
+  // would state one version while the server serves another. main.tsx raises
+  // this event only when a controller *replaces* an existing one, never on the
+  // first installation, so a first-time visitor is not told to reload a page
+  // they just opened. No polling, no forced refresh: the visitor decides.
+  useEffect(() => {
+    const onBuildReady = () => showActionToast(
+      "A new build of this portfolio is available.",
+      "info",
+      0,
+      { label: "Reload", run: () => window.location.reload() },
+    );
+    window.addEventListener("portfolio:build-updated", onBuildReady);
+    return () => window.removeEventListener("portfolio:build-updated", onBuildReady);
+  }, []);
 
   useEffect(() => {
     const onToast = (event: Event) => {
@@ -1870,7 +1912,7 @@ export default function Home() {
                     {repoImages[project.name] && <img src={repoImages[project.name]} alt={'Preview from ' + project.name + ' README'} loading="lazy" onError={event => { event.currentTarget.hidden = true; }} />}
                     <div className="image-fallback"><Code2 size={31} /><span>{project.language || "Code"}</span></div>
                   </div>
-                  <p className="project-type">{repoMetadata[project.name]?.project.type || project.language || "Repository"} · Updated {new Date(project.updated_at).toLocaleDateString("en", { month: "short", year: "numeric" })}{repoMetadata[project.name]?.project.featured ? " · Featured" : ""}</p>
+                  <p className="project-type">{repoMetadata[project.name]?.project.type || project.language || "Repository"} · Updated {new Date(project.updated_at).toLocaleDateString("en", { month: "short", year: "numeric" })}{repoMetadata[project.name]?.project.featured ? " · Featured" : ""}{LIFECYCLE_LABEL[repoMetadata[project.name]?.project.lifecycle ?? ""] ? <> · <span className="project-lifecycle">{LIFECYCLE_LABEL[repoMetadata[project.name]!.project.lifecycle]}</span></> : null}</p>
                   <h3>{repoMetadata[project.name]?.project.name || project.name}</h3><p className="project-desc">{repoMetadata[project.name]?.project.tagline || project.description || "Explore the source, architecture, and latest work in this repository."}</p>
                   <div className="tags">{[project.language, ...project.topics].filter(Boolean).slice(0, 4).map(tag => <span key={tag}>{tag}</span>)}</div>
                   <div className="project-links"><a className="open-detail card-surface-link" href={`/projects/${encodeURIComponent(project.name)}`} onClick={event => { if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return; event.preventDefault(); openProject(project); }}>Open project details <ArrowUpRight size={14} /></a><button className={compareRepos.some(item => item.id === project.id) ? "compare-chip active" : "compare-chip"} onClick={() => toggleCompareRepo(project)} aria-pressed={compareRepos.some(item => item.id === project.id)}><Code2 size={13} /> {compareRepos.some(item => item.id === project.id) ? "Selected" : "Compare"}</button>{npmUrl(project.name) && <a className="npm-chip" href={npmUrl(project.name)} target="_blank" rel="noreferrer" aria-label={'View ' + npmPackages[project.name] + ' on npm'}><Package size={13} /> npm <ArrowUpRight size={12} /></a>}</div>
@@ -1897,7 +1939,7 @@ export default function Home() {
             </div>
           </section>
 
-          <GithubActivity />
+          <GithubActivity onOpenNote={openNote} />
           <NowSection />
           <ChangelogSection />
           <EngineeringNotesSection onOpenNote={openNote} />
@@ -1999,6 +2041,10 @@ export default function Home() {
         {actionToast && <div className={`action-toast ${actionToast.kind}`} role={actionToast.kind === "error" ? "alert" : "status"} aria-live={actionToast.kind === "error" ? "assertive" : "polite"}>
           <span className="action-toast-icon">{actionToast.kind === "success" ? <Check size={18} /> : actionToast.kind === "warning" || actionToast.kind === "error" ? <AlertTriangle size={18} /> : <Info size={18} />}</span>
           <span>{actionToast.message}</span>
+          {actionToast.action && <>
+            <button type="button" className="action-toast-action" onClick={() => { const run = actionToast.action!.run; setActionToast(null); run(); }}>{actionToast.action.label}</button>
+            <button type="button" className="action-toast-dismiss" aria-label="Dismiss" onClick={() => setActionToast(null)}><X size={14} /></button>
+          </>}
         </div>}
         {compareRepos.length > 0 && <div className="compare-bar"><span><Code2 size={14} /> Compare queue</span><div>{compareRepos.map(repo => <button key={repo.id} onClick={() => toggleCompareRepo(repo)}>{repo.name} <X size={12} /></button>)}</div><button className="compare-run" disabled={compareRepos.length !== 2} onClick={() => { if (compareRepos.length === 2) { setCompareModalOpen(true); trackEvent("project_compare", compareRepos.map(repo => repo.name).join(" vs ")); } }}>{compareRepos.length === 2 ? "Compare 2 projects" : "Select one more"}</button></div>}
         <CaseStudyModal

@@ -2,8 +2,8 @@
 // refactor. Behavior is unchanged; only ownership moved.
 
 import { useEffect, useState } from "react";
-import { Check, MonitorCheck, PackageCheck, X } from "lucide-react";
-import { BUILD_CODENAME, BUILD_ID, BUILD_TIME, BUILD_VERSION } from "../../generated/build";
+import { ArrowUpRight, Check, MonitorCheck, PackageCheck, X } from "lucide-react";
+import { BUILD_CODENAME, BUILD_COMMIT, BUILD_COMMIT_SHORT, BUILD_ID, BUILD_TIME, BUILD_VERSION } from "../../generated/build";
 import { RELEASE_THEME, formatReleaseLabel } from "../../lib/releaseMetadata";
 import { useModalDialog } from "../../lib/modalScroll";
 import { notify } from "../../lib/toast";
@@ -84,6 +84,29 @@ export function BuildInfoModal() {
             {BUILD_CODENAME && <article><small>CODENAME</small><strong>{BUILD_CODENAME}</strong><span>{RELEASE_THEME} release family</span></article>}
             <article><small>BUILD ID</small><strong className="build-info-id">{BUILD_ID}</strong><span>unique deployment fingerprint</span></article>
             <article><small>BUILT AT</small><strong>{new Date(BUILD_TIME).toLocaleString()}</strong><span>{BUILD_TIME}</span></article>
+            {/* Deployed provenance. The exact source commit this bundle was
+                built from, generated at build time rather than inferred from
+                runtime state, so the artefact carries its own identity.
+                Deliberately no release link: the signed tag and GitHub Release
+                are created only after production acceptance, so a bundle can
+                never guarantee that /releases/tag/<version> already exists. */}
+            {BUILD_COMMIT && BUILD_COMMIT_SHORT && (
+              <article>
+                <small>COMMIT</small>
+                <strong>
+                  <a
+                    className="build-commit-link"
+                    href={`https://github.com/osameh15/osameh.dev/commit/${BUILD_COMMIT}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    title={BUILD_COMMIT}
+                    aria-label={`View the deployed commit ${BUILD_COMMIT_SHORT} on GitHub`}
+                  >
+                    {BUILD_COMMIT_SHORT} <ArrowUpRight size={13} aria-hidden="true" />
+                  </a>
+                </strong>
+              </article>
+            )}
             <article><small>ENVIRONMENT</small><strong data-environment-state={buildEnvironmentState}>{buildEnvironment || (buildEnvironmentState === "loading" ? "resolving…" : "unavailable")}</strong><span>Vite · ParsPack CDN</span></article>
           </div>
           <div className="build-info-actions">

@@ -341,3 +341,113 @@ html[data-theme="light"] .skills-preview article > div .skill-chip .skill-eviden
 .continue-exploring-arrow { grid-area: arrow; color: var(--green); }
 
 html[data-theme="light"] .continue-exploring-link { background: var(--light-surface); border-color: var(--light-border); }
+
+/* ---------- v5.6.0 Raven: build provenance ---------- */
+/* The deployed commit, linked to its public GitHub page. Short SHA on screen,
+   full SHA in the title and accessible name. */
+.build-commit-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--green);
+  font-family: var(--code-font);
+  text-decoration: none;
+}
+
+.build-commit-link:hover,
+.build-commit-link:focus-visible {
+  text-decoration: underline;
+}
+
+@media (max-width: 720px) {
+  .build-commit-link {
+    min-height: 44px;
+  }
+}
+
+/* ---------- v5.6.0 Raven: curated project lifecycle ---------- */
+/* Text, never colour alone: the word itself carries the meaning. */
+.project-lifecycle {
+  color: var(--green);
+  font-weight: 600;
+}
+
+html[data-theme="light"] .project-lifecycle {
+  color: var(--light-accent-strong);
+}
+
+/* ---------- v5.6.0 Raven: engineering timeline ---------- */
+/* A release should not look like a one-commit push. The distinction is carried
+   by the icon and the weight of the title, never by colour alone. */
+.activity-entry[data-activity-source="release"] b,
+.activity-entry[data-activity-source="note"] b {
+  font-weight: 700;
+}
+
+.activity-entry[data-activity-source="github"] b {
+  font-weight: 500;
+  opacity: .88;
+}
+
+.activity-node[data-activity-type="release"],
+.activity-node[data-activity-type="github-release"] {
+  color: var(--green);
+}
+
+.activity-degraded {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 12px;
+  font-size: 13px;
+}
+
+/* ---------- v5.6.0 Raven: actionable toast ---------- */
+/* Used by the new-build signal. Real buttons, full touch targets, and the
+   toast stays put while it carries an action. */
+.action-toast-action {
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 1px solid var(--green);
+  border-radius: 7px;
+  background: none;
+  color: var(--green);
+  cursor: pointer;
+  font: 12px var(--ui-font);
+  white-space: nowrap;
+}
+
+.action-toast-action:hover,
+.action-toast-action:focus-visible {
+  background: rgba(183, 242, 100, .1);
+}
+
+.action-toast-dismiss {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: inherit;
+  opacity: .7;
+  cursor: pointer;
+}
+
+.action-toast-dismiss:hover,
+.action-toast-dismiss:focus-visible {
+  opacity: 1;
+}
+
+@media (max-width: 720px) {
+  .action-toast-action { min-height: 44px; }
+  .action-toast-dismiss { width: 44px; height: 44px; }
+}
+
+html[data-theme="light"] .action-toast-action:hover,
+html[data-theme="light"] .action-toast-action:focus-visible {
+  background: var(--light-accent-soft);
+}
