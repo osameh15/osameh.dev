@@ -98,6 +98,15 @@ export function buildEngineeringTimeline(
 
   // 3. GitHub. A release event already documented locally is dropped rather than
   //    shown twice; pushes stay, ranked below everything meaningful.
+  //
+  //    Two deterministic keys, in order. The version/tag is preferred, but the
+  //    activity payload often carries no tag - GitHub reports "Published a
+  //    release" with a bare repository URL - so the date of a release this
+  //    portfolio already documents is the fallback. Still deterministic, and
+  //    the local record stays authoritative either way. No title matching.
+  const localReleaseDates = new Set(
+    [...knownVersions].map(version => RELEASE_DATES[version]).filter(Boolean),
+  );
   for (const item of githubItems) {
     const date = (item.created_at || "").slice(0, 10);
     if (!date) continue;
@@ -105,6 +114,7 @@ export function buildEngineeringTimeline(
     if (isRelease) {
       const version = versionFromEvent(item);
       if (version && knownVersions.has(version)) continue;
+      if (!version && localReleaseDates.has(date)) continue;
     }
     timeline.push({
       id: `github:${item.id}`,
