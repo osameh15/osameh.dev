@@ -30,6 +30,7 @@ import { verifyRepositorySecrets } from "./verify-secrets.mjs";
 import { verifySearchReadiness } from "./verify-search-readiness.mjs";
 import { verifyErrorConfiguration } from "./verify-error-pages.mjs";
 import { ERROR_STATUSES } from "./error-pages.mjs";
+import { verifyTechnologyRegistry, verifyFallbackProjects, verifyPortfolioMetadata, verifyContentRelations, verifyReleaseIntegrity, verifyProjectAssets } from "./verify-portfolio-integrity.mjs";
 import { resolveReleaseCodename } from "../frontend/src/lib/releaseMetadataCore.js";
 
 const failures = [];
@@ -289,7 +290,10 @@ if (!failures.some(item => item.includes("artifact file is missing") || item.inc
 
 // ---- Release codename architecture (config/releases.json is the only source) ----
 const releaseConfig = JSON.parse(readFileSync(resolve("config/releases.json"), "utf8"));
-const codenameCases = [["2.2.4", "Pixel"], ["3.1.0", "Shadow"], ["4.2.2", "Specter"], ["5.2.0", "Cipher"], ["5.2.1", "Cipher"], ["5.2.2", "Cipher"], ["5.2.42", "Cipher"], ["5.2.99", "Cipher"], ["5.3.0", "Vanta"], ["5.3.1", "Vanta"], ["5.3.99", "Vanta"], ["5.4.0", "Phantom"], ["5.4.99", "Phantom"], ["5.5.0", "Null"], ["5.5.99", "Null"], ["5.6.0", null], ["1.0.0", null], ["9.9.9", null], ["", null], ["garbage", null]];
+// Family and historical mappings are derived from config/releases.json by the
+// release integrity gate, so a new family no longer needs this list edited by
+// hand. What remains here is what config cannot express: malformed input.
+const codenameCases = [["1.0.0", null], ["9.9.9", null], ["", null], ["garbage", null], ["v5.5.0", "Null"]];
 const codenameFailures = codenameCases.filter(([version, expected]) => resolveReleaseCodename(releaseConfig, version) !== expected);
 if (releaseConfig.theme !== "Cyber Noir") fail("Release naming theme must be Cyber Noir");
 else if (Object.hasOwn(releaseConfig, "unnamed")) fail("Release metadata must not define an explicit unnamed-family policy");
@@ -656,6 +660,24 @@ for (const { status } of ERROR_STATUSES) {
   if (sitemapPhp.includes(`/errors/${status}`) || sitemapXml.includes(`/errors/${status}`)) fail(`Error document ${status} appears in a sitemap`);
 }
 if (!failures.some(item => item.includes("appears in a sitemap"))) pass("Error documents stay out of both sitemaps");
+
+// ---- v5.6.0 Raven: deterministic content and release integrity ----
+//
+// Every gate below is proved from files in this repository. None contacts a
+// third party: the Raven audit watched npmjs.com answer 403 to automation
+// while all four packages were healthy, and a gate that fails for reasons
+// unrelated to the change under test is worse than no gate.
+for (const [label, failures] of [
+  ["Canonical technology registry", verifyTechnologyRegistry()],
+  ["Fallback project data", verifyFallbackProjects()],
+  ["Repository portfolio.json", verifyPortfolioMetadata()],
+  ["Content relationships", verifyContentRelations()],
+  ["Release metadata", verifyReleaseIntegrity(resolveReleaseCodename)],
+  ["Project assets", verifyProjectAssets()],
+]) {
+  for (const failure of failures) fail(`${label}: ${failure}`);
+  if (!failures.length) pass(`${label} integrity verified`);
+}
 
 // The service worker only registers over HTTPS, so no local browser run loads
 // it. Execute it against a minimal worker environment here instead.
