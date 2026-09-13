@@ -11,8 +11,8 @@ declare(strict_types=1);
  *
  *   1. A check whose only evidence is `is_file()` may report "deployed", never
  *      "operational". Presence is not behaviour.
- *   2. There is no tautological check - nothing may report a constant status
- *      that cannot fail.
+ *   2. No check may be a tautology - nothing may report a constant status that
+ *      cannot fail.
  *   3. Credential acceptance is tri-state and never inferred from presence.
  *
  * Run: php backend/tests/health-vocabulary.php
@@ -31,25 +31,31 @@ function check(string $name, bool $condition): void
 }
 
 $health = (string) file_get_contents(__DIR__ . '/../api/health.php');
+$probe = (string) file_get_contents(__DIR__ . '/../lib/health-probe.php');
 
 echo "status vocabulary\n";
 
-// Rule 1: presence-only checks report presence.
+// Rule 1: a presence-only check reports presence.
 check(
     'the GitHub proxy check reports deployment, not operation',
-    (bool) preg_match("/check\('github-proxy'.*is_file\(\\\$githubProxyPath\) \? 'deployed'/s", $health)
+    str_contains($health, "is_file(\$githubProxyPath) ? 'deployed' : 'down'")
 );
 check(
     'the contact check reports deployment, not operation',
-    (bool) preg_match("/'contact',\s*'Contact API',\s*!is_file\(\\\$contactPath\) \? 'down' : \(\\\$recaptchaConfigured \? 'deployed'/s", $health)
+    str_contains($health, "!is_file(\$contactPath) ? 'down' : (\$recaptchaConfigured ? 'deployed' : 'down')")
 );
 check(
     'the build metadata check reports presence, not operation',
-    (bool) preg_match("/check\('build'.*is_file\(\\\$buildPath\) \? 'deployed'/s", $health)
+    str_contains($health, "is_file(\$buildPath) ? 'deployed' : 'degraded'")
 );
 check(
     'contact protection reports that it is configured',
-    (bool) preg_match("/'recaptcha',\s*'Contact protection',\s*\\\$recaptchaConfigured \? 'configured'/s", $health)
+    str_contains($health, "\$recaptchaConfigured ? 'configured' : 'down'")
+);
+check(
+    'no presence check claims to be operational',
+    !str_contains($health, "is_file(\$githubProxyPath) ? 'operational'")
+        && !str_contains($health, "is_file(\$buildPath) ? 'operational'")
 );
 
 // Rule 2: no check may be a constant.
@@ -62,25 +68,41 @@ check(
     !(bool) preg_match("/check\('[a-z-]+', '[^']+', 'operational', null, '[^']*'\)/", $health)
 );
 
-// Rule 3: the vocabulary is documented where the checks are built.
-foreach (['operational', 'deployed', 'configured', 'degraded', 'unknown'] as $word) {
-    check("the vocabulary documents \"{$word}\"", str_contains($health, " *   {$word}") || str_contains($health, " *                acceptance"));
+// The vocabulary is documented beside the checks it governs. Each word must be
+// defined on its own line: an earlier version of this loop carried an `||`
+// fallback that was always true, which made every one of these pass
+// unconditionally - a test that cannot fail is the very thing Raven removes.
+foreach (['operational', 'deployed', 'configured', 'degraded', 'unavailable', 'unknown'] as $word) {
+    check("the vocabulary defines \"{$word}\"", str_contains($health, " *   {$word}"));
 }
 
 echo "\ncredential semantics\n";
 
-$probe = (string) file_get_contents(__DIR__ . '/../lib/health-probe.php');
+// Rule 3: acceptance is tri-state, and never the mere presence of a token.
 check(
     'acceptance is documented as tri-state',
     str_contains($probe, 'null   Acceptance is unknown')
 );
+// A 2xx answer with a credential *is* acceptance, so that branch legitimately
+// reports $hasToken. What must never happen is an unverified branch doing the
+// same: every "Upstream check unavailable" return has to resolve to null or
+// false, never to the bare presence of a token.
 check(
-    'no branch returns the raw token presence as acceptance',
-    !(bool) preg_match("/'authenticated' => \\\$hasToken,/", $probe)
+    'an unverified branch never reports the raw token presence',
+    !str_contains($probe, "'authenticated' => \$hasToken, 'detail' => 'Upstream check unavailable'")
 );
 check(
-    'the unknown state is reachable only when a credential exists',
+    'both unavailable branches resolve to unknown or false',
     substr_count($probe, "'authenticated' => \$hasToken ? null : false") === 2
+);
+check(
+    'an explicit rejection is a definite false',
+    str_contains($probe, "'authenticated' => false, 'detail' => 'GitHub rejected the configured credential'")
+);
+check(
+    'a probe that never ran does not claim acceptance',
+    str_contains($probe, "'detail' => 'cURL unavailable'")
+        && !str_contains($probe, "'authenticated' => \$token !== null, 'detail' => 'cURL unavailable'")
 );
 
 echo "\n{$checks} checks\n";
