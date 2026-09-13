@@ -90,6 +90,10 @@ jobs:
       - name: PHP API error shape test
         run: php backend/tests/api-error-shape.php
 
+      # A status label may never claim more than its check proves.
+      - name: PHP health vocabulary test
+        run: php backend/tests/health-vocabulary.php
+
       # One build for every environment. It is a normal, indexable
       # production-like bundle, which is what verify:dist, Playwright and the
       # strict Lighthouse SEO audit below all run against. Environment indexing
