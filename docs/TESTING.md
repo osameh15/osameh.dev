@@ -573,3 +573,40 @@ asserting the canonical key appears in the address, never an alias.
 ### Stale claims
 
 A repository-level assertion that the two superseded claims cannot return.
+
+## 14. v5.6.0 Raven coverage
+
+### Health semantics (PHP)
+
+`github-health.php` now pins the tri-state contract: acceptance is `true` only
+when GitHub accepted the credential, `false` when there is none or it was
+rejected, and `null` on transport failure or upstream 5xx. Two cases guard the
+boundary - an unreachable upstream *without* a credential is a definite
+`false`, not unknown - and one asserts the three states stay distinguishable.
+
+`health-vocabulary.php` reads the endpoint's source and enforces what it is
+*allowed* to claim: a check whose only evidence is `is_file()` may report
+`deployed` and never `operational`, no check may be an unconditional constant,
+and no branch may return the raw token presence as acceptance.
+
+### Integrity gates
+
+Run inside `npm run quality`, all proved from repository files: canonical
+technology registry uniqueness and alias ownership, fallback project identity
+and technology resolution, `portfolio.json` schema and lifecycle values,
+relationship targets, and release metadata including README ordering,
+duplicates and the latest-six contract.
+
+### Browser coverage
+
+Fourteen tests covering: the commit link targeting the exact generated SHA
+with only the short form on screen and no release link shipped; keyboard
+reachability via real Tab traversal, because `:focus-visible` is only
+guaranteed for keyboard-initiated focus; lifecycle values rendering from
+metadata and never being invented; the timeline ranking releases above pushes,
+including notes, ordering identically across reloads, and surviving a GitHub
+outage with local records intact; a timeline note opening through the editor
+tab lifecycle without duplicating a tab; four mobile widths; the Source
+Explorer distinguishing an empty tree from an unavailable one; and the update
+toast staying silent on first install, offering a real Reload button, never
+reloading on its own, and being dismissible.

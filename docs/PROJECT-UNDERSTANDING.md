@@ -609,7 +609,49 @@ afterwards, because the reverse order discarded the query string.
 per-repository narrative remains the project deep-dive. Both were called "case
 study", which made the relationship model ambiguous.
 
-## 31. Current engineering priorities
+## 31. v5.6.0 Raven additions
+
+**Status vocabulary.** A label names exactly what was measured. `operational`
+means a real check ran and the dependency answered; `deployed` means the
+artefact is present and says nothing about runtime behaviour; `configured`
+means this environment has what a feature requires; `degraded` and
+`unavailable` describe real shortfalls; `unknown` is reserved for credential
+acceptance when the probe never completed. The vocabulary is documented in
+`backend/api/health.php` beside the checks it governs and pinned by
+`backend/tests/health-vocabulary.php`.
+
+**Tri-state credential acceptance.** `githubHealthDecision()` returns `true`,
+`false` or `null`. Transport failures, timeouts and upstream 5xx now report
+`null` rather than echoing the token's presence back as acceptance - the same
+class of error the probe was built to remove, which had survived in its
+degraded branches.
+
+**Integrity gates.** `scripts/verify-portfolio-integrity.mjs` proves the
+canonical technology registry, fallback project data, this repository's
+`portfolio.json`, content relationships and release metadata entirely from
+files in the repository. Nothing contacts a third party: the Raven audit
+watched npmjs.com answer 403 to automation while every package was healthy.
+`config/releases.json` is the single source of truth for codenames, exercised
+through the resolver rather than a hand-written case list.
+
+**Provenance.** `scripts/prepare-build.mjs` records the exact source commit -
+`GITHUB_SHA` when CI supplies it, `git rev-parse HEAD` otherwise - into both
+`build.ts` and `build-info.json`. Build Info shows the short SHA linked to the
+public commit. No release link is shipped: the signed tag exists only after
+production acceptance, so a bundle could never guarantee it resolves.
+
+**Lifecycle.** Project cards read `lifecycle` from repository metadata -
+active, stable, maintained, legacy. Never derived from `updated_at`, which
+moves when a description or a star changes.
+
+**Engineering timeline.** `engineeringActivity.ts` merges published releases
+and Engineering Notes with GitHub events, ordered by date, then priority, then
+id. Per-source ceilings keep any one source from filling the timeline - this
+portfolio ships often enough that releases alone would crowd out the notes.
+Release dates come from a small map generated from `docs/CHANGELOG.md`, so the
+changelog stays authoritative without shipping in the bundle.
+
+## 32. Current engineering priorities
 
 1. Complete the outstanding staging acceptance pass carried since v5.2.0:
    release identity, Neural Cipher assets, active-tab auto-scroll, plus the
