@@ -50,16 +50,30 @@ function githubProbeHeaders(?string $token): array
  *   - did GitHub accept it
  *   - is GitHub reachable at all
  *
+ * `authenticated` is deliberately tri-state, because "we asked and GitHub
+ * accepted" and "we never got an answer" are different facts and only one of
+ * them is authentication:
+ *
+ *   true   GitHub accepted this environment's credential.
+ *   false  There is no credential, or GitHub explicitly rejected it.
+ *   null   Acceptance is unknown - transport failure, timeout or upstream 5xx.
+ *
+ * Reporting the token's mere presence as `true` while the probe never
+ * completed is the same class of error this file was created to remove: it
+ * asserts an acceptance nothing verified.
+ *
  * @param int  $errno    cURL error number, 0 when the transport succeeded.
  * @param int  $status   HTTP status, 0 when there was no response.
  * @param bool $hasToken Whether this environment supplied a credential.
- * @return array{status: string, authenticated: bool, detail: string}
+ * @return array{status: string, authenticated: bool|null, detail: string}
  */
 function githubHealthDecision(int $errno, int $status, bool $hasToken): array
 {
     // Transport failure says nothing about the credential, only about reach.
+    // Without a credential there is nothing to accept, so that stays false;
+    // with one, acceptance is simply unknown.
     if ($errno !== 0) {
-        return ['status' => 'degraded', 'authenticated' => $hasToken, 'detail' => 'Upstream check unavailable'];
+        return ['status' => 'degraded', 'authenticated' => $hasToken ? null : false, 'detail' => 'Upstream check unavailable'];
     }
 
     // A credential that GitHub refuses is the case worth shouting about: the
@@ -68,8 +82,10 @@ function githubHealthDecision(int $errno, int $status, bool $hasToken): array
         return ['status' => 'degraded', 'authenticated' => false, 'detail' => 'GitHub rejected the configured credential'];
     }
 
+    // GitHub answered with a fault, or did not answer at all. Reachability is
+    // degraded and the credential was never judged.
     if ($status < 200 || $status >= 500) {
-        return ['status' => 'degraded', 'authenticated' => $hasToken, 'detail' => 'Upstream check unavailable'];
+        return ['status' => 'degraded', 'authenticated' => $hasToken ? null : false, 'detail' => 'Upstream check unavailable'];
     }
 
     // Without a token an anonymous 403 is GitHub's unauthenticated rate limit,
@@ -92,7 +108,8 @@ function githubHealthDecision(int $errno, int $status, bool $hasToken): array
 function githubProbe(?string $token): array
 {
     if (!function_exists('curl_init')) {
-        return ['status' => 'degraded', 'authenticated' => $token !== null, 'detail' => 'cURL unavailable', 'latencyMs' => null];
+        // No probe was performed at all, so acceptance is unknown, not true.
+        return ['status' => 'degraded', 'authenticated' => ($token !== null && trim($token) !== '') ? null : false, 'detail' => 'cURL unavailable', 'latencyMs' => null];
     }
 
     $started = microtime(true) * 1000;

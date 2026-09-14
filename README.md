@@ -506,6 +506,15 @@ The site also includes an in-app resume viewer and download/open controls.
 
 The **six most recent releases** are summarized here. See **[CHANGELOG.md](docs/CHANGELOG.md)** for the complete production history. This section is intentionally capped at six releases.
 
+### v5.6.0 - Raven
+
+- **Honest status semantics.** A check reports what it measured: file presence is `deployed`, not `operational`; contact protection is `configured`; and a tautological check that could never fail was removed.
+- **Tri-state GitHub credential state.** `true` accepted, `false` missing or rejected, `null` unknown - an unreachable GitHub no longer implies the credential was accepted.
+- **Deployed provenance.** Build Information shows the exact source commit the running bundle was built from, linked to its public GitHub page.
+- **Curated lifecycle.** Projects show Active, Stable, Maintained or Legacy, authored per repository - never inferred from repository dates.
+- **Engineering timeline.** Releases and Engineering Notes outrank routine pushes, duplicates are suppressed, and a GitHub outage degrades the timeline instead of emptying it.
+- **Quiet update signal** for already-open tabs, plus deterministic integrity gates for project data, relationships, technologies and release metadata.
+
 ### v5.5.0 - Null
 
 - **Zero dead ends.** Technology names resolve through one canonical registry, so the Command Palette offers a single filter per technology instead of eighty alias-derived commands - six of which were Android.
@@ -541,13 +550,6 @@ The **six most recent releases** are summarized here. See **[CHANGELOG.md](docs/
 - The workspace now presents C++ by default (`main.cpp`), across the editor tab, Explorer and hero. Every other language remains selectable and an explicit choice is still remembered.
 - The GitHub health probe now authenticates with the environment's own token, so `authenticated` reports whether GitHub accepted the credential rather than whether one is merely configured.
 - Upstream reachability and credential validity are reported as separate facts, and separate production/staging credentials are unchanged.
-
-### v5.3.1 — Vanta
-
-- **Whole-card navigation.** Project, Note, and Case Study cards open from anywhere on the card, while secondary controls (Compare, npm, a client's live site) keep their own action and the destination stays a real link.
-- **Environment-scoped configuration.** Private configuration resolves to exactly one path per environment, with no shared `$HOME` lookup and no cross-environment fallback; anything missing or malformed fails closed without leaking a filesystem path.
-- **Observable contact health.** `/api/health` reports contact-protection readiness, Contact depends on it, and both deployments now gate on it.
-- **Search readiness.** A stable root favicon from the approved artwork, declared in the initial HTML, plus checks for homepage metadata, canonical, sitemap membership and legacy placeholder text.
 
 ## License
 

@@ -4,6 +4,38 @@ All notable changes to **osameh.dev** are documented here.
 
 The project follows [Semantic Versioning](https://semver.org/). The early production releases were shipped in rapid succession while the portfolio was moved from its hosted prototype to the current ParsPack/CDN deployment.
 
+## 5.6.0 - 2026-09-13 - Raven
+
+First release in the **Raven** family. Every 5.6.x patch inherits the codename. The theme is engineering trust and live signals: everything important should leave a signal, and no signal should claim more than it can prove.
+
+### Honest status semantics
+- A status label now describes exactly what was measured. A check whose only evidence is that a file exists reports `deployed`, never `operational` - presence is not behaviour. Contact protection reports `configured`, which is what can be proven without spending a verification.
+- Removed the `origin` check. It reported a constant `operational` with the detail *PHP runtime responding*, which the existence of the response already proves; a check that cannot fail is not a check.
+- GitHub credential acceptance is now tri-state. `true` means GitHub accepted this environment's credential, `false` means there is none or it was rejected, and `null` means acceptance is unknown - a transport failure, timeout or upstream 5xx. Previously an unreachable GitHub still reported `authenticated: true` on the strength of the token merely existing, which is the same class of error the probe was originally built to remove.
+- The deployment workflows accept the new vocabulary, so an honest status cannot fail a deploy gate written against the old wording.
+
+### Release and content integrity
+- Added deterministic gates for the canonical technology registry, fallback project data, this repository's `portfolio.json`, content relationships and release metadata. Every one is proved from files in this repository; none contacts a third party, because a gate that depends on a remote service fails for reasons unrelated to the change under test.
+- Release metadata is validated against `config/releases.json` as the single source of truth: every live family, historical release and reserved family is exercised through the resolver, so activating a family no longer requires editing a hand-written list of test cases.
+- README release history is checked for the latest six, newest first, with no duplicates and no version missing from the changelog.
+
+### Provenance
+- The build records the exact source commit it was built from, and Build Information shows the short SHA linked to its public GitHub commit page. Staging and production each link to the commit actually deployed there.
+- No release link is shown: the signed tag and GitHub Release are created only after production acceptance, so a bundle can never guarantee the tag already exists.
+
+### Freshness and activity
+- Projects display their curated lifecycle - Active, Stable, Maintained or Legacy - authored in each repository's `portfolio.json`. Nothing is inferred from repository dates, because `updated_at` moves when a description or a star changes and cannot stand in for code freshness. A project without that metadata shows no lifecycle rather than a guess.
+- Recent activity became an engineering timeline. Published releases and Engineering Notes rank above routine repository pushes, a GitHub release already documented locally is not shown twice, and ordering is fixed by date, then priority, then id. No commit is scored for importance.
+- A GitHub outage degrades the timeline instead of emptying it: local releases and notes remain, with a short note that repository activity is unavailable.
+
+### Trust in the client
+- An already-open tab is told, once and quietly, when a newer build has taken control, with a Reload button and no forced refresh. A first-time visitor is never shown it, because a first installation is not an update.
+- The Source Explorer distinguishes a repository with no previewable files from a tree that could not be loaded.
+
+### Unchanged
+- The editor tab lifecycle, Notes navigation and TOC, Null's canonical technology model, filter URL contract, skill provenance and related-content ranking, the Command Palette, Terminal, branded HTTP errors, the `/api/` JSON contract, Service Worker network-only, reCAPTCHA lazy-loading, the 17-URL sitemap, canonical strategy, favicon, Open Graph image and CDN-owned HSTS.
+- No new runtime dependency, no polling, no telemetry, no monitoring backend.
+
 ## 5.5.0 - 2026-09-12 - Null
 
 First release in the **Null** family. Every 5.5.x patch inherits the codename. The theme is *zero dead ends*: when a visitor finds one useful thing, the next relevant thing should be reachable.

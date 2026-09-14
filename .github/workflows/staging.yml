@@ -146,7 +146,10 @@ jobs:
           echo "environment=$environment recaptcha_configured=$recaptcha contact=$contact"
           [[ "$environment" == "staging" ]] || { echo "::error::staging reported environment $environment"; exit 1; }
           [[ "$recaptcha" == "true" ]] || { echo "::error::Contact protection is not configured on staging"; exit 1; }
-          [[ "$contact" == "operational" ]] || { echo "::error::Contact is $contact on staging"; exit 1; }
+          # Raven vocabulary: a check reports what it proved. Contact is ready
+          # when its endpoint is present and verification is configured, which
+          # is "deployed"; "operational" stays valid for a stronger future check.
+          case "$contact" in deployed|operational) ;; *) echo "::error::Contact is $contact on staging"; exit 1 ;; esac
 
 
       # Live acceptance for the branded error experience. Two different

@@ -19,6 +19,18 @@ header('Cache-Control: no-store, max-age=0');
 header('X-Robots-Tag: noindex, nofollow');
 
 function nowMs(): float { return microtime(true) * 1000; }
+/**
+ * Status vocabulary. Each word names exactly what was measured:
+ *
+ *   operational  a real check ran and the dependency answered correctly.
+ *   deployed     the artefact is present and reachable on disk. It says
+ *                nothing about runtime behaviour, so it is never "operational".
+ *   configured   this environment has the configuration a feature requires.
+ *   degraded     something answered, but not correctly or not fully.
+ *   unavailable  the dependency could not be used at all.
+ *   unknown      the check could not reach a verdict - used for credential
+ *                acceptance when the probe itself never completed.
+ */
 function check(string $id, string $label, string $status, ?float $latencyMs = null, string $detail = ''): array {
     return [
         'id' => $id,
@@ -99,28 +111,32 @@ $contactPath = __DIR__ . '/contact.php';
 $githubProxyPath = __DIR__ . '/github.php';
 
 $checks = [
-    check('origin', 'Portfolio origin', 'operational', null, 'PHP runtime responding'),
     $githubCheck,
-    check('github-proxy', 'GitHub proxy', is_file($githubProxyPath) ? 'operational' : 'down', null, is_file($githubProxyPath) ? 'Endpoint deployed' : 'Endpoint missing'),
+    check('github-proxy', 'GitHub proxy', is_file($githubProxyPath) ? 'deployed' : 'down', null, is_file($githubProxyPath) ? 'Endpoint present on this deployment' : 'Endpoint missing'),
+    // Presence plus configured verification is what can be proven without
+    // sending mail or spending a reCAPTCHA verification, so this reports
+    // 'deployed', never 'operational'.
     check(
         'contact',
         'Contact API',
-        !is_file($contactPath) ? 'down' : ($recaptchaConfigured ? 'operational' : 'down'),
+        !is_file($contactPath) ? 'down' : ($recaptchaConfigured ? 'deployed' : 'down'),
         null,
-        !is_file($contactPath) ? 'Endpoint missing' : ($recaptchaConfigured ? 'Endpoint deployed' : 'Submission verification is unavailable')
+        !is_file($contactPath) ? 'Endpoint missing' : ($recaptchaConfigured ? 'Endpoint present and verification configured' : 'Submission verification is unavailable')
     ),
     check(
         'recaptcha',
         'Contact protection',
-        $recaptchaConfigured ? 'operational' : 'down',
+        $recaptchaConfigured ? 'configured' : 'down',
         null,
         $recaptchaConfigured ? 'Verification configured for this environment' : 'No verification configuration for this environment'
     ),
     check('notes', 'Engineering Notes', $notesOk ? 'operational' : 'degraded', null, $notesOk ? 'Manifest readable' : 'Notes manifest unavailable'),
     check('cache', 'Private cache', $cacheStatus, null, $cacheDetail),
-    check('build', 'Build metadata', is_file($buildPath) ? 'operational' : 'degraded', null, is_file($buildPath) ? 'Build fingerprint available' : 'build-info.json missing'),
+    check('build', 'Build metadata', is_file($buildPath) ? 'deployed' : 'degraded', null, is_file($buildPath) ? 'Build fingerprint present' : 'build-info.json missing'),
 ];
 
+// 'deployed' and 'configured' are healthy resting states, not shortfalls: they
+// describe checks whose evidence is presence rather than live behaviour.
 $overall = 'operational';
 foreach ($checks as $item) {
     if ($item['status'] === 'down') { $overall = 'degraded'; break; }

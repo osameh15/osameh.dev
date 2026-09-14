@@ -57,16 +57,29 @@ check('an anonymous rate limit reports no authentication', $anonymousRateLimited
 echo "\nprobe decision - upstream trouble\n";
 $timeout = githubHealthDecision(28, 0, true);
 check('a transport failure degrades the service', $timeout['status'] === 'degraded');
-check('a transport failure does not blame the credential', $timeout['authenticated'] === true);
+check('a transport failure does not blame the credential', $timeout['detail'] !== 'GitHub rejected the configured credential');
+// v5.6.0 Raven: a probe that never completed proves nothing about the
+// credential, so acceptance is unknown rather than the token's mere presence.
+check('a transport failure reports unknown acceptance, not true', $timeout['authenticated'] === null);
 check('a transport failure is reported as unavailable upstream', $timeout['detail'] === 'Upstream check unavailable');
 
 $serverError = githubHealthDecision(0, 503, true);
 check('a 5xx degrades the service', $serverError['status'] === 'degraded');
-check('a 5xx does not blame the credential', $serverError['authenticated'] === true);
+check('a 5xx does not blame the credential', $serverError['detail'] !== 'GitHub rejected the configured credential');
+check('a 5xx reports unknown acceptance, not true', $serverError['authenticated'] === null);
+
+// Without a credential there is nothing to accept: a definite false, not unknown.
+$timeoutAnonymous = githubHealthDecision(28, 0, false);
+check('an unreachable upstream with no credential is not unknown', $timeoutAnonymous['authenticated'] === false);
+$serverErrorAnonymous = githubHealthDecision(0, 502, false);
+check('a 5xx with no credential is not unknown', $serverErrorAnonymous['authenticated'] === false);
 
 $noResponse = githubHealthDecision(0, 0, false);
 check('no response at all degrades the service', $noResponse['status'] === 'degraded');
 check('no response reports no authentication', $noResponse['authenticated'] === false);
+
+// The three states must stay distinguishable from one another.
+check('accepted, rejected and unknown are three distinct states', $ok['authenticated'] === true && $rejected401['authenticated'] === false && $timeout['authenticated'] === null);
 
 echo "\nrequest headers\n";
 $anonymousHeaders = githubProbeHeaders(null);

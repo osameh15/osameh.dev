@@ -5,6 +5,7 @@ import { adjacentNotes, engineeringNotes } from "../../frontend/src/features/not
 import { RECAPTCHA_ACTION, recaptchaSiteKey } from "../../frontend/src/config/recaptchaConfig";
 import { canonicalKeys, technologyLabel } from "../../frontend/src/lib/technology";
 import { skillCatalog } from "../../frontend/src/app/workspacePreferences";
+import { BUILD_COMMIT, BUILD_COMMIT_SHORT } from "../../frontend/src/generated/build";
 import { relatedToCaseStudy, relatedToNote, relatedToProject, type RelatedSource } from "../../frontend/src/lib/relatedContent";
 import { ERROR_STATUSES } from "../../scripts/error-pages.mjs";
 
@@ -120,7 +121,7 @@ test("sitemap and identity schema match canonical document intent", async ({ pag
 test("direct GitHub Activity route renders the first-class section", async ({ page }) => {
   await page.goto("/activity");
   await expect(page).toHaveURL(/\/activity\/?$/);
-  await expect(page.getByRole("heading", { name: "Recent repository activity." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Recent engineering activity." })).toBeVisible();
 });
 
 test("baseline accessibility contracts", async ({ page }) => {
@@ -368,7 +369,10 @@ test("Explorer follows the page sequence through GitHub Activity", async ({ page
   expect(now).toBe(activity + 1);
   await page.locator("#activity").scrollIntoViewIfNeeded();
   await expect(page.locator("#activity .section-heading")).toContainText("05");
-  await expect(page.locator("#activity .section-heading")).toContainText("GITHUB.ACTIVITY");
+  // The section carries releases and notes as well as repository activity, so
+  // its eyebrow names engineering activity; the route and Explorer entry are
+  // unchanged.
+  await expect(page.locator("#activity .section-heading")).toContainText("ENGINEERING.ACTIVITY");
 });
 
 test("published case-study grid has no gray backing layer", async ({ page }) => {
@@ -759,7 +763,7 @@ test("activity timeline metadata meets WCAG AA in both themes", async ({ page })
     return (Math.max(foreground, backdrop) + .05) / (Math.min(foreground, backdrop) + .05);
   });
   await page.goto("/activity");
-  const target = page.locator(".activity-timeline small");
+  const target = page.locator(".activity-timeline small").first();
   await expect(target).toBeVisible();
   expect(await contrastRatio(".activity-timeline small")).toBeGreaterThanOrEqual(4.5);
   await page.evaluate(() => { document.documentElement.dataset.theme = "light"; });
@@ -2843,4 +2847,249 @@ test("history navigation resolves the filter key the same way a fresh load does"
   expect(filtered).toBeGreaterThan(0);
   expect(filtered).toBeLessThanOrEqual(total);
   await expect(page.locator(".project-empty")).toHaveCount(0);
+});
+
+// ---- v5.6.0 Raven: engineering trust & live signals ----
+
+// Provenance is generated at build time, so it is asserted against the
+// generated metadata rather than against whatever branch happens to be checked
+// out when the test runs.
+test("build info links the exact deployed commit", async ({ page }) => {
+  await page.goto("/");
+  await page.locator(".status-build-button").first().click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+
+  const link = page.locator(".build-commit-link");
+  await expect(link).toBeVisible();
+
+  const href = await link.getAttribute("href");
+  const shown = (await link.innerText()).trim();
+  const title = await link.getAttribute("title");
+
+  expect(href, "links the public commit page").toBe(`https://github.com/osameh15/osameh.dev/commit/${BUILD_COMMIT}`);
+  expect(title, "the full SHA is available on hover").toBe(BUILD_COMMIT);
+  expect(shown, "only the short SHA is shown").toContain(BUILD_COMMIT_SHORT!);
+  expect(shown.length, "the full SHA is not printed on screen").toBeLessThan(20);
+  await expect(link).toHaveAttribute("aria-label", new RegExp(BUILD_COMMIT_SHORT!));
+
+  // The release tag does not exist until after production acceptance, so a
+  // release link could only ever be a broken promise.
+  expect(await page.getByRole("dialog").locator('a[href*="/releases/tag/"]').count(), "no release link is shipped").toBe(0);
+  await page.keyboard.press("Escape");
+});
+
+test("the deployed commit link is keyboard reachable", async ({ page }) => {
+  await page.goto("/");
+  await page.locator(".status-build-button").first().click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+
+  // Reached by real keyboard traversal, because :focus-visible - and therefore
+  // the focus ring - is only guaranteed for keyboard-initiated focus.
+  let reached = false;
+  for (let step = 0; step < 20 && !reached; step++) {
+    await page.keyboard.press("Tab");
+    reached = await page.evaluate(() => document.activeElement?.classList.contains("build-commit-link") ?? false);
+  }
+  expect(reached, "the commit link is in the dialog tab order").toBe(true);
+
+  const indicator = await page.evaluate(() => {
+    const style = getComputedStyle(document.activeElement!);
+    return { outline: style.outlineStyle, width: style.outlineWidth, shadow: style.boxShadow };
+  });
+  expect(indicator.outline !== "none" || indicator.shadow !== "none", "focus is visible").toBe(true);
+  await page.keyboard.press("Escape");
+});
+
+test("projects show curated lifecycle, never a date-derived one", async ({ page }) => {
+  await page.goto("/projects");
+  await page.waitForSelector(".project-card");
+
+  const lifecycles = await page.locator(".project-lifecycle").allInnerTexts();
+  // The preview server serves no repository metadata, so a lifecycle is shown
+  // only where metadata is available - and never invented when it is not.
+  for (const value of lifecycles) {
+    // The surrounding .project-type rule renders this uppercase; the value is
+    // what matters, not the casing the stylesheet applies.
+    expect(["active", "stable", "maintained", "legacy"], `unexpected lifecycle "${value}"`).toContain(value.trim().toLowerCase());
+  }
+
+  // Meaning must not be carried by colour alone.
+  const cards = await page.locator(".project-card").count();
+  expect(cards).toBeGreaterThan(0);
+  const withoutMetadata = await page.evaluate(() =>
+    [...document.querySelectorAll(".project-card")].filter(card => !card.querySelector(".project-lifecycle")).length);
+  expect(withoutMetadata + lifecycles.length).toBe(cards);
+});
+
+test("the engineering timeline ranks releases above routine pushes", async ({ page }) => {
+  await page.goto("/activity");
+  await page.waitForSelector(".activity-entry");
+
+  const entries = await page.evaluate(() => [...document.querySelectorAll(".activity-entry")].map(entry => ({
+    source: (entry as HTMLElement).dataset.activitySource,
+    type: (entry as HTMLElement).querySelector(".activity-node")?.getAttribute("data-activity-type"),
+    date: (entry.querySelector("small")?.textContent || "").trim(),
+    href: entry.getAttribute("href"),
+  })));
+
+  expect(entries.length).toBeGreaterThan(0);
+  expect(entries.length, "the timeline stays compact").toBeLessThanOrEqual(8);
+
+  // Local records are present, and they are not outranked by push noise.
+  const firstPush = entries.findIndex(entry => entry.type === "push");
+  const firstRelease = entries.findIndex(entry => entry.type === "release");
+  if (firstPush !== -1 && firstRelease !== -1) {
+    expect(firstRelease, "a release outranks a push on the same day").toBeLessThan(firstPush);
+  }
+  expect(entries.some(entry => entry.source === "release"), "portfolio releases appear").toBe(true);
+  expect(entries.some(entry => entry.source === "note"), "engineering notes appear").toBe(true);
+
+  // Deterministic: the same data always produces the same order.
+  const before = entries.map(entry => entry.href ?? entry.date);
+  await page.reload();
+  await page.waitForSelector(".activity-entry");
+  const after = await page.evaluate(() => [...document.querySelectorAll(".activity-entry")].map(entry => entry.getAttribute("href") ?? (entry.querySelector("small")?.textContent || "").trim()));
+  expect(after).toEqual(before);
+});
+
+test("the timeline survives a GitHub outage", async ({ page }) => {
+  await page.route("**/api/github/activity*", route => route.fulfill({ status: 503, contentType: "application/json", body: "{}" }));
+  await page.goto("/activity");
+  await page.waitForSelector(".activity-entry");
+
+  // Local releases and notes are unaffected by GitHub being unavailable.
+  const sources = await page.evaluate(() => [...document.querySelectorAll(".activity-entry")].map(entry => (entry as HTMLElement).dataset.activitySource));
+  expect(sources.length, "the timeline is not emptied").toBeGreaterThan(0);
+  expect(sources.every(source => source !== "github"), "no GitHub entries remain").toBe(true);
+  await expect(page.locator(".activity-degraded")).toBeVisible();
+});
+
+test("a timeline note opens through the editor tab lifecycle", async ({ page }) => {
+  await page.goto("/activity");
+  await page.waitForSelector(".activity-entry");
+  const note = page.locator('.activity-entry[data-activity-source="note"]').first();
+  const href = await note.getAttribute("href");
+  expect(href).toMatch(/^\/notes\//);
+
+  await note.click();
+  await expect(page).toHaveURL(new RegExp(`${href!.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`));
+  const ids = await page.evaluate(() => [...document.querySelectorAll(".editor-tab")].map(tab => (tab as HTMLElement).dataset.tabId || "home"));
+  expect(new Set(ids).size, "no duplicate editor tabs").toBe(ids.length);
+});
+
+for (const width of [320, 360, 390, 412]) {
+  test(`the engineering timeline stays readable at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto("/activity");
+    await page.waitForSelector(".activity-entry");
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow).toBeLessThanOrEqual(1);
+  });
+}
+
+test("the source explorer separates an empty tree from an unavailable one", async ({ page }) => {
+  // Unavailable: the upstream answered with a fault.
+  await page.route("**/api/github/tree/**", route => route.fulfill({ status: 502, contentType: "application/json", body: "{}" }));
+  await page.goto("/projects/osameh.dev");
+  await page.locator(".source-workbench").scrollIntoViewIfNeeded();
+  await expect(page.locator(".source-tree")).toContainText(/currently unavailable/i, { timeout: 20_000 });
+  await expect(page.locator(".source-tree")).not.toContainText(/no previewable source files/i);
+
+  // Empty: the upstream answered correctly with nothing to show.
+  await page.unroute("**/api/github/tree/**");
+  await page.route("**/api/github/tree/**", route => route.fulfill({
+    status: 200, contentType: "application/json",
+    body: JSON.stringify({ repo: "osameh.dev", branch: "main", entryPoints: [], files: [] }),
+  }));
+  await page.goto("/projects/osameh.dev");
+  await page.locator(".source-workbench").scrollIntoViewIfNeeded();
+  await expect(page.locator(".source-tree")).toContainText(/no previewable source files/i, { timeout: 20_000 });
+});
+
+test("a first service worker installation shows no update toast", async ({ page }) => {
+  await page.goto("/");
+  await page.waitForTimeout(2500);
+  // A first visit has no previous controller, so a controller arriving is an
+  // installation rather than an update.
+  await expect(page.locator(".action-toast-action")).toHaveCount(0);
+});
+
+test("a newer build offers a reload without forcing one", async ({ page }) => {
+  await page.goto("/");
+  let reloaded = false;
+  page.on("framenavigated", () => { reloaded = true; });
+  await page.waitForTimeout(1200);
+  reloaded = false;
+
+  // Raise the event the service worker registration dispatches when a new
+  // controller replaces an existing one.
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("portfolio:build-updated")));
+
+  const action = page.locator(".action-toast-action");
+  await expect(action).toBeVisible();
+  await expect(action).toHaveText(/reload/i);
+  await expect(action).toHaveJSProperty("tagName", "BUTTON");
+
+  // It must wait for the visitor rather than reloading on its own.
+  await page.waitForTimeout(1500);
+  expect(reloaded, "no forced refresh").toBe(false);
+  await expect(action).toBeVisible();
+
+  await action.focus();
+  await expect(action).toBeFocused();
+  await action.click();
+  await page.waitForLoadState("domcontentloaded");
+  await expect(page.locator(".action-toast-action")).toHaveCount(0);
+});
+
+test("the update toast can be dismissed", async ({ page }) => {
+  await page.goto("/");
+  await page.waitForTimeout(1000);
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("portfolio:build-updated")));
+  await expect(page.locator(".action-toast-action")).toBeVisible();
+  await page.locator(".action-toast-dismiss").click();
+  await expect(page.locator(".action-toast-action")).toHaveCount(0);
+});
+
+test("a github release event is not shown twice", async ({ page }) => {
+  // The GitHub activity payload carries id, type, repo, message, created_at and
+  // url - no tag and no version - so the deterministic key is the repository:
+  // this portfolio's releases are documented locally and that record is
+  // authoritative. No date matching, no title matching.
+  await page.route("**/api/github/activity*", route => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify([
+      // Same shape the live proxy returns for a portfolio release.
+      { id: "dup", type: "ReleaseEvent", repo: "osameh.dev", message: "Published a release", created_at: "2026-09-12T14:29:05Z", url: "https://github.com/osameh15/osameh.dev" },
+      { id: "push", type: "PushEvent", repo: "osameh.dev", message: "Pushed 1 commit(s)", created_at: "2026-09-12T15:00:00Z", url: "https://github.com/osameh15/osameh.dev" },
+      // Another repository has no local release record, so it is genuine news -
+      // and it shares its date with a documented portfolio release, which a
+      // date-based rule would have wrongly suppressed.
+      { id: "other", type: "ReleaseEvent", repo: "other-repo", message: "Published a release", created_at: "2026-09-12T09:00:00Z", url: "https://github.com/osameh15/other-repo" },
+    ]),
+  }));
+  await page.goto("/activity");
+  await page.waitForSelector(".activity-entry");
+
+  const entries = await page.evaluate(() => [...document.querySelectorAll(".activity-entry")].map(entry => ({
+    type: entry.querySelector(".activity-node")?.getAttribute("data-activity-type"),
+    title: entry.querySelector("b")?.textContent?.trim(),
+  })));
+
+  // The portfolio release appears once, from the authoritative local record.
+  expect(entries.filter(entry => entry.type === "github-release" && entry.title === "osameh.dev").length,
+    "the duplicate portfolio release event is suppressed").toBe(0);
+  expect(entries.some(entry => entry.type === "release"), "the local release record remains").toBe(true);
+
+  // A different repository's release survives, proving this is not date matching.
+  expect(entries.some(entry => entry.type === "github-release" && entry.title === "other-repo"),
+    "an unrelated release on the same day is kept").toBe(true);
+
+  // Pushes are untouched.
+  expect(entries.some(entry => entry.type === "push"), "pushes are untouched").toBe(true);
+
+  // Distinct local releases stay distinct.
+  const releases = entries.filter(entry => entry.type === "release").map(entry => entry.title);
+  expect(new Set(releases).size, "distinct releases are not collapsed").toBe(releases.length);
 });
