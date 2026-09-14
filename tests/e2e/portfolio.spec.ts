@@ -88,7 +88,7 @@ test("notes and case studies expose native links with SPA navigation", async ({ 
   await expect(noteLink).toHaveAttribute("href", /^\/notes\/[a-z0-9-]+$/);
   await noteLink.click();
   await expect(page).toHaveURL(/\/notes\/[a-z0-9-]+$/);
-  await expect(page.locator(".editor-tab.active")).toContainText(/Repository|FTPS|GitHub|cache/i);
+  await expect(page.locator(".editor-tab.active")).toHaveText(`${engineeringNotes[0].slug}.md`);
 
   await page.goto("/case-studies");
   const caseLink = page.getByRole("link", { name: /Open case study/i }).first();
@@ -1714,7 +1714,10 @@ test("adjacent navigation preserves mixed project and note tabs", async ({ page 
   const beforeIds = await tabIds(page);
   await expect(page.locator(".note-markdown")).toBeVisible();
   await nextLink(page).click();
-  await expect(page.locator(".editor-tab.active")).toHaveText(`${engineeringNotes[1].slug}.md`);
+  // The neighbour is whatever the authoritative order says follows NOTE_A, so
+  // publishing a note never rewrites this expectation.
+  const afterNoteA = adjacentNotes(NOTE_A.path.replace("/notes/", "")).next!;
+  await expect(page.locator(".editor-tab.active")).toHaveText(`${afterNoteA.slug}.md`);
   const afterIds = await tabIds(page);
   // Every tab that was open is still open, in the same order, plus the new one.
   expect(afterIds.slice(0, beforeIds.length)).toEqual(beforeIds);
@@ -3139,6 +3142,15 @@ test("published content agrees across the rendered modules and the indexed docum
   for (const slug of HIRAVA_NOTES) expect(slugs, `${slug} is published`).toContain(slug);
 });
 
+test("engineering notes are authored newest first", () => {
+  const dates = engineeringNotes.map(note => note.publishedAt);
+  expect(dates, "the authored order is the published order, newest first").toEqual([...dates].sort().reverse());
+  expect(engineeringNotes[0].publishedAt).toBe(dates.reduce((newest, date) => (date > newest ? date : newest)));
+  // Order is authored, never sorted at runtime: adjacency, the index, the
+  // palette and the terminal all read this one array.
+  expect(readFileSync(new URL("../../frontend/src/features/notes/notesData.ts", import.meta.url), "utf8")).not.toContain(".sort(");
+});
+
 test("the Hirava case study states what is built and never claims what is not", () => {
   const hirava = clientCaseStudies.find(study => study.id === "hirava")!;
   expect(hirava, "Hirava is published as a client case study").toBeTruthy();
@@ -3246,9 +3258,14 @@ for (const slug of ["architecting-hirava-recruitment-marketplace", "designing-tr
     await expect(page.locator(".note-markdown")).toBeVisible();
     expect(await page.locator(".note-toc button").count(), "the table of contents is built from real headings").toBeGreaterThan(4);
 
-    // Both notes are published after the original four, so each has a previous
-    // neighbour and the navigation is a real anchor.
-    await expect(page.locator(".note-adjacent-link.note-adjacent-previous")).toHaveAttribute("href", /^\/notes\/[a-z0-9-]+$/);
+    // Adjacency follows the authoritative newest-first order, and each side
+    // that exists is a real anchor rather than a disabled control.
+    const { previous, next } = adjacentNotes(slug);
+    for (const [direction, neighbour] of [["previous", previous], ["next", next]] as const) {
+      const link = page.locator(`.note-adjacent-link.note-adjacent-${direction}`);
+      if (!neighbour) { await expect(link).toHaveCount(0); continue; }
+      await expect(link).toHaveAttribute("href", `/notes/${neighbour.slug}`);
+    }
 
     const related = page.locator(".continue-exploring a.continue-exploring-link");
     await expect(related.first()).toBeVisible();

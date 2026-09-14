@@ -15,7 +15,9 @@ A content release inside the **Raven** family: one client case study and two Eng
 - The verified current stack - Nuxt 4, Vue 3, TypeScript, Tailwind CSS, Pinia, TanStack Query, Nuxt i18n with Persian as the primary right-to-left locale - was read from the project's own `package.json`, `nuxt.config.ts` and documentation, not inferred from the rendered site. The planned stack is named separately as planned.
 - The live URL is a temporary preview, so the case study's live link is labelled **Open live preview** instead of the shared "Visit live site" wording. That is the only interface change in this release: one optional per-case-study label.
 - Marketing figures visible on the Hirava preview - company counts, recruiter counts, a retention percentage - are prototype presentation content and are excluded from every claim in this portfolio.
-- Published case studies now lay out in two columns from 721px upward and collapse to one below that. The grid was pinned to a single 720px column while only one case study existed, which left every later case study on a row of its own.
+- Published case studies now lay out in two columns and collapse to one at 1000px, the same breakpoint the Notes index already used. The grid was pinned to a single 720px column while only one case study existed, which left every later case study on a row of its own.
+- Engineering Notes are authored newest first. The array in `notesData.ts` is the one order the index, adjacency, the Command Palette and the Terminal all read, so the order is visible in the diff rather than produced by a runtime sort.
+- Continue exploring inside a case study now shares the modal's inline padding instead of running edge to edge.
 
 ### Two Engineering Notes
 
