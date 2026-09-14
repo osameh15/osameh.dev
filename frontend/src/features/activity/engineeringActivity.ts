@@ -44,6 +44,13 @@ export type GithubActivityItem = {
 
 const PRIORITY = { release: 1, note: 2, githubRelease: 3, push: 4 };
 
+/**
+ * This portfolio's own repository. Its releases are documented in `changelog`,
+ * which is authoritative, so a GitHub release event naming it is a duplicate by
+ * definition rather than by guesswork.
+ */
+const PORTFOLIO_REPOSITORY = "osameh.dev";
+
 /** Release dates come from the generated map, authored once in docs/CHANGELOG.md. */
 
 /**
@@ -96,17 +103,23 @@ export function buildEngineeringTimeline(
     });
   }
 
-  // 3. GitHub. A release event already documented locally is dropped rather than
-  //    shown twice; pushes stay, ranked below everything meaningful.
+  // 3. GitHub. Pushes stay, ranked below everything meaningful. A release event
+  //    that duplicates a documented portfolio release is dropped.
   //
-  //    Two deterministic keys, in order. The version/tag is preferred, but the
-  //    activity payload often carries no tag - GitHub reports "Published a
-  //    release" with a bare repository URL - so the date of a release this
-  //    portfolio already documents is the fallback. Still deterministic, and
-  //    the local record stays authoritative either way. No title matching.
-  const localReleaseDates = new Set(
-    [...knownVersions].map(version => RELEASE_DATES[version]).filter(Boolean),
-  );
+  //    The payload carries only id, type, repo, message, created_at and url -
+  //    no tag, no version, and a bare repository URL - so a version key is
+  //    usually unavailable. Two deterministic keys, in order:
+  //
+  //      1. the version, when the message or url happens to carry one;
+  //      2. otherwise the repository, because `changelog` is the authoritative
+  //         record of this portfolio's releases. Every release of this
+  //         repository is documented locally, so a GitHub release event for it
+  //         can only be a second rendering of a release already shown.
+  //
+  //    Neither key is a date and neither is a title: a date would collapse two
+  //    genuinely different releases published on one day, and titles are not
+  //    identities. A release from any other repository has no local record and
+  //    is always kept.
   for (const item of githubItems) {
     const date = (item.created_at || "").slice(0, 10);
     if (!date) continue;
@@ -114,7 +127,7 @@ export function buildEngineeringTimeline(
     if (isRelease) {
       const version = versionFromEvent(item);
       if (version && knownVersions.has(version)) continue;
-      if (!version && localReleaseDates.has(date)) continue;
+      if (!version && item.repo === PORTFOLIO_REPOSITORY) continue;
     }
     timeline.push({
       id: `github:${item.id}`,

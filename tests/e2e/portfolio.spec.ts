@@ -3051,36 +3051,45 @@ test("the update toast can be dismissed", async ({ page }) => {
   await expect(page.locator(".action-toast-action")).toHaveCount(0);
 });
 
-// A GitHub release event that names no version is still a duplicate when the
-// portfolio already documents a release published that day. The payload usually
-// omits the tag - GitHub reports "Published a release" with a bare repository
-// URL - so the date of a documented release is the deterministic fallback key.
 test("a github release event is not shown twice", async ({ page }) => {
-  // The date of the newest documented release, read from the rendered timeline.
-  await page.goto("/activity");
-  await page.waitForSelector('.activity-entry[data-activity-source="release"]');
-  const releaseDate = await page.evaluate(() => {
-    const entry = document.querySelector('.activity-entry[data-activity-source="release"] small');
-    return new Date(`${entry?.textContent?.trim()} UTC`).toISOString().slice(0, 10);
-  });
-
+  // The GitHub activity payload carries id, type, repo, message, created_at and
+  // url - no tag and no version - so the deterministic key is the repository:
+  // this portfolio's releases are documented locally and that record is
+  // authoritative. No date matching, no title matching.
   await page.route("**/api/github/activity*", route => route.fulfill({
     status: 200,
     contentType: "application/json",
     body: JSON.stringify([
-      { id: "dup", type: "ReleaseEvent", repo: "osameh.dev", message: "Published a release", created_at: `${releaseDate}T10:00:00Z`, url: "https://github.com/osameh15/osameh.dev" },
-      { id: "push", type: "PushEvent", repo: "osameh.dev", message: "Pushed 1 commit(s)", created_at: `${releaseDate}T11:00:00Z`, url: "https://github.com/osameh15/osameh.dev" },
-      { id: "other", type: "ReleaseEvent", repo: "other-repo", message: "Published a release", created_at: "2019-04-01T10:00:00Z", url: "https://github.com/osameh15/other-repo" },
+      // Same shape the live proxy returns for a portfolio release.
+      { id: "dup", type: "ReleaseEvent", repo: "osameh.dev", message: "Published a release", created_at: "2026-09-12T14:29:05Z", url: "https://github.com/osameh15/osameh.dev" },
+      { id: "push", type: "PushEvent", repo: "osameh.dev", message: "Pushed 1 commit(s)", created_at: "2026-09-12T15:00:00Z", url: "https://github.com/osameh15/osameh.dev" },
+      // Another repository has no local release record, so it is genuine news -
+      // and it shares its date with a documented portfolio release, which a
+      // date-based rule would have wrongly suppressed.
+      { id: "other", type: "ReleaseEvent", repo: "other-repo", message: "Published a release", created_at: "2026-09-12T09:00:00Z", url: "https://github.com/osameh15/other-repo" },
     ]),
   }));
   await page.goto("/activity");
   await page.waitForSelector(".activity-entry");
 
-  const types = await page.evaluate(() => [...document.querySelectorAll(".activity-entry")]
-    .map(entry => entry.querySelector(".activity-node")?.getAttribute("data-activity-type")));
+  const entries = await page.evaluate(() => [...document.querySelectorAll(".activity-entry")].map(entry => ({
+    type: entry.querySelector(".activity-node")?.getAttribute("data-activity-type"),
+    title: entry.querySelector("b")?.textContent?.trim(),
+  })));
 
-  // The duplicate is gone, the push survives, and the local release remains.
-  expect(types.filter(type => type === "github-release").length, "the same-day duplicate is suppressed").toBe(0);
-  expect(types.includes("push"), "pushes are untouched").toBe(true);
-  expect(types.includes("release"), "the local release record remains").toBe(true);
+  // The portfolio release appears once, from the authoritative local record.
+  expect(entries.filter(entry => entry.type === "github-release" && entry.title === "osameh.dev").length,
+    "the duplicate portfolio release event is suppressed").toBe(0);
+  expect(entries.some(entry => entry.type === "release"), "the local release record remains").toBe(true);
+
+  // A different repository's release survives, proving this is not date matching.
+  expect(entries.some(entry => entry.type === "github-release" && entry.title === "other-repo"),
+    "an unrelated release on the same day is kept").toBe(true);
+
+  // Pushes are untouched.
+  expect(entries.some(entry => entry.type === "push"), "pushes are untouched").toBe(true);
+
+  // Distinct local releases stay distinct.
+  const releases = entries.filter(entry => entry.type === "release").map(entry => entry.title);
+  expect(new Set(releases).size, "distinct releases are not collapsed").toBe(releases.length);
 });
