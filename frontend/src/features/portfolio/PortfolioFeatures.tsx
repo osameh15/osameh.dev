@@ -263,7 +263,7 @@ export function CaseStudiesSection({ onOpen }: { onOpen: (study: CaseStudy) => v
         <header><span>{String(index + 1).padStart(2, "0")}</span><small>{study.privacy === "anonymized" ? t("confidential") : study.client}</small></header>
         <p className="case-study-type">{study.industry} · {study.projectType}</p><h3>{study.title}</h3><p>{study.summary}</p>
         <div className="case-study-stack">{study.stack.slice(0, 5).map(item => <span key={item}>{item}</span>)}</div>
-        <div className="case-study-actions"><a className="case-study-open card-surface-link" href={`/case-studies/${encodeURIComponent(study.id)}`} onClick={event => { if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return; event.preventDefault(); onOpen(study); }}>{t("openCaseStudy")} <ChevronRight size={14} /></a>{study.siteUrl && <a className="case-study-live" href={study.siteUrl} target="_blank" rel="noreferrer">{t("liveSite")} <ArrowUpRight size={13} /></a>}</div>
+        <div className="case-study-actions"><a className="case-study-open card-surface-link" href={`/case-studies/${encodeURIComponent(study.id)}`} onClick={event => { if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return; event.preventDefault(); onOpen(study); }}>{t("openCaseStudy")} <ChevronRight size={14} /></a>{study.siteUrl && <a className="case-study-live" href={study.siteUrl} target="_blank" rel="noreferrer">{study.siteLabel || t("liveSite")} <ArrowUpRight size={13} /></a>}</div>
       </article>)}</div>
     </div>
 
@@ -288,7 +288,7 @@ export function CaseStudyModal({ study, onClose, restorePosition, related }: { s
       <header><span><Search size={16} /><b dir="ltr">case-study/{study.id}.md</b></span><button type="button" autoFocus onClick={onClose} aria-label={t("close")}><X size={17} /></button></header>
       <div className="feature-modal-body case-study-detail modal-scroll-viewport">
         <div className="modal-content">
-          <div className="case-study-detail-hero"><p>{study.industry} · {study.projectType}</p><h2 id="case-study-title">{study.title}</h2><span>{study.client} · {study.role}</span>{study.siteUrl && <a className="case-study-live-link" href={study.siteUrl} target="_blank" rel="noreferrer">{t("liveSite")} <ArrowUpRight size={14} /></a>}</div>
+          <div className="case-study-detail-hero"><p>{study.industry} · {study.projectType}</p><h2 id="case-study-title">{study.title}</h2><span>{study.client} · {study.role}</span>{study.siteUrl && <a className="case-study-live-link" href={study.siteUrl} target="_blank" rel="noreferrer">{study.siteLabel || t("liveSite")} <ArrowUpRight size={14} /></a>}</div>
           <div className="case-study-facts"><span><b>{t("role")}</b>{study.role}</span><span><b>{t("timeline")}</b>{study.timeline}</span><span><b>{t("stack")}</b>{study.stack.join(" · ")}</span></div>
           <section><h3>{t("problem")}</h3><p>{study.problem}</p></section>
           <section><h3>{t("constraints")}</h3><ul>{study.constraints.map(item => <li key={item}>{item}</li>)}</ul></section>

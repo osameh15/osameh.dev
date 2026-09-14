@@ -52,6 +52,26 @@ export const engineeringNotes: EngineeringNote[] = [
     readingMinutes: 5,
     tags: ["Vite", "CDN", "Caching", "Performance"],
   },
+  {
+    slug: "architecting-hirava-recruitment-marketplace",
+    title: "Architecting Hirava: a two-sided recruitment marketplace with Nuxt 4",
+    summary: "Structuring a frontend around two participants — companies and recruiters — while the Go backend it will talk to does not exist yet, without letting the browser become the system of record.",
+    publishedAt: "2026-09-14",
+    updatedAt: "2026-09-14",
+    readingMinutes: 7,
+    tags: ["Architecture", "Nuxt", "Frontend", "Product Engineering"],
+    relatedCaseStudies: ["hirava"],
+  },
+  {
+    slug: "designing-trust-into-hiring-workflows",
+    title: "Designing trust into hiring workflows",
+    summary: "Recruiter scoring, candidate caps, verification and transparent pipelines — what a frontend can model, and what a backend has to guarantee before any of it is a promise.",
+    publishedAt: "2026-09-14",
+    updatedAt: "2026-09-14",
+    readingMinutes: 8,
+    tags: ["Architecture", "Marketplace", "Trust", "Recruitment"],
+    relatedCaseStudies: ["hirava"],
+  },
 ];
 
 /**
