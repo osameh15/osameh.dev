@@ -30,7 +30,7 @@ import { verifyRepositorySecrets } from "./verify-secrets.mjs";
 import { verifySearchReadiness } from "./verify-search-readiness.mjs";
 import { verifyErrorConfiguration } from "./verify-error-pages.mjs";
 import { ERROR_STATUSES } from "./error-pages.mjs";
-import { verifyTechnologyRegistry, verifyFallbackProjects, verifyPortfolioMetadata, verifyContentRelations, verifyReleaseIntegrity, verifyProjectAssets } from "./verify-portfolio-integrity.mjs";
+import { verifyTechnologyRegistry, verifyFallbackProjects, verifyFallbackSemanticParity, verifyPortfolioMetadata, verifyContentRelations, verifyReleaseIntegrity, verifyProjectAssets } from "./verify-portfolio-integrity.mjs";
 import { resolveReleaseCodename } from "../frontend/src/lib/releaseMetadataCore.js";
 
 const failures = [];
@@ -670,6 +670,7 @@ if (!failures.some(item => item.includes("appears in a sitemap"))) pass("Error d
 for (const [label, failures] of [
   ["Canonical technology registry", verifyTechnologyRegistry()],
   ["Fallback project data", verifyFallbackProjects()],
+  ["Fallback semantic parity", verifyFallbackSemanticParity()],
   ["Repository portfolio.json", verifyPortfolioMetadata()],
   ["Content relationships", verifyContentRelations()],
   ["Release metadata", verifyReleaseIntegrity(resolveReleaseCodename)],

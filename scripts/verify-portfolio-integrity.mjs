@@ -87,6 +87,42 @@ export function verifyFallbackProjects() {
   return failures;
 }
 
+/**
+ * Semantic parity between live GitHub data and the checked-in fallback.
+ *
+ * The two will never carry the same raw topics, and they do not need to: live
+ * metadata adds per-repository tooling and platform detail that only exists in
+ * each project's portfolio.json. What must survive a GitHub outage is the
+ * curated discovery experience - specifically, every skill that claims public
+ * repository evidence has to remain reachable from fallback data alone.
+ *
+ * Without this, an outage would quietly turn an honest "Public work" badge into
+ * a link to a filter that matches nothing.
+ */
+export function verifyFallbackSemanticParity() {
+  const failures = [];
+  const fallback = read("frontend/src/features/projects/repoTypes.ts");
+  const skills = read("frontend/src/app/workspacePreferences.ts");
+
+  const derived = new Set();
+  for (const entry of fallback.matchAll(/name: "([^"]+)"[\s\S]*?language: ("[^"]*"|null)[\s\S]*?topics: \[([^\]]*)\]/g)) {
+    const language = entry[2].replace(/"|null/g, "");
+    const topics = [...entry[3].matchAll(/"([^"]+)"/g)].map(match => match[1]);
+    for (const key of canonicalKeys(language)) derived.add(key);
+    for (const topic of topics) for (const key of canonicalKeys(topic)) derived.add(key);
+  }
+  if (!derived.size) return ["Fallback data yielded no canonical technologies"];
+
+  for (const skill of skills.matchAll(/\{ key: "([a-z-]+)", label: "([^"]+)"[^}]*evidence: \[([^\]]*)\]/g)) {
+    const [, key, label, evidence] = skill;
+    if (!evidence.includes("public-repo")) continue;
+    if (!derived.has(key)) {
+      failures.push(`${label} claims public repository evidence, but no fallback project resolves to "${key}" - a GitHub outage would leave that claim unreachable`);
+    }
+  }
+  return failures;
+}
+
 /* ------------------------------------------------------------------ *
  * This repository's own portfolio.json
  * ------------------------------------------------------------------ */
