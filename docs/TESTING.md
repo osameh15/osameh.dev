@@ -610,3 +610,55 @@ tab lifecycle without duplicating a tab; four mobile widths; the Source
 Explorer distinguishing an empty tree from an unavailable one; and the update
 toast staying silent on first install, offering a real Reload button, never
 reloading on its own, and being dismissible.
+
+## 15. v5.6.1 Raven content coverage
+
+Published content lives in two places at once: the typed modules the
+application renders (`notesData.ts`, `caseStudiesData.ts`) and the JSON indexes
+the PHP document layer and both sitemaps read (`notes-index.json`,
+`case-studies-index.json`). Nothing enforced their agreement before this
+release, so a note could render perfectly and still have no canonical document.
+
+### Data contracts
+
+- Note slugs and case-study ids are unique, and the module order matches the
+  index order exactly.
+- Every note's title, summary, dates, reading time and tags are identical in
+  both sources, every slug has a markdown file, and every file has real content.
+- Every published case study agrees with its indexed document on title,
+  summary, stack and live URL.
+
+### Hirava truth boundary
+
+One test exists specifically to keep the case study honest: the status must say
+the frontend is implemented and the backend is planned; the current stack must
+contain the technologies the Hirava repository actually declares and must not
+contain Go or PostgreSQL; the planned backend must be labelled planned; the
+live URL must be the exact HTTPS preview address, labelled `Open live preview`
+rather than the shared "Visit live site" wording; no public repository may be
+claimed; and the prototype figures visible on the Hirava preview (`5K+`,
+`1.2K+`, `86%`) must appear nowhere in the case study or either note.
+
+### Relationships, discovery and indexing
+
+- The case study resolves to both notes and each note resolves back to the case
+  study, through the same deterministic model Null introduced, capped at three
+  and identical on repeat calls.
+- Both notes reach the engineering timeline through the existing activity
+  pipeline - asserted on the rendered timeline, with each note appearing exactly
+  once and no entry authored by hand.
+- The sitemap has no duplicate URLs, carries both new note documents and the
+  Hirava case study, and still contains only four URL classes: home, projects,
+  notes and case-studies. No URL class was added for this release.
+- Both note documents render with a real table of contents, a previous
+  neighbour anchor and a Continue exploring block that includes the case study;
+  the case study opens from `/case-studies/hirava`, exposes the preview link
+  with `target="_blank"` and `rel="noreferrer"`, and closes on Escape.
+- The Command Palette offers both the case study and the notes for the query
+  `hirava`, through the existing index rather than a special case.
+- Four mobile widths (320, 360, 390, 412) assert no horizontal overflow on the
+  longer note document and on the case-study modal.
+
+Local runs still cannot prove staging or production behaviour: canonical
+documents, the dynamic `sitemap.php`, staging `noindex` and the branded 404 for
+an unknown note slug remain deployment-verified.

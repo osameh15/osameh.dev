@@ -4,6 +4,30 @@ All notable changes to **osameh.dev** are documented here.
 
 The project follows [Semantic Versioning](https://semver.org/). The early production releases were shipped in rapid succession while the portfolio was moved from its hosted prototype to the current ParsPack/CDN deployment.
 
+## 5.6.1 - 2026-09-14 - Raven
+
+A content release inside the **Raven** family: one client case study and two Engineering Notes, wired into the relationship graph that already exists. No architecture, UI or SEO redesign, and no new dependency, API or runtime behaviour.
+
+### Hirava, published as a client case study
+
+- **Hirava** is a trust-driven recruitment marketplace connecting companies with professional recruiters: companies post hiring requests, verified recruiters submit a capped number of structurally evaluated candidates, and the model is a success fee rather than a resume subscription.
+- The published status is explicit. The **Nuxt 4 frontend is implemented** and reachable as a development preview at `https://hirava.osameh.dev`; the **Go backend is planned and not built**. Nothing in the case study describes an API, a database, authentication, KYC, scoring or payments as operational.
+- The verified current stack - Nuxt 4, Vue 3, TypeScript, Tailwind CSS, Pinia, TanStack Query, Nuxt i18n with Persian as the primary right-to-left locale - was read from the project's own `package.json`, `nuxt.config.ts` and documentation, not inferred from the rendered site. The planned stack is named separately as planned.
+- The live URL is a temporary preview, so the case study's live link is labelled **Open live preview** instead of the shared "Visit live site" wording. That is the only interface change in this release: one optional per-case-study label.
+- Marketing figures visible on the Hirava preview - company counts, recruiter counts, a retention percentage - are prototype presentation content and are excluded from every claim in this portfolio.
+
+### Two Engineering Notes
+
+- **Architecting Hirava: a two-sided recruitment marketplace with Nuxt 4** - separating companies and recruiters into distinct product contexts, modelling the hiring pipeline as a state machine, defining an API boundary that stays uncalled, and using mock data without letting the product depend on it.
+- **Designing trust into hiring workflows** - candidate caps as a system constraint, structured evaluation with required negatives, verification that gates the action rather than the account, scoring that resists vanity, and an explicit split between what the frontend models and what the backend must guarantee.
+
+### Discovery, unchanged mechanics
+
+- The case study names both notes and both notes name the case study, so **Continue exploring** resolves them deterministically through the Null relationship model, capped at three.
+- Both notes enter the engineering timeline through the existing Raven activity pipeline on their published date. No activity entry is hardcoded and no event is duplicated.
+- Command Palette, Terminal (`notes`, `cat note <slug>`, `case <id>`) and search pick the new content up from the same data, with no new search surface.
+- The sitemap grows from 17 to 20 canonical documents: two Note documents and one client case study. Client case studies already have independent canonical, indexable routes, so Hirava follows that existing contract rather than introducing a URL class.
+
 ## 5.6.0 - 2026-09-13 - Raven
 
 First release in the **Raven** family. Every 5.6.x patch inherits the codename. The theme is engineering trust and live signals: everything important should leave a signal, and no signal should claim more than it can prove.
