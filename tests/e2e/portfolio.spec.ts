@@ -436,6 +436,263 @@ test("case-study modal preserves the opening position and never re-snaps after c
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(userScroll);
 });
 
+// ---- v5.6.2 Raven: measured section stabilization ----
+//
+// A section address places its section once, then a bounded transaction
+// compensates only for measured layout movement above it. These tests pin
+// outcomes, and wait on the transaction's own lifecycle signal rather than on
+// fixed sleeps.
+
+const sectionSettling = (page: import("@playwright/test").Page) =>
+  page.evaluate(() => document.documentElement.hasAttribute("data-section-settling"));
+const waitForSectionSettled = (page: import("@playwright/test").Page) =>
+  expect.poll(() => sectionSettling(page), { timeout: 8_000 }).toBe(false);
+const nextFrames = (page: import("@playwright/test").Page) =>
+  page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+/**
+ * Once stabilization has ended, the browser's own scroll anchoring legitimately
+ * keeps the viewport steady when content above it grows. Tests that must prove
+ * the stabilizer itself stopped compensating switch that native behaviour off
+ * for the page under test, so any movement left can only come from the app.
+ */
+const disableNativeScrollAnchoring = (page: import("@playwright/test").Page) =>
+  page.evaluate(() => {
+    document.documentElement.style.overflowAnchor = "none";
+    document.body.style.overflowAnchor = "none";
+  });
+/** Grows #about - which sits above every stabilized section - by `height` pixels. */
+const growContentAbove = (page: import("@playwright/test").Page, height: number) =>
+  page.evaluate(px => {
+    const spacer = document.createElement("div");
+    spacer.style.height = `${px}px`;
+    document.getElementById("about")!.appendChild(spacer);
+    return document.documentElement.hasAttribute("data-section-settling");
+  }, height);
+/**
+ * The section is on target and the initial navigation has finished: placement
+ * is confirmed over its first frames, and only then does "compensating" begin.
+ * Scrolling during "placing" would be racing the original navigation itself.
+ */
+const placedAt = async (page: import("@playwright/test").Page, id: string, offset = 96) => {
+  await expect.poll(() => page.evaluate(() => document.documentElement.dataset.sectionSettling ?? "ended")).not.toBe("placing");
+  await expect.poll(async () => Math.abs(((await sectionTop(page, id)) ?? 9999) - offset)).toBeLessThanOrEqual(2);
+};
+
+test("stabilization compensates layout growth above the section by the measured delta", async ({ page }) => {
+  await page.goto("/notes", { waitUntil: "domcontentloaded" });
+  await placedAt(page, "notes");
+  expect(await growContentAbove(page, 300), "the growth lands inside the stabilization transaction").toBe(true);
+  await waitForSectionSettled(page);
+  expect(Math.abs((await sectionTop(page, "notes"))! - 96), "the section is kept under the chrome").toBeLessThanOrEqual(2);
+});
+
+test("a scroll away during stabilization is preserved, not re-snapped, while layout keeps moving", async ({ page }) => {
+  await page.goto("/case-studies", { waitUntil: "domcontentloaded" });
+  await placedAt(page, "case-studies");
+  // Find-in-page and screen readers move the page instantly and without wheel
+  // or key events. The page keeps that position, compensated for the growth.
+  const moved = await page.evaluate(() => {
+    const active = document.documentElement.hasAttribute("data-section-settling");
+    const before = window.scrollY;
+    window.scrollBy({ top: 400, behavior: "instant" as ScrollBehavior });
+    return { active, distance: window.scrollY - before };
+  });
+  expect(moved.active).toBe(true);
+  expect(moved.distance).toBeGreaterThan(300);
+  expect(await growContentAbove(page, 250)).toBe(true);
+  await waitForSectionSettled(page);
+  expect(Math.abs((await sectionTop(page, "case-studies"))! - (96 - moved.distance)), "the viewport stays where it was moved, relative to the section").toBeLessThanOrEqual(3);
+});
+
+test("an external scroll with no layout change is never pulled back when stabilization ends", async ({ page }) => {
+  await page.goto("/notes", { waitUntil: "domcontentloaded" });
+  await placedAt(page, "notes");
+  const moved = await page.evaluate(() => {
+    window.scrollBy({ top: -350, behavior: "instant" as ScrollBehavior });
+    return window.scrollY;
+  });
+  await waitForSectionSettled(page);
+  expect(Math.abs(await page.evaluate(() => window.scrollY) - moved)).toBeLessThanOrEqual(1);
+});
+
+test("wheel input ends stabilization immediately and stops compensation", async ({ page }) => {
+  await page.goto("/notes", { waitUntil: "domcontentloaded" });
+  await placedAt(page, "notes");
+  const ended = await page.evaluate(() => {
+    const before = document.documentElement.hasAttribute("data-section-settling");
+    window.dispatchEvent(new WheelEvent("wheel", { deltaY: 120, bubbles: true }));
+    return { before, after: document.documentElement.hasAttribute("data-section-settling") };
+  });
+  expect(ended).toEqual({ before: true, after: false });
+  await disableNativeScrollAnchoring(page);
+  const scrollY = await page.evaluate(() => window.scrollY);
+  const top = (await sectionTop(page, "notes"))!;
+  expect(await growContentAbove(page, 200)).toBe(false);
+  await nextFrames(page);
+  expect(await page.evaluate(() => window.scrollY), "no compensation after the user took control").toBe(scrollY);
+  expect((await sectionTop(page, "notes"))! - top).toBeGreaterThanOrEqual(198);
+});
+
+test("navigation keys end stabilization; modifiers and typing in a field do not", async ({ page }) => {
+  await page.goto("/notes", { waitUntil: "domcontentloaded" });
+  await placedAt(page, "notes");
+  const result = await page.evaluate(() => {
+    const settling = () => document.documentElement.hasAttribute("data-section-settling");
+    const start = settling();
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Shift", bubbles: true }));
+    const afterModifier = settling();
+    const field = document.createElement("input");
+    document.body.appendChild(field);
+    field.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true }));
+    const afterTyping = settling();
+    field.remove();
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "PageDown", bubbles: true }));
+    return { start, afterModifier, afterTyping, afterPageDown: settling() };
+  });
+  expect(result).toEqual({ start: true, afterModifier: true, afterTyping: true, afterPageDown: false });
+});
+
+test("a new section navigation replaces the running stabilization instead of stacking", async ({ page }) => {
+  await page.goto("/case-studies", { waitUntil: "domcontentloaded" });
+  await placedAt(page, "case-studies");
+  await page.evaluate(() => {
+    window.history.pushState({}, "", "/notes");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  });
+  await placedAt(page, "notes");
+  // Two live stabilizers would each compensate, moving the page twice as far.
+  expect(await growContentAbove(page, 300)).toBe(true);
+  await waitForSectionSettled(page);
+  expect(Math.abs((await sectionTop(page, "notes"))! - 96)).toBeLessThanOrEqual(2);
+});
+
+test("a finished stabilization leaves no observer behind", async ({ page }) => {
+  await page.goto("/notes", { waitUntil: "domcontentloaded" });
+  await placedAt(page, "notes");
+  await waitForSectionSettled(page);
+  expect(await page.evaluate(() => getComputedStyle(document.documentElement).overflowAnchor), "native scroll anchoring is restored").toBe("auto");
+  await disableNativeScrollAnchoring(page);
+  const scrollY = await page.evaluate(() => window.scrollY);
+  const top = (await sectionTop(page, "notes"))!;
+  expect(await growContentAbove(page, 240)).toBe(false);
+  await nextFrames(page);
+  expect(await page.evaluate(() => window.scrollY), "no stabilizer compensation after the transaction ended").toBe(scrollY);
+  expect((await sectionTop(page, "notes"))! - top).toBeGreaterThanOrEqual(238);
+});
+
+test("Browser Back restores the notes anchor with reduced motion", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/notes");
+  await page.getByRole("link", { name: /Read note/i }).first().click();
+  await expect(page).toHaveURL(/\/notes\/[a-z0-9-]+\/?$/i);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/notes\/?$/);
+  await placedAt(page, "notes");
+  await waitForSectionSettled(page);
+  expect(Math.abs((await sectionTop(page, "notes"))! - 96)).toBeLessThanOrEqual(2);
+});
+
+for (const width of [320, 360, 390, 412]) {
+  test(`Browser Back restores the notes anchor at ${width}px without overflow`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto("/notes");
+    await page.getByRole("link", { name: /Read note/i }).first().click();
+    await expect(page).toHaveURL(/\/notes\/[a-z0-9-]+\/?$/i);
+    await page.goBack();
+    await expect(page).toHaveURL(/\/notes\/?$/);
+    await placedAt(page, "notes", 72);
+    await waitForSectionSettled(page);
+    expect(Math.abs((await sectionTop(page, "notes"))! - 72)).toBeLessThanOrEqual(2);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
+  });
+}
+
+// ---- v5.6.2 Raven: System Health vocabulary ----
+//
+// The backend reports what each check proved. deployed and configured are
+// healthy resting states; the interface used to render both as Down.
+
+const RAVEN_HEALTH_CHECKS: [id: string, label: string, status: string, expected: string, tone: string][] = [
+  ["github", "GitHub upstream", "operational", "Operational", "positive"],
+  ["github-proxy", "GitHub proxy", "deployed", "Deployed", "informational"],
+  ["contact", "Contact API", "deployed", "Deployed", "informational"],
+  ["recaptcha", "Contact protection", "configured", "Configured", "informational"],
+  ["notes", "Engineering Notes", "operational", "Operational", "positive"],
+  ["cache", "Private cache", "operational", "Operational", "positive"],
+  ["build", "Build metadata", "deployed", "Deployed", "informational"],
+];
+
+async function openSystemHealth(page: import("@playwright/test").Page, checks: { id: string; label: string; status: string }[], overall = "operational") {
+  await page.route("**/api/health*", route => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      status: overall,
+      environment: "production",
+      generatedAt: new Date().toISOString(),
+      build: { version: RELEASE_VERSION, buildId: "test", builtAt: null, environment: "production" },
+      checks: checks.map(check => ({ ...check, latencyMs: null, detail: `${check.label} detail` })),
+    }),
+  }));
+  await page.goto("/");
+  await page.evaluate(() => window.dispatchEvent(new Event("portfolio:diagnostics")));
+  const dialog = page.getByRole("dialog", { name: /Production signals/i });
+  await expect(dialog.locator(".health-check[data-status]")).toHaveCount(checks.length);
+  return dialog;
+}
+
+test("System Health renders the Raven production payload with no false Down", async ({ page }) => {
+  const dialog = await openSystemHealth(page, RAVEN_HEALTH_CHECKS.map(([id, label, status]) => ({ id, label, status })));
+  for (const [, label, status, expected, tone] of RAVEN_HEALTH_CHECKS) {
+    const card = dialog.locator(".health-check", { hasText: label });
+    await expect(card.locator("b"), label).toHaveText(expected);
+    await expect(card).toHaveAttribute("data-status", status);
+    await expect(card).toHaveClass(new RegExp(`\\btone-${tone}\\b`));
+  }
+  await expect(dialog.locator(".health-check b", { hasText: /^Down$/ })).toHaveCount(0);
+  await expect(dialog.locator(".health-check.tone-error")).toHaveCount(0);
+  await expect(dialog.locator(".health-overall")).toContainText("Operational");
+});
+
+test("every health status keeps its own label and failure states still read as failures", async ({ page }) => {
+  const cases: [status: string, expected: string, tone: string][] = [
+    ["operational", "Operational", "positive"],
+    ["deployed", "Deployed", "informational"],
+    ["configured", "Configured", "informational"],
+    ["degraded", "Degraded", "warning"],
+    ["unavailable", "Unavailable", "error"],
+    ["down", "Down", "error"],
+    ["unknown", "Unknown", "neutral"],
+    ["something-new", "Unknown", "neutral"],
+    ["", "Unknown", "neutral"],
+  ];
+  const dialog = await openSystemHealth(page, cases.map(([status], index) => ({ id: `check-${index}`, label: `Check ${index}`, status })), "degraded");
+  for (const [index, [status, expected, tone]] of cases.entries()) {
+    const card = dialog.locator(".health-check", { hasText: `Check ${index}` });
+    await expect(card.locator("b"), `status "${status}"`).toHaveText(expected);
+    await expect(card).toHaveClass(new RegExp(`\\btone-${tone}\\b`));
+  }
+  await expect(dialog.locator(".health-check b", { hasText: /^Down$/ })).toHaveCount(1);
+  await expect(dialog.locator(".health-overall")).toContainText("Degraded");
+});
+
+for (const theme of ["light", "dark"] as const) {
+  test(`health status text meets AA contrast in the ${theme} theme`, async ({ page }) => {
+    await page.addInitScript(themeName => localStorage.setItem("portfolio-theme", themeName), theme);
+    await openSystemHealth(page, [
+      { id: "a", label: "Positive", status: "operational" },
+      { id: "b", label: "Informational", status: "deployed" },
+      { id: "c", label: "Warning", status: "degraded" },
+      { id: "d", label: "Error", status: "down" },
+      { id: "e", label: "Neutral", status: "unknown" },
+    ]);
+    await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+    for (const tone of ["positive", "informational", "warning", "error", "neutral"]) {
+      expect(await renderedContrast(page, `.health-check.tone-${tone} code`), `${tone} status text`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+}
+
 test("accessibility controls create immediately visible effects", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Accessibility" }).click();
