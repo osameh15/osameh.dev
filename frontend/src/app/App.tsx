@@ -166,7 +166,12 @@ export default function Home() {
     sectionStabilizationRef.current?.cancel();
     sectionStabilizationRef.current = null;
   }, []);
-  const caseStudyOriginRef = useRef<{ path: string; sectionPath: string; scrollX: number; scrollY: number } | null>(null);
+  /**
+   * The editor context a case study was opened over, restored when it closes -
+   * by Escape, the close control or Browser Back. Generic on purpose: the tab id
+   * says whether that context was Home, a project or a note.
+   */
+  const caseStudyOriginRef = useRef<{ tabId: string; path: string; sectionPath: string; title: string; scrollX: number; scrollY: number } | null>(null);
   useEffect(() => {
     const previous = window.history.scrollRestoration;
     window.history.scrollRestoration = "manual";
@@ -1021,8 +1026,10 @@ export default function Home() {
       // which would make closing this Case Study jump to the top of the page.
       const origin = getWorkspaceScrollPosition();
       caseStudyOriginRef.current = {
+        tabId: activeTabId,
         path: window.location.pathname,
         sectionPath: activeSectionPath,
+        title: document.title,
         scrollX: origin.x,
         scrollY: origin.y,
       };
@@ -1030,7 +1037,12 @@ export default function Home() {
       caseStudyOriginRef.current = null;
     }
     setNotFoundPath(null);
-    setActiveTabId(HOME_TAB_ID);
+    // A case study opened from a view is a dialog over that view, so the
+    // covered editor tab stays active: nothing behind the dialog changes and
+    // closing it has nothing to switch back from. Only an address with no
+    // covered workspace - a direct or history-restored case-study URL - shows
+    // Home behind the dialog.
+    if (!updateHistory) setActiveTabId(HOME_TAB_ID);
     setActiveCaseStudy(study);
     setActiveSectionPath("/case-studies");
     document.title = `${study.title} — Case Study | Osameh Irandoust`;
@@ -1039,6 +1051,14 @@ export default function Home() {
       if (window.location.pathname !== path) window.history.pushState({ caseStudy: study.id }, "", path);
     }
     trackEvent("case_study_open", study.id);
+  };
+
+  /** Returns the editor to the context a case study covered: its tab, section and title. */
+  const restoreCaseStudyOrigin = (origin: NonNullable<typeof caseStudyOriginRef.current>) => {
+    const tabStillOpen = origin.tabId === HOME_TAB_ID || editorTabs.some(tab => tab.id === origin.tabId);
+    setActiveTabId(tabStillOpen ? origin.tabId : HOME_TAB_ID);
+    setActiveSectionPath(origin.sectionPath);
+    document.title = tabStillOpen ? origin.title : "Osameh Irandoust — Software Engineer";
   };
 
   const closeCaseStudy = (returnToSection = true) => {
@@ -1053,7 +1073,7 @@ export default function Home() {
     if (!returnToSection) return;
 
     if (origin) {
-      setActiveSectionPath(origin.sectionPath);
+      restoreCaseStudyOrigin(origin);
       if (window.location.pathname !== origin.path) {
         window.history.replaceState({ restoredFromCaseStudy: true }, "", origin.path);
       }
@@ -1118,7 +1138,7 @@ export default function Home() {
           setActiveSectionPath("/case-studies");
           scrollToSection("case-studies", "auto", true);
         } else {
-          setActiveSectionPath(coveredCaseStudyOrigin.sectionPath);
+          restoreCaseStudyOrigin(coveredCaseStudyOrigin);
         }
         return;
       }
@@ -1159,7 +1179,7 @@ export default function Home() {
     };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, [repos, activeCaseStudy, cancelSectionScroll]);
+  }, [repos, activeCaseStudy, editorTabs, cancelSectionScroll]);
 
   // Filter state lives in the query string so it can be shared, restored on a
   // direct load, and undone with Back. It is a query parameter on the existing
