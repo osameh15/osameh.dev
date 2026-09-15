@@ -736,6 +736,49 @@ for (const width of [1280, 390]) {
   });
 }
 
+// Opening a case study from a note switched the editor to the Home tab, and
+// neither Escape nor Browser Back switched it back: the note URL returned but
+// the note stayed hidden behind Home. Present on 5.6.1 as well; fixed in 5.6.2.
+for (const width of [1280, 390]) {
+  for (const close of ["Browser Back", "Escape"] as const) {
+    test(`a case study opened from a note returns to that note on ${close} at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: width <= 720 ? 844 : 720 });
+      const slug = "designing-trust-into-hiring-workflows";
+      await page.goto(`/notes/${slug}`);
+      await expect(page.locator(".note-markdown")).toBeVisible();
+      await expect(page.locator(".editor-tab.active")).toHaveText(`${slug}.md`);
+
+      const originTab = await activeTabId(page);
+      expect(originTab).toBe(`note:${slug}`);
+      const originTitle = await page.title();
+
+      await page.locator(".continue-exploring a.continue-exploring-link[href='/case-studies/hirava']").click();
+      const modal = page.locator('[role="dialog"].case-study-modal');
+      await expect(modal).toBeVisible();
+      await expect(page).toHaveURL(/\/case-studies\/hirava$/);
+      // The covered editor stays the note: Home never takes over behind the dialog.
+      expect(await activeTabId(page), "no Home takeover while the case study is open").toBe(originTab);
+
+      await startPresentedSectionRecorder(page, (width <= 720 ? 72 : 96) + 24);
+      if (close === "Browser Back") await page.goBack();
+      else await page.keyboard.press("Escape");
+
+      await expect(modal).toBeHidden();
+      await expect(page).toHaveURL(new RegExp(`/notes/${slug}$`));
+      await expect.poll(() => activeTabId(page), "the originating editor tab is active again").toBe(originTab);
+      await expect(page.locator(".editor-tab.active")).toHaveText(`${slug}.md`);
+      await expect(page.locator(".note-markdown"), "the note itself is shown").toBeVisible();
+      await expect(page.locator("#notes"), "the home sections are not shown behind the note").toHaveCount(0);
+      await waitForSectionSettled(page);
+      const presented = await stopPresentedSectionRecorder(page);
+      expect(presented, `home sections painted while returning: ${presented.join(" -> ")}`).toEqual([]);
+      await expect(page, "the note's document title is restored").toHaveTitle(originTitle);
+      expect((await tabIds(page)).filter(id => id === `note:${slug}`), "the note tab is not duplicated").toHaveLength(1);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
+    });
+  }
+}
+
 // ---- v5.6.2 Raven: System Health vocabulary ----
 //
 // The backend reports what each check proved. deployed and configured are
