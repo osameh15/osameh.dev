@@ -607,6 +607,135 @@ for (const width of [320, 360, 390, 412]) {
   });
 }
 
+for (const width of [1280, 390]) {
+  test(`a direct note route survives internal navigation and Browser Back at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: width <= 720 ? 844 : 720 });
+    const slug = "architecting-hirava-recruitment-marketplace";
+    await page.goto(`/notes/${slug}`);
+    await expect(page.locator("#note-detail-title")).toBeVisible();
+    await expect(page.locator(".note-markdown")).toBeVisible();
+    await expect(page.locator(".editor-tab.active")).toHaveText(`${slug}.md`);
+
+    // Internal navigation: the breadcrumb returns to the Engineering Notes
+    // index, which starts a section stabilization transaction.
+    await page.locator(".note-detail-breadcrumb button").click();
+    await expect.poll(() => activeTabId(page)).toBe("home");
+    await expect.poll(() => sectionTop(page, "notes")).toBeLessThan(140);
+
+    await page.goBack();
+    await expect(page).toHaveURL(new RegExp(`/notes/${slug}$`));
+    await expect(page.locator(".editor-tab.active")).toHaveText(`${slug}.md`);
+    await expect(page.locator("#note-detail-title")).toBeInViewport();
+    // Opening a note starts it at its own beginning; that is the intended position.
+    await expect.poll(() => page.evaluate(() => Math.round(window.scrollY))).toBeLessThanOrEqual(2);
+    await waitForSectionSettled(page);
+    // No stale index section survives, and the end of stabilization moved nothing.
+    await expect(page.locator("#notes")).toHaveCount(0);
+    expect(await page.evaluate(() => Math.round(window.scrollY))).toBeLessThanOrEqual(2);
+    await expect(page.locator("#note-detail-title")).toBeInViewport();
+  });
+}
+
+// Records which primary home section is presented at the reading line just
+// below the sticky chrome, in painted frames only. A flash of an unrelated
+// section - the historical Changelog/other-section bug - shows up as an extra id.
+//
+// Sampling geometry in requestAnimationFrame is not enough: it runs before that
+// frame's layout and ResizeObserver step, so it forces layout on changes that
+// are corrected before paint and reports flashes nobody ever sees.
+// IntersectionObserver intersections are computed after ResizeObserver, just
+// before paint, so a one-pixel band at the reading line reports what was drawn.
+// Sections unmounted while a note is open are observed as they re-mount.
+const PRIMARY_SECTIONS = ["home", "about", "work", "case-studies", "experience", "activity", "now", "changelog", "notes", "contact"];
+const startPresentedSectionRecorder = (page: import("@playwright/test").Page, readingLine: number) =>
+  page.evaluate(({ line, ids }) => {
+    const state = window as unknown as { __presented: string[]; __stopRecorder: () => void };
+    const presented: string[] = [];
+    state.__presented = presented;
+    const band = `-${line}px 0px -${Math.max(0, window.innerHeight - line - 1)}px 0px`;
+    const intersections = new IntersectionObserver(entries => {
+      for (const entry of [...entries].sort((a, b) => a.time - b.time)) {
+        if (entry.isIntersecting && presented[presented.length - 1] !== entry.target.id) presented.push(entry.target.id);
+      }
+    }, { rootMargin: band, threshold: 0 });
+    const observed = new WeakSet<Element>();
+    const observeSections = () => {
+      for (const id of ids) {
+        const section = document.getElementById(id);
+        if (section && !observed.has(section)) { observed.add(section); intersections.observe(section); }
+      }
+    };
+    const mounts = new MutationObserver(observeSections);
+    mounts.observe(document.body, { childList: true, subtree: true });
+    observeSections();
+    state.__stopRecorder = () => { mounts.disconnect(); intersections.disconnect(); };
+  }, { line: readingLine, ids: PRIMARY_SECTIONS });
+const stopPresentedSectionRecorder = async (page: import("@playwright/test").Page) => {
+  // Let the last rendering update's intersection records be delivered.
+  await nextFrames(page);
+  return page.evaluate(() => {
+    const state = window as unknown as { __presented: string[]; __stopRecorder: () => void };
+    state.__stopRecorder();
+    return state.__presented;
+  });
+};
+
+// A flash detector that cannot see a flash proves nothing. This paints a real
+// Changelog frame on purpose and requires the recorder to report it.
+test("the presented-section recorder detects a painted flash", async ({ page }) => {
+  await page.goto("/notes");
+  await placedAt(page, "notes");
+  await waitForSectionSettled(page);
+  await startPresentedSectionRecorder(page, 120);
+  await nextFrames(page);
+  await page.evaluate(() => window.scrollBy({ top: -160, behavior: "instant" as ScrollBehavior }));
+  await nextFrames(page);
+  await page.evaluate(() => window.scrollBy({ top: 160, behavior: "instant" as ScrollBehavior }));
+  await nextFrames(page);
+  const presented = await stopPresentedSectionRecorder(page);
+  expect(presented, `recorded: ${presented.join(" -> ")}`).toEqual(["notes", "changelog", "notes"]);
+});
+
+for (const width of [1280, 390]) {
+  test(`Browser Back to the notes index presents no unrelated section at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: width <= 720 ? 844 : 720 });
+    const offset = width <= 720 ? 72 : 96;
+    await page.goto("/notes");
+    await placedAt(page, "notes", offset);
+    await waitForSectionSettled(page);
+    await page.getByRole("link", { name: /Read note/i }).first().click();
+    await expect(page.locator(".note-markdown")).toBeVisible();
+
+    await startPresentedSectionRecorder(page, offset + 24);
+    await page.goBack();
+    await expect(page).toHaveURL(/\/notes\/?$/);
+    await placedAt(page, "notes", offset);
+    await waitForSectionSettled(page);
+    const presented = await stopPresentedSectionRecorder(page);
+    expect(presented, `sections presented during restoration: ${presented.join(" -> ")}`).toEqual(["notes"]);
+  });
+
+  test(`closing a case study presents no unrelated section at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: width <= 720 ? 844 : 720 });
+    const offset = width <= 720 ? 72 : 96;
+    await page.goto("/case-studies");
+    await placedAt(page, "case-studies", offset);
+    await waitForSectionSettled(page);
+    await page.locator('.case-study-card[data-case-study-id="hirava"] a.card-surface-link').evaluate(element => (element as HTMLAnchorElement).click());
+    const modal = page.locator('[role="dialog"].case-study-modal');
+    await expect(modal).toBeVisible();
+
+    await startPresentedSectionRecorder(page, offset + 24);
+    await page.keyboard.press("Escape");
+    await expect(modal).toBeHidden();
+    await expect.poll(() => page.evaluate(() => document.body.style.position)).not.toBe("fixed");
+    await nextFrames(page);
+    await nextFrames(page);
+    const presented = await stopPresentedSectionRecorder(page);
+    expect(presented, `sections presented while closing: ${presented.join(" -> ")}`).toEqual(["case-studies"]);
+  });
+}
+
 // ---- v5.6.2 Raven: System Health vocabulary ----
 //
 // The backend reports what each check proved. deployed and configured are
