@@ -651,7 +651,47 @@ portfolio ships often enough that releases alone would crowd out the notes.
 Release dates come from a small map generated from `docs/CHANGELOG.md`, so the
 changelog stays authoritative without shipping in the bundle.
 
-## 32. Current engineering priorities
+## 32. v5.6.1 Raven content additions
+
+**Published content has two homes, and they must agree.** The application
+renders `frontend/src/features/notes/notesData.ts` and
+`frontend/src/data/caseStudiesData.ts`; the PHP document layer
+(`backend/seo/note.php`, `backend/seo/case-study.php`) and the dynamic
+`sitemap.php` read `frontend/public/notes-index.json` and
+`frontend/public/case-studies-index.json`. Publishing means writing both, plus
+the markdown body under `frontend/public/notes-content/`, plus a line in the
+static fallback `frontend/public/sitemap.xml`. Their agreement is now asserted
+rather than assumed.
+
+**Hirava as a client case study.** A trust-driven recruitment marketplace
+connecting companies with professional recruiters, published under the existing
+`ClientCaseStudy` architecture - not as a project deep-dive, and not added to
+the public Projects section, which remains repository-backed. Its stated status
+is explicit: the frontend is implemented and reachable at a temporary
+development preview, and the Go backend is planned and unbuilt. The installed
+framework is Nuxt 3.17.6 with `future.compatibilityVersion: 4`, so it is
+described as Nuxt 4 compatibility mode and never as Nuxt 4. The current
+stack was verified from the Hirava repository's own `package.json`,
+`nuxt.config.ts` and project documentation.
+
+**One interface addition.** `ClientCaseStudy.siteLabel` overrides the shared
+"Visit live site" wording. It exists because a temporary preview is not a
+production site, and one optional label is cheaper than a second link
+component.
+
+**Two Engineering Notes**, on architecting a two-sided product frontend ahead
+of its backend, and on encoding trust into hiring workflows. Both name the case
+study through `relatedCaseStudies`, and the case study names both through
+`relatedNotes`, so Continue exploring, the Command Palette, the Terminal and
+the engineering timeline surface them through paths that already existed. No
+activity entry, search entry or route was added by hand.
+
+**Indexing.** Client case studies already have independent canonical,
+indexable routes, so Hirava follows that contract. The sitemap goes from 17 to
+20 canonical documents - two note documents plus one case study - and no new
+URL class is introduced.
+
+## 33. Current engineering priorities
 
 1. Complete the outstanding staging acceptance pass carried since v5.2.0:
    release identity, Neural Cipher assets, active-tab auto-scroll, plus the

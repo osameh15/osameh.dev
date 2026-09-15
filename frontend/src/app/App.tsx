@@ -1542,7 +1542,7 @@ export default function Home() {
       "/home": "home portfolio software engineer",
       "/about": "about profile bio skills stack docker linux wpf dotnet nuxt backend full stack systems",
       "/projects": "projects work repositories github source architecture code technologies",
-      "/case-studies": "case studies client freelance amorella capabilities product delivery modernization communications",
+      "/case-studies": "case studies client freelance amorella hirava recruitment recruiter marketplace capabilities product delivery modernization communications",
       "/experience": "experience career jobs freelance backend full stack android wordpress",
       "/activity": "github activity commits repository recent activity",
       "/now": "now current working learning focus",

@@ -386,7 +386,7 @@ On tablet and mobile, the table of contents becomes a sticky horizontal navigati
 
 Version 5.0.0 expands the portfolio with four product-facing capabilities built on top of the 4.2.2 IDE shell and semantic theme system:
 
-- **Freelance / Client Case Studies** — public, verifiable client work is separated from capability cards. The first published case study is **Amorella Beauty** (`https://amorellabeauty.ir/`); three experience-backed capability areas describe the kinds of systems I can build without presenting them as named client projects.
+- **Freelance / Client Case Studies** — public, verifiable client work is separated from capability cards. Two case studies are published: **Amorella Beauty** (`https://amorellabeauty.ir/`) and **Hirava** (`https://hirava.osameh.dev`, a temporary development preview of an in-development product). Three experience-backed capability areas describe the kinds of systems I can build without presenting them as named client projects.
 - **Portfolio Mood / Availability Control** — one central availability configuration drives the header status, recruiter-facing availability details, Terminal/Search metadata, and contact CTA.
 - **Accessibility Control Center** — persistent reduced-motion, increased-contrast, larger-text, and enhanced-focus preferences with OS reduced-motion support.
 - **Ranked search** — the IDE Command Palette ranks navigation, projects, notes, case studies, skills, experience, and settings instead of relying on raw substring filtering.
@@ -506,6 +506,14 @@ The site also includes an in-app resume viewer and download/open controls.
 
 The **six most recent releases** are summarized here. See **[CHANGELOG.md](docs/CHANGELOG.md)** for the complete production history. This section is intentionally capped at six releases.
 
+### v5.6.1 - Raven
+
+- **Hirava case study.** A trust-driven recruitment marketplace connecting companies with professional recruiters, published as a client case study with an explicit in-development status: the frontend - Nuxt 3.17.6 in Nuxt 4 compatibility mode - is implemented and reachable as a development preview, and the Go backend is planned and not built.
+- **Two Engineering Notes.** *Architecting Hirava* covers structuring a two-sided product frontend ahead of its backend; *Designing trust into hiring workflows* covers candidate caps, structured evaluation, verification, scoring and pipeline visibility - and which of those a frontend can only model.
+- **Content graph, not new plumbing.** The case study and both notes are related explicitly, so Continue exploring, the Command Palette, the Terminal, the engineering timeline and both sitemaps pick them up through the existing data path.
+- Sitemap grows from 17 to 20 canonical documents: two Note documents and one client case study. No new URL class.
+- Prototype figures shown on the Hirava preview are not reported as business results anywhere in the portfolio.
+
 ### v5.6.0 - Raven
 
 - **Honest status semantics.** A check reports what it measured: file presence is `deployed`, not `operational`; contact protection is `configured`; and a tautological check that could never fail was removed.
@@ -544,12 +552,6 @@ The **six most recent releases** are summarized here. See **[CHANGELOG.md](docs/
 - **Failure-independent.** Error documents are static HTML plus one shared stylesheet: no JavaScript, no bundle reference, no API call, so they render when the application runtime is what failed.
 - **APIs stay machine-readable.** Every `/api/` refusal carries its own JSON body — including the library-include refusal, now answered by the API's own JSON endpoint — so no API response is ever replaced by an HTML document.
 - Error documents are `noindex` in both meta and header, are absent from both sitemaps, and the 17-URL sitemap contract is unchanged. Edge-generated gateway errors remain outside origin control and are documented rather than claimed.
-
-### v5.3.2 — Vanta
-
-- The workspace now presents C++ by default (`main.cpp`), across the editor tab, Explorer and hero. Every other language remains selectable and an explicit choice is still remembered.
-- The GitHub health probe now authenticates with the environment's own token, so `authenticated` reports whether GitHub accepted the credential rather than whether one is merely configured.
-- Upstream reachability and credential validity are reported as separate facts, and separate production/staging credentials are unchanged.
 
 ## License
 

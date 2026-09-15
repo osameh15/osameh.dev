@@ -30,7 +30,7 @@ const DEFINITIONS = [
   { key: "qt", label: "Qt", aliases: ["Qt", "qt"] },
   { key: "qml", label: "QML", aliases: ["QML", "qml"] },
   { key: "laravel", label: "Laravel", aliases: ["Laravel", "Laravel 8", "laravel", "laravel-framework", "laravel8", "Laravel Artisan"] },
-  { key: "nuxt", label: "Nuxt", aliases: ["Nuxt", "Nuxt 3", "Nuxt 4", "Nuxt 3 / 4", "nuxt", "nuxt3", "nuxt4", "nuxtjs"] },
+  { key: "nuxt", label: "Nuxt", aliases: ["Nuxt", "Nuxt 3", "Nuxt 4", "Nuxt 3 / 4", "Nuxt 3.17.6 (Nuxt 4 compatibility mode)", "nuxt", "nuxt3", "nuxt4", "nuxtjs"] },
   { key: "vue", label: "Vue", aliases: ["Vue", "Vue 3", "Vue 3.5", "vue", "vue3", "vuejs"] },
   { key: "react", label: "React", aliases: ["React", "React 19", "react", "reactjs", "React (repository topics)"] },
   { key: "vuetify", label: "Vuetify", aliases: ["Vuetify", "Vuetify 3.9", "vuetify"] },

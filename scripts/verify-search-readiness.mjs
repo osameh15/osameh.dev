@@ -78,7 +78,7 @@ export function verifySearchReadiness(indexPath = "frontend/index.html", scanned
  * @param {string} root A built bundle directory.
  * @param {number} expectedSitemapUrls
  */
-export function verifyBuiltSearchAssets(root, expectedSitemapUrls = 17) {
+export function verifyBuiltSearchAssets(root, expectedSitemapUrls = 20) {
   const failures = [];
   for (const asset of ["favicon.ico", "favicon-48x48.png"]) {
     if (!existsSync(resolve(root, asset))) failures.push(`${root}/${asset} is missing; the search favicon must ship at a stable root path`);

@@ -4,6 +4,33 @@ All notable changes to **osameh.dev** are documented here.
 
 The project follows [Semantic Versioning](https://semver.org/). The early production releases were shipped in rapid succession while the portfolio was moved from its hosted prototype to the current ParsPack/CDN deployment.
 
+## 5.6.1 - 2026-09-14 - Raven
+
+A content release inside the **Raven** family: one client case study and two Engineering Notes, wired into the relationship graph that already exists. No architecture, UI or SEO redesign, and no new dependency, API or runtime behaviour.
+
+### Hirava, published as a client case study
+
+- **Hirava** is a trust-driven recruitment marketplace connecting companies with professional recruiters: companies post hiring requests, verified recruiters submit a capped number of structurally evaluated candidates, and the model is a success fee rather than a resume subscription.
+- The published status is explicit. The **frontend is implemented** and reachable as a development preview at `https://hirava.osameh.dev`; the **Go backend is planned and not built**. Nothing in the case study describes an API, a database, authentication, KYC, scoring or payments as operational.
+- The verified current stack - Nuxt 3.17.6 in Nuxt 4 compatibility mode (`future.compatibilityVersion: 4`), Vue 3.5, TypeScript in strict mode, Tailwind CSS 3.4, Pinia, TanStack Query, and Nuxt i18n with Persian as the primary right-to-left locale - was read from the project's own `package.json`, `nuxt.config.ts` and documentation, not inferred from the rendered site. The installed package is still Nuxt 3, so the framework is never described as Nuxt 4; it runs with Nuxt 4 behaviour and defaults enabled. The planned stack - Go on Fiber, PostgreSQL, Redis, MinIO - is named separately as planned, and every product rule the frontend models, including the five-candidate submission cap, is described as a rule the future backend must enforce rather than one enforced today.
+- The live URL is a temporary preview, so the case study's live link is labelled **Open live preview** instead of the shared "Visit live site" wording. That is the only interface change in this release: one optional per-case-study label.
+- Marketing figures visible on the Hirava preview - company counts, recruiter counts, a retention percentage - are prototype presentation content and are excluded from every claim in this portfolio.
+- Published case studies now lay out in two columns and collapse to one at 1000px, the same breakpoint the Notes index already used. The grid was pinned to a single 720px column while only one case study existed, which left every later case study on a row of its own.
+- Engineering Notes are authored newest first. The array in `notesData.ts` is the one order the index, adjacency, the Command Palette and the Terminal all read, so the order is visible in the diff rather than produced by a runtime sort.
+- Continue exploring inside a case study now shares the modal's inline padding instead of running edge to edge.
+
+### Two Engineering Notes
+
+- **Architecting Hirava: A Two-Sided Recruitment Marketplace in Nuxt 4 Compatibility Mode** - separating companies and recruiters into distinct product contexts, modelling the hiring pipeline as a state machine, defining an API boundary that stays uncalled, and using mock data without letting the product depend on it.
+- **Designing trust into hiring workflows** - candidate caps as a system constraint, structured evaluation with required negatives, verification that gates the action rather than the account, scoring that resists vanity, and an explicit split between what the frontend models and what the backend must guarantee.
+
+### Discovery, unchanged mechanics
+
+- The case study names both notes and both notes name the case study, so **Continue exploring** resolves them deterministically through the Null relationship model, capped at three.
+- Both notes enter the engineering timeline through the existing Raven activity pipeline on their published date. No activity entry is hardcoded and no event is duplicated.
+- Command Palette, Terminal (`notes`, `cat note <slug>`, `case <id>`) and search pick the new content up from the same data, with no new search surface.
+- The sitemap grows from 17 to 20 canonical documents: two Note documents and one client case study. Client case studies already have independent canonical, indexable routes, so Hirava follows that existing contract rather than introducing a URL class.
+
 ## 5.6.0 - 2026-09-13 - Raven
 
 First release in the **Raven** family. Every 5.6.x patch inherits the codename. The theme is engineering trust and live signals: everything important should leave a signal, and no signal should claim more than it can prove.

@@ -7,6 +7,7 @@ import { canonicalKeys, technologyLabel } from "../../frontend/src/lib/technolog
 import { skillCatalog } from "../../frontend/src/app/workspacePreferences";
 import { BUILD_COMMIT, BUILD_COMMIT_SHORT } from "../../frontend/src/generated/build";
 import { relatedToCaseStudy, relatedToNote, relatedToProject, type RelatedSource } from "../../frontend/src/lib/relatedContent";
+import { caseStudies as clientCaseStudies } from "../../frontend/src/data/caseStudiesData";
 import { ERROR_STATUSES } from "../../scripts/error-pages.mjs";
 
 const availabilityFixture = JSON.parse(readFileSync(new URL("../../config/availability.json", import.meta.url), "utf8"));
@@ -87,7 +88,7 @@ test("notes and case studies expose native links with SPA navigation", async ({ 
   await expect(noteLink).toHaveAttribute("href", /^\/notes\/[a-z0-9-]+$/);
   await noteLink.click();
   await expect(page).toHaveURL(/\/notes\/[a-z0-9-]+$/);
-  await expect(page.locator(".editor-tab.active")).toContainText(/Repository|FTPS|GitHub|cache/i);
+  await expect(page.locator(".editor-tab.active")).toHaveText(`${engineeringNotes[0].slug}.md`);
 
   await page.goto("/case-studies");
   const caseLink = page.getByRole("link", { name: /Open case study/i }).first();
@@ -100,7 +101,7 @@ test("notes and case studies expose native links with SPA navigation", async ({ 
 test("sitemap and identity schema match canonical document intent", async ({ page, request }) => {
   const sitemap = await (await request.get("/sitemap.xml")).text();
   const urls = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map(match => match[1]);
-  expect(urls).toHaveLength(17);
+  expect(urls).toHaveLength(20);
   for (const section of ["about", "projects", "case-studies", "experience", "activity", "now", "changelog", "notes", "contact", "resume"]) {
     expect(urls).not.toContain(`https://osameh.dev/${section}`);
   }
@@ -340,9 +341,14 @@ test("availability mood is centrally exposed from the header", async ({ page }) 
 test("case studies distinguish capabilities from published client work", async ({ page }) => {
   await page.goto("/case-studies");
   await expect(page.locator(".capability-card")).toHaveCount(3);
-  await expect(page.locator(".published-case-studies .case-study-card")).toHaveCount(1);
+  await expect(page.locator(".published-case-studies .case-study-card")).toHaveCount(clientCaseStudies.length);
   await expect(page.locator(".published-case-studies")).toContainText("Amorella Beauty");
   await expect(page.locator(".published-case-studies a[href=\"https://amorellabeauty.ir/\"]")).toBeVisible();
+  await expect(page.locator(".published-case-studies")).toContainText("Hirava");
+  // The temporary Hirava preview is labelled as a preview, not as a live site.
+  const hiravaLive = page.locator('.case-study-card[data-case-study-id="hirava"] a.case-study-live');
+  await expect(hiravaLive).toHaveAttribute("href", "https://hirava.osameh.dev");
+  await expect(hiravaLive).toHaveText(/Open live preview/);
 });
 
 test("explorer keeps case studies immediately after projects", async ({ page }) => {
@@ -1708,7 +1714,10 @@ test("adjacent navigation preserves mixed project and note tabs", async ({ page 
   const beforeIds = await tabIds(page);
   await expect(page.locator(".note-markdown")).toBeVisible();
   await nextLink(page).click();
-  await expect(page.locator(".editor-tab.active")).toHaveText(`${engineeringNotes[1].slug}.md`);
+  // The neighbour is whatever the authoritative order says follows NOTE_A, so
+  // publishing a note never rewrites this expectation.
+  const afterNoteA = adjacentNotes(NOTE_A.path.replace("/notes/", "")).next!;
+  await expect(page.locator(".editor-tab.active")).toHaveText(`${afterNoteA.slug}.md`);
   const afterIds = await tabIds(page);
   // Every tab that was open is still open, in the same order, plus the new one.
   expect(afterIds.slice(0, beforeIds.length)).toEqual(beforeIds);
@@ -2745,10 +2754,9 @@ test("superseded portfolio claims are gone", () => {
   expect(metadata, "there is one Command Palette, not a Universal Search").not.toContain("Universal search");
 });
 
-// The client case study surface has no live example yet: the one published
-// engagement has no public repository and no note written about it, so the block
-// correctly renders nothing rather than inventing a destination. The code path
-// and the ranking are therefore proved directly, against a fixed source.
+// Ranking is proved against a fixed source rather than live content, so the
+// priority order stays asserted even as case studies and notes are published.
+// The live surfaces are covered separately by the Hirava content tests below.
 test("related content ranking is deterministic across every surface", () => {
   const source: RelatedSource = {
     projects: [
@@ -3093,3 +3101,294 @@ test("a github release event is not shown twice", async ({ page }) => {
   const releases = entries.filter(entry => entry.type === "release").map(entry => entry.title);
   expect(new Set(releases).size, "distinct releases are not collapsed").toBe(releases.length);
 });
+
+// ---- v5.6.1 Raven: Hirava case study and its two Engineering Notes ----
+//
+// Content is published from two places at once - the typed modules the
+// application renders, and the JSON indexes the PHP document layer and the
+// sitemaps read. Nothing enforced their agreement before, so a note that
+// rendered perfectly could still be missing its canonical document.
+
+const HIRAVA_NOTES = ["architecting-hirava-recruitment-marketplace", "designing-trust-into-hiring-workflows"];
+const notesIndexFixture: Array<Record<string, unknown>> = JSON.parse(readFileSync(new URL("../../frontend/public/notes-index.json", import.meta.url), "utf8"));
+const caseStudyIndexFixture: Array<Record<string, unknown>> = JSON.parse(readFileSync(new URL("../../frontend/public/case-studies-index.json", import.meta.url), "utf8"));
+
+test("published content agrees across the rendered modules and the indexed documents", () => {
+  const slugs = engineeringNotes.map(note => note.slug);
+  expect(new Set(slugs).size, "note slugs are unique").toBe(slugs.length);
+  expect(slugs).toEqual(notesIndexFixture.map(note => note.slug));
+
+  for (const note of engineeringNotes) {
+    const indexed = notesIndexFixture.find(item => item.slug === note.slug)!;
+    expect(indexed, `${note.slug} is an indexed document`).toBeTruthy();
+    expect({ title: indexed.title, summary: indexed.summary, publishedAt: indexed.publishedAt, updatedAt: indexed.updatedAt, readingMinutes: indexed.readingMinutes, tags: indexed.tags })
+      .toEqual({ title: note.title, summary: note.summary, publishedAt: note.publishedAt, updatedAt: note.updatedAt, readingMinutes: note.readingMinutes, tags: note.tags });
+    expect(note.slug).toMatch(/^[a-z0-9-]+$/);
+    expect(note.readingMinutes).toBeGreaterThan(0);
+    expect(note.tags.length).toBeGreaterThan(0);
+    const markdown = readFileSync(new URL(`../../frontend/public/notes-content/${note.slug}.md`, import.meta.url), "utf8");
+    expect(markdown.split(/\s+/).length, `${note.slug} has real content`).toBeGreaterThan(200);
+  }
+
+  const ids = clientCaseStudies.map(study => study.id);
+  expect(new Set(ids).size, "case study ids are unique").toBe(ids.length);
+  expect(ids).toEqual(caseStudyIndexFixture.map(study => study.id));
+  for (const study of clientCaseStudies) {
+    const indexed = caseStudyIndexFixture.find(item => item.id === study.id)!;
+    expect({ title: indexed.title, summary: indexed.summary, stack: indexed.stack, siteUrl: indexed.siteUrl })
+      .toEqual({ title: study.title, summary: study.summary, stack: study.stack, siteUrl: study.siteUrl });
+  }
+
+  for (const slug of HIRAVA_NOTES) expect(slugs, `${slug} is published`).toContain(slug);
+});
+
+test("engineering notes are authored newest first", () => {
+  const dates = engineeringNotes.map(note => note.publishedAt);
+  expect(dates, "the authored order is the published order, newest first").toEqual([...dates].sort().reverse());
+  expect(engineeringNotes[0].publishedAt).toBe(dates.reduce((newest, date) => (date > newest ? date : newest)));
+  // Order is authored, never sorted at runtime: adjacency, the index, the
+  // palette and the terminal all read this one array.
+  expect(readFileSync(new URL("../../frontend/src/features/notes/notesData.ts", import.meta.url), "utf8")).not.toContain(".sort(");
+});
+
+test("the Hirava case study states what is built and never claims what is not", () => {
+  const hirava = clientCaseStudies.find(study => study.id === "hirava")!;
+  expect(hirava, "Hirava is published as a client case study").toBeTruthy();
+
+  // A temporary development preview, addressed exactly, over HTTPS.
+  expect(hirava.siteUrl).toBe("https://hirava.osameh.dev");
+  expect(new URL(hirava.siteUrl!).protocol).toBe("https:");
+  expect(hirava.siteLabel, "the link is not sold as a production site").toBe("Open live preview");
+
+  // Explicit relations resolve, and nothing is invented.
+  expect(hirava.relatedNotes).toEqual(HIRAVA_NOTES);
+  for (const slug of hirava.relatedNotes!) expect(engineeringNotes.some(note => note.slug === slug)).toBe(true);
+  expect(hirava.relatedProjects, "no public repository is claimed").toBeUndefined();
+  for (const slug of HIRAVA_NOTES) {
+    expect(engineeringNotes.find(note => note.slug === slug)!.relatedCaseStudies).toEqual(["hirava"]);
+  }
+
+  const prose = [hirava.summary, hirava.problem, ...hirava.constraints, ...hirava.solution, ...hirava.decisions, ...hirava.outcomes, ...hirava.lessons,
+    readFileSync(new URL(`../../frontend/public/notes-content/${HIRAVA_NOTES[0]}.md`, import.meta.url), "utf8"),
+    readFileSync(new URL(`../../frontend/public/notes-content/${HIRAVA_NOTES[1]}.md`, import.meta.url), "utf8")].join("\n");
+
+  // The status is stated, not implied.
+  expect(hirava.projectType).toContain("in development");
+  expect(hirava.summary).toMatch(/frontend is implemented/i);
+  expect(hirava.summary).toMatch(/backend is planned/i);
+
+  // The verified current stack is what the Hirava repository actually declares.
+  // Hirava installs nuxt ^3.17.6 with future.compatibilityVersion: 4, so the
+  // installed framework is Nuxt 3 running in Nuxt 4 compatibility mode.
+  for (const technology of ["Nuxt 3.17.6 (Nuxt 4 compatibility mode)", "Vue 3.5", "TypeScript", "Tailwind CSS"]) expect(hirava.stack).toContain(technology);
+  expect(hirava.stack, "Nuxt 4 is not the installed package").not.toContain("Nuxt 4");
+  expect(hirava.stack, "an unbuilt backend is not part of the current stack").not.toContain("Go");
+  expect(hirava.stack).not.toContain("PostgreSQL");
+  expect(prose, "the planned backend is labelled planned").toMatch(/planned/i);
+
+  // Prototype presentation figures are never reported as business results.
+  for (const figure of ["5K+", "1.2K+", "86%"]) expect(prose, `${figure} is prototype content`).not.toContain(figure);
+  expect(prose).not.toMatch(/\b(placements? (?:made|delivered)|revenue of|customers already)\b/i);
+});
+
+test("current Hirava content states the installed framework and backend enforcement exactly", () => {
+  const hirava = clientCaseStudies.find(study => study.id === "hirava")!;
+  const indexedStudy = caseStudyIndexFixture.find(item => item.id === "hirava")!;
+  const noteBodies = HIRAVA_NOTES.map(slug => readFileSync(new URL(`../../frontend/public/notes-content/${slug}.md`, import.meta.url), "utf8"));
+  const noteMetadata = HIRAVA_NOTES.map(slug => engineeringNotes.find(note => note.slug === slug)!);
+  const siteChangelog = /\{ version: "5\.6\.1"[^\n]*/.exec(readFileSync(new URL("../../frontend/src/data/portfolioData.ts", import.meta.url), "utf8"))?.[0] || "";
+  expect(siteChangelog, "the site changelog entry is readable").not.toBe("");
+
+  const surfaces: Array<[string, string]> = [
+    ["case study", Object.values(hirava).flat().filter(value => typeof value === "string").join("\n")],
+    ["case study index", JSON.stringify(indexedStudy)],
+    ...noteMetadata.map(note => [`${note.slug} metadata`, `${note.title}\n${note.summary}`] as [string, string]),
+    ...noteBodies.map((body, index) => [`${HIRAVA_NOTES[index]}.md`, body] as [string, string]),
+    ["site changelog 5.6.1", siteChangelog],
+  ];
+
+  // Nuxt 4 is allowed only where it is qualified: compatibility mode, a
+  // compatible architecture, its behaviour/defaults, or an explicit negation.
+  const QUALIFIED_NUXT_4 = [/Nuxt 4 compatibility mode/gi, /Nuxt 4-compatible/gi, /Nuxt 4 behaviour and defaults/gi, /is not Nuxt 4\b/gi];
+  // No backend exists, so nothing may claim present-tense server enforcement.
+  const PRESENT_ENFORCEMENT = [
+    /\b(?:the\s+)?(?:server|backend|API)\s+(?:re-?validates|enforces|rejects|verifies|guarantees)\b/i,
+    /\b(?:is|are)\s+(?:enforced|re-?validated)\s+(?:by|on|in)\s+the\s+(?:server|backend|API)\b/i,
+  ];
+
+  for (const [label, text] of surfaces) {
+    const unqualified = QUALIFIED_NUXT_4.reduce((remaining, allowed) => remaining.replace(allowed, ""), text);
+    expect(unqualified, `${label} presents Nuxt 4 as the installed framework`).not.toMatch(/Nuxt\s*4\b/i);
+    for (const pattern of PRESENT_ENFORCEMENT) expect(text, `${label} claims present-tense backend enforcement`).not.toMatch(pattern);
+  }
+
+  // The guards must actually bite: an unqualified claim is rejected.
+  const rejects = (text: string) => /Nuxt\s*4\b/i.test(QUALIFIED_NUXT_4.reduce((remaining, allowed) => remaining.replace(allowed, ""), text));
+  expect(rejects("The Nuxt 4 frontend is implemented")).toBe(true);
+  expect(rejects("Nuxt 3.17.6 in Nuxt 4 compatibility mode")).toBe(false);
+  expect(PRESENT_ENFORCEMENT.some(pattern => pattern.test("the client disables the button and the server re-validates"))).toBe(true);
+  expect(PRESENT_ENFORCEMENT.some(pattern => pattern.test("the future backend must re-validate the rule"))).toBe(false);
+
+  // The exact installed framework is stated where the stack is described.
+  expect(hirava.summary).toContain("Nuxt 3.17.6 with Nuxt 4 compatibility mode");
+  expect(noteBodies[0]).toContain("Nuxt 3.17.6");
+  expect(noteBodies[0]).toContain("compatibilityVersion: 4");
+  expect(noteMetadata[0].title).toBe("Architecting Hirava: A Two-Sided Recruitment Marketplace in Nuxt 4 Compatibility Mode");
+
+  // The five-candidate cap is frontend-modelled and future-backend-enforced.
+  for (const body of noteBodies) expect(body).toMatch(/future backend must re-validate/i);
+  expect(hirava.solution.join(" ")).toMatch(/planned backend must re-validate/i);
+});
+
+test("Hirava and its notes resolve to each other through the shared related-content model", () => {
+  const source: RelatedSource = {
+    projects: [],
+    notes: engineeringNotes.map(note => ({ slug: note.slug, title: note.title, hint: "Engineering note", tags: note.tags, relatedProjects: note.relatedProjects, relatedCaseStudies: note.relatedCaseStudies })),
+    caseStudies: clientCaseStudies.map(study => ({ id: study.id, title: study.title, hint: "Client case study", stack: study.stack, relatedProjects: study.relatedProjects, relatedNotes: study.relatedNotes })),
+  };
+
+  const fromCaseStudy = relatedToCaseStudy("hirava", source);
+  expect(fromCaseStudy.length).toBeLessThanOrEqual(3);
+  expect(fromCaseStudy.slice(0, 2).map(item => item.href).sort()).toEqual(HIRAVA_NOTES.map(slug => `/notes/${slug}`).sort());
+  expect(fromCaseStudy[0].reason).toBe("Written about this engagement");
+
+  for (const slug of HIRAVA_NOTES) {
+    const fromNote = relatedToNote(slug, source);
+    expect(fromNote.length).toBeLessThanOrEqual(3);
+    expect(fromNote.map(item => item.href)).toContain("/case-studies/hirava");
+    expect(fromNote.find(item => item.href === "/case-studies/hirava")!.reason).toBe("Discussed in this note");
+    expect(relatedToNote(slug, source), "deterministic").toEqual(fromNote);
+  }
+  expect(relatedToCaseStudy("hirava", source), "deterministic").toEqual(fromCaseStudy);
+});
+
+test("both new notes reach the engineering timeline through the existing pipeline", async ({ page }) => {
+  // No activity entry is authored for a note: the timeline reads the same
+  // engineeringNotes array the Notes index renders, so publishing is enough.
+  await page.route("**/api/github/activity*", route => route.fulfill({
+    status: 200, contentType: "application/json",
+    body: JSON.stringify([{ id: "push", type: "PushEvent", repo: "osameh.dev", message: "Pushed 1 commit(s)", created_at: "2026-09-13T15:00:00Z", url: "https://github.com/osameh15/osameh.dev" }]),
+  }));
+  await page.goto("/activity");
+  await page.waitForSelector(".activity-entry");
+
+  const entries = await page.evaluate(() => [...document.querySelectorAll(".activity-entry")].map(entry => ({
+    type: entry.querySelector(".activity-node")?.getAttribute("data-activity-type"),
+    title: entry.querySelector("b")?.textContent?.trim(),
+    href: entry.getAttribute("href"),
+  })));
+
+  for (const slug of HIRAVA_NOTES) {
+    const note = engineeringNotes.find(item => item.slug === slug)!;
+    const matches = entries.filter(entry => entry.title === note.title);
+    expect(matches.length, `${slug} appears exactly once`).toBe(1);
+    expect(matches[0].type).toBe("note");
+    expect(matches[0].href).toBe(`/notes/${slug}`);
+  }
+  const titles = entries.map(entry => `${entry.type}:${entry.title}`);
+  expect(new Set(titles).size, "no duplicated timeline entries").toBe(titles.length);
+});
+
+test("the new documents are canonical, indexed exactly once, and add no new URL class", async ({ request }) => {
+  const sitemap = await (await request.get("/sitemap.xml")).text();
+  const urls = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map(match => match[1]);
+  expect(new Set(urls).size, "no duplicate sitemap URLs").toBe(urls.length);
+  for (const slug of HIRAVA_NOTES) expect(urls).toContain(`https://osameh.dev/notes/${slug}`);
+
+  // Client case studies already have independent canonical documents, so Hirava
+  // follows that contract instead of introducing a URL shape of its own.
+  expect(urls).toContain("https://osameh.dev/case-studies/hirava");
+  const classes = new Set(urls.map(url => new URL(url).pathname.split("/")[1] || "/"));
+  expect([...classes].sort()).toEqual(["/", "case-studies", "notes", "projects"]);
+});
+
+for (const slug of ["architecting-hirava-recruitment-marketplace", "designing-trust-into-hiring-workflows"]) {
+  test(`the note ${slug} renders with its table of contents, neighbours and relations`, async ({ page }) => {
+    await page.goto(`/notes/${slug}`);
+    const note = engineeringNotes.find(item => item.slug === slug)!;
+    await expect(page.locator("h1#note-detail-title")).toHaveText(note.title);
+    await expect(page.locator(".note-markdown")).toBeVisible();
+    expect(await page.locator(".note-toc button").count(), "the table of contents is built from real headings").toBeGreaterThan(4);
+
+    // Adjacency follows the authoritative newest-first order, and each side
+    // that exists is a real anchor rather than a disabled control.
+    const { previous, next } = adjacentNotes(slug);
+    for (const [direction, neighbour] of [["previous", previous], ["next", next]] as const) {
+      const link = page.locator(`.note-adjacent-link.note-adjacent-${direction}`);
+      if (!neighbour) { await expect(link).toHaveCount(0); continue; }
+      await expect(link).toHaveAttribute("href", `/notes/${neighbour.slug}`);
+    }
+
+    const related = page.locator(".continue-exploring a.continue-exploring-link");
+    await expect(related.first()).toBeVisible();
+    expect(await related.count()).toBeLessThanOrEqual(3);
+    expect(await related.evaluateAll(nodes => nodes.map(node => node.getAttribute("href")))).toContain("/case-studies/hirava");
+  });
+}
+
+test("the Hirava case study opens from its own address with an honest live-preview link", async ({ page }) => {
+  await page.goto("/case-studies/hirava");
+  const modal = page.locator('[role="dialog"].case-study-modal');
+  await expect(modal).toBeVisible();
+  await expect(modal.locator("#case-study-title")).toHaveText("Hirava");
+  await expect(modal).toContainText("in development");
+
+  const preview = modal.locator("a.case-study-live-link");
+  await expect(preview).toHaveAttribute("href", "https://hirava.osameh.dev");
+  await expect(preview).toHaveAttribute("target", "_blank");
+  await expect(preview).toHaveAttribute("rel", /noreferrer/);
+  await expect(preview).toContainText("Open live preview");
+
+  const related = modal.locator(".continue-exploring a.continue-exploring-link");
+  const hrefs = await related.evaluateAll(nodes => nodes.map(node => node.getAttribute("href")));
+  for (const slug of HIRAVA_NOTES) expect(hrefs).toContain(`/notes/${slug}`);
+
+  await page.keyboard.press("Escape");
+  await expect(modal).toBeHidden();
+});
+
+test("the new content is discoverable through the existing Command Palette", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Command Palette" }).click();
+  const palette = page.getByRole("dialog", { name: "Command Palette" });
+  await palette.getByRole("textbox").fill("hirava");
+  await expect(palette.getByRole("option").first()).toBeVisible();
+  const options = await palette.getByRole("option").allInnerTexts();
+  expect(options.some(option => /Case study: Hirava/i.test(option)), "the case study is offered").toBe(true);
+  expect(options.some(option => /Read note: Architecting Hirava/i.test(option)), "the note is offered").toBe(true);
+
+  // Natural queries reach the same content through the one existing index.
+  for (const [query, expected] of [
+    ["recruitment", /Case study: Hirava|Read note: Architecting Hirava/i],
+    ["recruiter", /Case study: Hirava|Read note: (Architecting Hirava|Designing trust)/i],
+    ["trust", /Read note: Designing trust into hiring workflows/i],
+  ] as const) {
+    await palette.getByRole("textbox").fill(query);
+    await expect(palette.getByRole("option").first()).toBeVisible();
+    const found = await palette.getByRole("option").allInnerTexts();
+    expect(found.some(option => expected.test(option)), `"${query}" reaches Hirava content`).toBe(true);
+  }
+});
+
+test("the notes index lists every published note", async ({ page }) => {
+  await page.goto("/notes");
+  await expect(page.locator(".notes-count")).toHaveText(`${engineeringNotes.length} notes`);
+  for (const slug of HIRAVA_NOTES) {
+    await expect(page.locator(`.note-card[data-note-slug="${slug}"]`)).toBeVisible();
+  }
+});
+
+for (const width of [320, 360, 390, 412]) {
+  test(`the Hirava content fits ${width}px without horizontal overflow`, async ({ page }) => {
+    const overflow = () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    await page.setViewportSize({ width, height: 844 });
+
+    await page.goto(`/notes/${HIRAVA_NOTES[1]}`);
+    await expect(page.locator(".note-markdown")).toBeVisible();
+    expect(await overflow(), "note document").toBeLessThanOrEqual(1);
+
+    await page.goto("/case-studies/hirava");
+    await expect(page.locator('[role="dialog"].case-study-modal')).toBeVisible();
+    expect(await overflow(), "case study modal").toBeLessThanOrEqual(1);
+  });
+}
