@@ -12,10 +12,10 @@
   {
     "id": "hirava",
     "title": "Hirava",
-    "summary": "A trust-driven recruitment marketplace connecting companies with professional recruiters. The Nuxt 4 frontend is implemented and running as a development preview; the Go backend is planned and not built yet.",
+    "summary": "A trust-driven recruitment marketplace connecting companies with professional recruiters. The frontend is implemented in Nuxt 3.17.6 with Nuxt 4 compatibility mode and runs as a development preview; the Go backend is planned and not built yet.",
     "industry": "Recruitment platform",
     "role": "Product & Frontend Engineer",
-    "stack": ["Nuxt 4", "Vue 3", "TypeScript", "Tailwind CSS", "Pinia", "TanStack Query", "Nuxt i18n (fa/en, RTL)"],
+    "stack": ["Nuxt 3.17.6 (Nuxt 4 compatibility mode)", "Vue 3.5", "TypeScript", "Tailwind CSS", "Pinia", "TanStack Query", "Nuxt i18n (fa/en, RTL)"],
     "privacy": "public",
     "siteUrl": "https://hirava.osameh.dev"
   }

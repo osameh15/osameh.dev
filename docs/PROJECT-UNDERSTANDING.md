@@ -667,8 +667,10 @@ rather than assumed.
 connecting companies with professional recruiters, published under the existing
 `ClientCaseStudy` architecture - not as a project deep-dive, and not added to
 the public Projects section, which remains repository-backed. Its stated status
-is explicit: the Nuxt 4 frontend is implemented and reachable at a temporary
-development preview, and the Go backend is planned and unbuilt. The current
+is explicit: the frontend is implemented and reachable at a temporary
+development preview, and the Go backend is planned and unbuilt. The installed
+framework is Nuxt 3.17.6 with `future.compatibilityVersion: 4`, so it is
+described as Nuxt 4 compatibility mode and never as Nuxt 4. The current
 stack was verified from the Hirava repository's own `package.json`,
 `nuxt.config.ts` and project documentation.
 

@@ -639,6 +639,16 @@ rather than the shared "Visit live site" wording; no public repository may be
 claimed; and the prototype figures visible on the Hirava preview (`5K+`,
 `1.2K+`, `86%`) must appear nowhere in the case study or either note.
 
+A second test keeps the framework and enforcement claims exact across every
+shipped Hirava surface - the case study, both indexed documents, both markdown
+bodies and the site changelog entry. Hirava installs Nuxt 3.17.6 with
+`future.compatibilityVersion: 4`, so `Nuxt 4` may appear only as "Nuxt 4
+compatibility mode" or "Nuxt 4-compatible", never as the installed version.
+And because no backend exists, no sentence may say in the present tense that
+the server, backend or API re-validates, enforces, rejects or guarantees
+anything; the five-candidate cap must be described as modelled by the frontend
+and re-validated by the future backend.
+
 ### Relationships, discovery and indexing
 
 - The case study resolves to both notes and each note resolves back to the case

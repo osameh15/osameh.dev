@@ -3178,7 +3178,10 @@ test("the Hirava case study states what is built and never claims what is not", 
   expect(hirava.summary).toMatch(/backend is planned/i);
 
   // The verified current stack is what the Hirava repository actually declares.
-  for (const technology of ["Nuxt 4", "Vue 3", "TypeScript", "Tailwind CSS"]) expect(hirava.stack).toContain(technology);
+  // Hirava installs nuxt ^3.17.6 with future.compatibilityVersion: 4, so the
+  // installed framework is Nuxt 3 running in Nuxt 4 compatibility mode.
+  for (const technology of ["Nuxt 3.17.6 (Nuxt 4 compatibility mode)", "Vue 3.5", "TypeScript", "Tailwind CSS"]) expect(hirava.stack).toContain(technology);
+  expect(hirava.stack, "Nuxt 4 is not the installed package").not.toContain("Nuxt 4");
   expect(hirava.stack, "an unbuilt backend is not part of the current stack").not.toContain("Go");
   expect(hirava.stack).not.toContain("PostgreSQL");
   expect(prose, "the planned backend is labelled planned").toMatch(/planned/i);
@@ -3186,6 +3189,55 @@ test("the Hirava case study states what is built and never claims what is not", 
   // Prototype presentation figures are never reported as business results.
   for (const figure of ["5K+", "1.2K+", "86%"]) expect(prose, `${figure} is prototype content`).not.toContain(figure);
   expect(prose).not.toMatch(/\b(placements? (?:made|delivered)|revenue of|customers already)\b/i);
+});
+
+test("current Hirava content states the installed framework and backend enforcement exactly", () => {
+  const hirava = clientCaseStudies.find(study => study.id === "hirava")!;
+  const indexedStudy = caseStudyIndexFixture.find(item => item.id === "hirava")!;
+  const noteBodies = HIRAVA_NOTES.map(slug => readFileSync(new URL(`../../frontend/public/notes-content/${slug}.md`, import.meta.url), "utf8"));
+  const noteMetadata = HIRAVA_NOTES.map(slug => engineeringNotes.find(note => note.slug === slug)!);
+  const siteChangelog = /\{ version: "5\.6\.1"[^\n]*/.exec(readFileSync(new URL("../../frontend/src/data/portfolioData.ts", import.meta.url), "utf8"))?.[0] || "";
+  expect(siteChangelog, "the site changelog entry is readable").not.toBe("");
+
+  const surfaces: Array<[string, string]> = [
+    ["case study", Object.values(hirava).flat().filter(value => typeof value === "string").join("\n")],
+    ["case study index", JSON.stringify(indexedStudy)],
+    ...noteMetadata.map(note => [`${note.slug} metadata`, `${note.title}\n${note.summary}`] as [string, string]),
+    ...noteBodies.map((body, index) => [`${HIRAVA_NOTES[index]}.md`, body] as [string, string]),
+    ["site changelog 5.6.1", siteChangelog],
+  ];
+
+  // Nuxt 4 is allowed only where it is qualified: compatibility mode, a
+  // compatible architecture, its behaviour/defaults, or an explicit negation.
+  const QUALIFIED_NUXT_4 = [/Nuxt 4 compatibility mode/gi, /Nuxt 4-compatible/gi, /Nuxt 4 behaviour and defaults/gi, /is not Nuxt 4\b/gi];
+  // No backend exists, so nothing may claim present-tense server enforcement.
+  const PRESENT_ENFORCEMENT = [
+    /\b(?:the\s+)?(?:server|backend|API)\s+(?:re-?validates|enforces|rejects|verifies|guarantees)\b/i,
+    /\b(?:is|are)\s+(?:enforced|re-?validated)\s+(?:by|on|in)\s+the\s+(?:server|backend|API)\b/i,
+  ];
+
+  for (const [label, text] of surfaces) {
+    const unqualified = QUALIFIED_NUXT_4.reduce((remaining, allowed) => remaining.replace(allowed, ""), text);
+    expect(unqualified, `${label} presents Nuxt 4 as the installed framework`).not.toMatch(/Nuxt\s*4\b/i);
+    for (const pattern of PRESENT_ENFORCEMENT) expect(text, `${label} claims present-tense backend enforcement`).not.toMatch(pattern);
+  }
+
+  // The guards must actually bite: an unqualified claim is rejected.
+  const rejects = (text: string) => /Nuxt\s*4\b/i.test(QUALIFIED_NUXT_4.reduce((remaining, allowed) => remaining.replace(allowed, ""), text));
+  expect(rejects("The Nuxt 4 frontend is implemented")).toBe(true);
+  expect(rejects("Nuxt 3.17.6 in Nuxt 4 compatibility mode")).toBe(false);
+  expect(PRESENT_ENFORCEMENT.some(pattern => pattern.test("the client disables the button and the server re-validates"))).toBe(true);
+  expect(PRESENT_ENFORCEMENT.some(pattern => pattern.test("the future backend must re-validate the rule"))).toBe(false);
+
+  // The exact installed framework is stated where the stack is described.
+  expect(hirava.summary).toContain("Nuxt 3.17.6 with Nuxt 4 compatibility mode");
+  expect(noteBodies[0]).toContain("Nuxt 3.17.6");
+  expect(noteBodies[0]).toContain("compatibilityVersion: 4");
+  expect(noteMetadata[0].title).toBe("Architecting Hirava: A Two-Sided Recruitment Marketplace in Nuxt 4 Compatibility Mode");
+
+  // The five-candidate cap is frontend-modelled and future-backend-enforced.
+  for (const body of noteBodies) expect(body).toMatch(/future backend must re-validate/i);
+  expect(hirava.solution.join(" ")).toMatch(/planned backend must re-validate/i);
 });
 
 test("Hirava and its notes resolve to each other through the shared related-content model", () => {
@@ -3304,6 +3356,18 @@ test("the new content is discoverable through the existing Command Palette", asy
   const options = await palette.getByRole("option").allInnerTexts();
   expect(options.some(option => /Case study: Hirava/i.test(option)), "the case study is offered").toBe(true);
   expect(options.some(option => /Read note: Architecting Hirava/i.test(option)), "the note is offered").toBe(true);
+
+  // Natural queries reach the same content through the one existing index.
+  for (const [query, expected] of [
+    ["recruitment", /Case study: Hirava|Read note: Architecting Hirava/i],
+    ["recruiter", /Case study: Hirava|Read note: (Architecting Hirava|Designing trust)/i],
+    ["trust", /Read note: Designing trust into hiring workflows/i],
+  ] as const) {
+    await palette.getByRole("textbox").fill(query);
+    await expect(palette.getByRole("option").first()).toBeVisible();
+    const found = await palette.getByRole("option").allInnerTexts();
+    expect(found.some(option => expected.test(option)), `"${query}" reaches Hirava content`).toBe(true);
+  }
 });
 
 test("the notes index lists every published note", async ({ page }) => {

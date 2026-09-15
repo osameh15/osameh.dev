@@ -29,9 +29,9 @@ A cap inverts the economics. If a recruiter may submit at most five candidates f
 
 Hirava's rule is: **at most five candidate submissions per recruiter per job, for the lifetime of the job.** "Lifetime" is doing real work in that sentence. A monthly quota would be gamed by waiting.
 
-In the frontend, that number lives in one module as a named constant, with the reason stated beside it: the client uses it to disable an obviously invalid action, and the server re-validates. A quota that exists only in a browser is a suggestion to anyone willing to send an HTTP request.
+In the frontend, that number lives in one module as a named constant, with the reason stated beside it: the client uses it to disable an obviously invalid action. The frontend models the five-candidate limit; the future backend must re-validate the rule server-side. Until that backend exists, the limit is modelled, not enforced — and a quota that exists only in a browser is a suggestion to anyone willing to send an HTTP request.
 
-Its real implementation is a transactional check against a lifetime count, with rejection at the API boundary — not a disabled button.
+Its real implementation — still planned — will be a transactional check against a lifetime count, with rejection at the API boundary, not a disabled button.
 
 ## Structured evaluation instead of forwarded resumes
 
@@ -45,7 +45,7 @@ Second, the assessment becomes an accountable artefact. It is written before the
 
 ## Verification and identity
 
-Anonymous supply cannot be held accountable, so recruiters pass a staged verification pipeline — phone ownership, a national identity check against the phone holder, profile and CV review, an admin review, and an interview — before they can submit anything. Companies pass their own shorter pipeline before posting jobs.
+Anonymous supply cannot be held accountable, so the product design requires recruiters to pass a staged verification pipeline — phone ownership, a national identity check against the phone holder, profile and CV review, an admin review, and an interview — before they can submit anything. Companies pass their own shorter pipeline before posting jobs.
 
 Two properties matter more than the number of stages:
 
@@ -80,7 +80,7 @@ The design rules that make it work are boring and strict:
 - illegal transitions do not exist as operations, rather than being merely discouraged;
 - every stage change is attributable and timestamped, because a pipeline nobody can audit is a story, not a record.
 
-Candidate contact details stay masked until a late stage, and the reveal is itself an audited event. Masking in a component is a rendering choice; the guarantee is that the API never sends the field early.
+Candidate contact details are designed to stay masked until a late stage, with the reveal recorded as an audited event. Masking in a component is a rendering choice; the guarantee the future API must provide is never sending the field early.
 
 ## Preventing metrics from becoming vanity scores
 
@@ -105,7 +105,7 @@ A clean division, and the honest current status of each:
 - **PII masking** — frontend: masked rendering. Backend: never sending the field early, and auditing every reveal.
 - **Success fee** — frontend: plan and fee presentation. Backend: the ledger, the hold, and release on retention.
 
-Everything listed as frontend is implemented. Everything listed as backend is planned. A marketplace where only the left column exists is a convincing demonstration and nothing more, and saying so plainly costs less than being found out.
+Everything listed as frontend is implemented. Everything listed as backend is planned. A marketplace where only the frontend half exists is a convincing demonstration and nothing more, and saying so plainly costs less than being found out.
 
 ## Lessons for other two-sided marketplaces
 

@@ -508,7 +508,7 @@ The **six most recent releases** are summarized here. See **[CHANGELOG.md](docs/
 
 ### v5.6.1 - Raven
 
-- **Hirava case study.** A trust-driven recruitment marketplace connecting companies with professional recruiters, published as a client case study with an explicit in-development status: the Nuxt 4 frontend is implemented and reachable as a development preview, the Go backend is planned and not built.
+- **Hirava case study.** A trust-driven recruitment marketplace connecting companies with professional recruiters, published as a client case study with an explicit in-development status: the frontend - Nuxt 3.17.6 in Nuxt 4 compatibility mode - is implemented and reachable as a development preview, and the Go backend is planned and not built.
 - **Two Engineering Notes.** *Architecting Hirava* covers structuring a two-sided product frontend ahead of its backend; *Designing trust into hiring workflows* covers candidate caps, structured evaluation, verification, scoring and pipeline visibility - and which of those a frontend can only model.
 - **Content graph, not new plumbing.** The case study and both notes are related explicitly, so Continue exploring, the Command Palette, the Terminal, the engineering timeline and both sitemaps pick them up through the existing data path.
 - Sitemap grows from 17 to 20 canonical documents: two Note documents and one client case study. No new URL class.

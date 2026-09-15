@@ -1,10 +1,12 @@
-# Architecting Hirava: a two-sided recruitment marketplace with Nuxt 4
+# Architecting Hirava: A Two-Sided Recruitment Marketplace in Nuxt 4 Compatibility Mode
 
-Hirava is a B2B recruitment marketplace: companies post hiring requests, independent recruiters submit assessed candidates, and a success fee is paid when a hire sticks. The frontend is implemented in Nuxt 4. The backend — planned as Go with PostgreSQL — does not exist yet.
+Hirava is a B2B recruitment marketplace: companies post hiring requests, independent recruiters submit assessed candidates, and a success fee is paid when a hire sticks. The frontend is implemented. The backend — planned as Go with PostgreSQL — does not exist yet.
+
+A precise word on the framework, because the version matters: the installed package is **Nuxt 3.17.6**, with `future.compatibilityVersion: 4` set in `nuxt.config.ts`. That opts the project into Nuxt 4 behaviour and defaults — the `app/` source directory, the new data-fetching semantics — while the dependency itself is still Nuxt 3. The architecture is Nuxt 4-compatible; the installed package is not Nuxt 4.
 
 That order is deliberate, and it is the reason this note exists. Building the product surface first is only safe if the frontend does not quietly become the system of record.
 
-**Status of every claim below:** the Nuxt application is implemented and running as a development preview. The Go backend, the database and every server-enforced rule are planned. Nothing here describes a deployed API.
+**Status of every claim below.** Implemented: the frontend — Nuxt 3.17.6 in Nuxt 4 compatibility mode, Vue 3.5, TypeScript in strict mode, Tailwind CSS 3.4 and Pinia — built as a static Nitro bundle and running as a development preview. Planned: the Go backend, PostgreSQL, authentication, verification, scoring, payments and every server-enforced rule. Nothing here describes a deployed API.
 
 ## The domain before the backend
 
@@ -19,7 +21,7 @@ The risk is equally concrete. A frontend written before its API tends to invent 
 
 ## Companies and recruiters as separate product contexts
 
-The routes are split at the top level: `/c/**` for companies, `/r/**` for recruiters, `/admin/**` for internal staff, and prerendered public marketing routes at the root. Route middleware (`company-only`, `recruiter-only`, `admin-only`) keeps each context closed.
+The routes are split at the top level: `/c/**` for companies, `/r/**` for recruiters, `/admin/**` for internal staff, and prerendered public marketing routes at the root. Client-side route middleware (`company-only`, `recruiter-only`, `admin-only`) keeps each context separate in the interface. It is navigation, not access control: authorisation belongs to the backend that has not been built.
 
 This is a product boundary before it is a routing convenience. A company dashboard and a recruiter dashboard share almost no vocabulary: one thinks in open roles and shortlists, the other in submissions, placements and earnings. Collapsing them into one "dashboard" with conditionals would have produced a component that understands neither side.
 
@@ -55,7 +57,9 @@ Two product rules shape the recruiter side more than anything else:
 - A recruiter may submit **at most five candidates per job**, for the lifetime of that job.
 - Every submission carries a structured assessment — summary, strengths, weaknesses, motivation for change, risk factors, recommendation and fit score — not a resume attachment.
 
-The cap lives in one module as a named constant with a comment stating that the server re-validates it and that the client value exists only to disable an obviously invalid action. That comment matters more than the constant. A quota rendered in a browser is a courtesy; the same quota enforced in a transaction is the rule.
+The cap lives in one module as a named constant, and its source comment records the intended contract: the client value exists only to disable an obviously invalid action, and server-side re-validation is the real rule. No server exists yet. Today the frontend models the five-candidate limit, and the future backend must re-validate it server-side before it is a rule at all.
+
+That comment matters more than the constant. A quota rendered in a browser is a courtesy; the same quota enforced in a transaction is the rule.
 
 ## Designing frontend contracts before the API exists
 

@@ -20,7 +20,7 @@ export type EngineeringNote = {
 export const engineeringNotes: EngineeringNote[] = [
   {
     slug: "architecting-hirava-recruitment-marketplace",
-    title: "Architecting Hirava: a two-sided recruitment marketplace with Nuxt 4",
+    title: "Architecting Hirava: A Two-Sided Recruitment Marketplace in Nuxt 4 Compatibility Mode",
     summary: "Structuring a frontend around two participants — companies and recruiters — while the Go backend it will talk to does not exist yet, without letting the browser become the system of record.",
     publishedAt: "2026-09-14",
     updatedAt: "2026-09-14",
