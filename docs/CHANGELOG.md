@@ -4,6 +4,26 @@ All notable changes to **osameh.dev** are documented here.
 
 The project follows [Semantic Versioning](https://semver.org/). The early production releases were shipped in rapid succession while the portfolio was moved from its hosted prototype to the current ParsPack/CDN deployment.
 
+## 5.6.2 - 2026-09-15 - Raven
+
+A patch inside the **Raven** family with exactly two fixes. No content, route, SEO or dependency change.
+
+### System Health says what the backend measured
+
+- Raven's health endpoint reports honest states - `operational`, `deployed`, `configured`, `degraded`, `unavailable`, `down` - but the System Health panel still rendered a binary label: operational, degraded, otherwise **Down**. Every healthy resting state appeared as an outage: GitHub proxy, Contact API and Build metadata (`deployed`), and Contact protection (`configured`).
+- Labels and visual tone now come from one mapping in `frontend/src/features/diagnostics/healthStatus.ts`. Operational is positive. Deployed and Configured are informational: healthy, but a lesser proof than operational, so they look neither like a pass nor like a failure. Degraded is a warning, Unavailable and Down are errors, and anything missing or unrecognised is Unknown - never Down.
+- The backend vocabulary is unchanged. Nothing is upgraded to `operational` to look greener.
+- The label always names the state, so colour is never the only signal, and status text meets WCAG AA in both themes. Measuring it exposed the existing light-theme green and a new amber rendering below 4.5:1 on 9px text; both were darkened.
+
+### Section scroll restoration without re-snaps
+
+- Opening `/notes` or `/case-studies`, Browser Back to them, and returning Home to a tab's section used to re-apply the section's absolute position at 60, 220, 500 and 900ms. An absolute re-snap cannot tell layout movement from navigation it did not start, and the race made the case-study scroll-restore browser test fail intermittently in CI, blocking a production deploy until the job was re-run.
+- Placement now runs as a bounded stabilization transaction in `frontend/src/lib/sectionStabilizer.ts`. The section is placed, the placement is confirmed over its first frames, and then a ResizeObserver on the elements that can move the section compensates by exactly the measured movement. Wherever the viewport sits relative to the section is preserved, so find-in-page, screen-reader navigation and in-page anchors are no longer pulled back.
+- Native scroll anchoring is switched off only while a transaction runs, so the browser and the compensation never correct the same change twice.
+- A transaction ends after a quiet period or a hard ceiling, on wheel, touch, pointer or navigation-key input (typing in a field does not count), when a dialog opens, or when a new section navigation replaces it. It always removes its observer, animation frame, timers and the `data-section-settling` attribute.
+- Placement confirmation covers a case the old timers hid: pressing Back while the note view's smooth scroll to the top is still animating let one more animation step land after placement, leaving the section 20-50px off.
+- An earlier approach cancelled stabilization from `scroll` events. It was discarded before release: the application's own smooth scrolls emit the same events, and Browser Back restoration went from 16/16 passing to 8/8 failing.
+
 ## 5.6.1 - 2026-09-14 - Raven
 
 A content release inside the **Raven** family: one client case study and two Engineering Notes, wired into the relationship graph that already exists. No architecture, UI or SEO redesign, and no new dependency, API or runtime behaviour.

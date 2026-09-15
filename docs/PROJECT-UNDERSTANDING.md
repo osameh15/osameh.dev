@@ -691,7 +691,26 @@ indexable routes, so Hirava follows that contract. The sitemap goes from 17 to
 20 canonical documents - two note documents plus one case study - and no new
 URL class is introduced.
 
-## 33. Current engineering priorities
+## 33. v5.6.2 Raven fixes
+
+**Health vocabulary.** `features/diagnostics/healthStatus.ts` is the only place a
+backend status becomes a label and a tone (positive, informational, warning,
+error, neutral). `SystemDiagnostics.tsx` renders `data-status` and `tone-*`
+classes from it. The backend was right and is unchanged; the panel's binary
+ternary rendered `deployed` and `configured` as Down.
+
+**Section stabilization.** `lib/sectionStabilizer.ts` replaces the timed
+absolute re-snaps in `App.tsx`. `applySectionScroll` places each request once
+(`placedSectionTokenRef`), and exact requests start a transaction held in
+`sectionStabilizationRef`; `cancelSectionScroll` ends it. The transaction marks
+`<html data-section-settling>` as `placing` while it confirms placement over up
+to eight frames, then `compensating` while a ResizeObserver on the section's
+ancestors and every earlier sibling at each level scrolls by the section's
+measured document movement. CSS disables native scroll anchoring only while the
+attribute exists. It ends after 800ms without a layout change or 4s at most, and
+user intent, a dialog opening, or a new section request ends it early.
+
+## 34. Current engineering priorities
 
 1. Complete the outstanding staging acceptance pass carried since v5.2.0:
    release identity, Neural Cipher assets, active-tab auto-scroll, plus the

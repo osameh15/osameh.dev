@@ -672,3 +672,44 @@ and re-validated by the future backend.
 Local runs still cannot prove staging or production behaviour: canonical
 documents, the dynamic `sitemap.php`, staging `noindex` and the branded 404 for
 an unknown note slug remain deployment-verified.
+
+## 16. v5.6.2 Raven coverage
+
+### System Health vocabulary
+
+The panel is tested against a mocked `/api/health` response rather than a
+module import, so what is asserted is what renders.
+
+- The exact Raven production payload - GitHub upstream, Engineering Notes and
+  Private cache `operational`; GitHub proxy, Contact API and Build metadata
+  `deployed`; Contact protection `configured` - renders each label,
+  `data-status` and tone, with zero `Down` labels and zero error tones.
+- Every status keeps its own label and tone, including an empty and an
+  unrecognised value, which render Unknown rather than Down. `degraded`,
+  `unavailable` and `down` still render as warning and error, and exactly one
+  `Down` label appears when one check is down.
+- Status text meets 4.5:1 in rendered pixels for all five tones in both themes.
+
+### Measured section stabilization
+
+Tests wait on the transaction's own lifecycle - `data-section-settling` moving
+from `placing` to `compensating` and then being removed - never on fixed sleeps.
+
+- Layout growth above the section during a transaction is compensated by the
+  measured delta; the section stays under the chrome.
+- A scroll away during a transaction is preserved relative to the section while
+  layout above keeps moving, and an external scroll with no layout change is not
+  pulled back when the transaction ends.
+- Wheel and navigation keys end the transaction immediately; a modifier key and
+  a space typed into a field do not.
+- A new section navigation replaces a running transaction instead of stacking:
+  one layout change is compensated once.
+- A finished transaction leaves no observer behind and restores native scroll
+  anchoring. Those two tests switch native anchoring off locally, because the
+  browser's own anchoring legitimately compensates growth once a transaction
+  has ended.
+- Browser Back restores the notes anchor with reduced motion, and at 320, 360,
+  390 and 412px without horizontal overflow.
+
+The case-study restore test that exposed the race is unchanged. Repeat runs
+before release are recorded in the v5.6.2 staging report.
