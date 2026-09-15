@@ -7,10 +7,13 @@ import { BUILD_ID, BUILD_VERSION } from "../../generated/build";
 import { useModalDialog } from "../../lib/modalScroll";
 import { formatReleaseLabel } from "../../lib/releaseMetadata";
 import { notify } from "../../lib/toast";
+import { healthStatus } from "./healthStatus";
 
-type HealthCheck = { id: string; label: string; status: "operational" | "degraded" | "down"; latencyMs: number | null; detail: string };
+// Status values are resolved through healthStatus(), which knows the full
+// Raven vocabulary, rather than being trusted as a closed union here.
+type HealthCheck = { id: string; label: string; status: string; latencyMs: number | null; detail: string };
 
-type HealthPayload = { status: "operational" | "degraded"; generatedAt: string; build: { version: string; buildId: string; builtAt: string | null; environment: string }; checks: HealthCheck[] };
+type HealthPayload = { status: string; generatedAt: string; build: { version: string; buildId: string; builtAt: string | null; environment: string }; checks: HealthCheck[] };
 
 export function SystemDiagnostics() {
   const [open, setOpen] = useState(false);
@@ -60,7 +63,7 @@ export function SystemDiagnostics() {
   if (!open) return null;
   const browser = navigator.userAgent.includes("Firefox") ? "Firefox" : navigator.userAgent.includes("Edg/") ? "Edge" : navigator.userAgent.includes("Chrome") ? "Chromium" : navigator.userAgent.includes("Safari") ? "Safari" : "Browser";
   const maxLatency = Math.max(1, ...latencyHistory);
-  const overall = state === "error" ? "Unavailable" : state === "loading" && !health ? "Checking" : health?.status === "degraded" ? "Degraded" : "Operational";
+  const overall = state === "error" ? "Unavailable" : state === "loading" && !health ? "Checking" : healthStatus(health?.status).label;
 
   return <div className="advanced-modal-backdrop" onMouseDown={() => setOpen(false)}><section ref={dialogRef} tabIndex={-1} className="advanced-modal diagnostics-modal health-center-modal" role="dialog" aria-modal="true" aria-labelledby="health-center-title" onMouseDown={e => e.stopPropagation()}>
     <header><div><MonitorCheck size={17} /><span>system-health.json</span></div><div className="health-header-actions"><button onClick={() => void refresh()} disabled={state === "loading"} aria-label="Refresh system health"><RefreshCw className={state === "loading" ? "spin" : ""} size={16} /></button><button onClick={() => setOpen(false)} aria-label="Close"><X size={17} /></button></div></header>
@@ -75,9 +78,12 @@ export function SystemDiagnostics() {
           <div className="health-sparkline">{latencyHistory.length ? latencyHistory.map((value, index) => <i key={`${value}-${index}`} style={{ height: `${Math.max(12, Math.round((value / maxLatency) * 100))}%` }} title={`${value} ms`} />) : Array.from({ length: 8 }).map((_, index) => <i key={index} className="placeholder" />)}</div>
         </div>
         <div className="health-check-grid">
-          {(health?.checks || []).map(item => <article key={item.id} className={`health-check ${item.status}`}><div><span className="health-dot" /><small>{item.label}</small></div><b>{item.status === "operational" ? "Operational" : item.status === "degraded" ? "Degraded" : "Down"}</b><p>{item.detail}</p><code>{item.latencyMs !== null ? `${Math.round(item.latencyMs)} ms` : "local check"}</code></article>)}
+          {(health?.checks || []).map(item => {
+            const status = healthStatus(item.status);
+            return <article key={item.id} className={`health-check ${status.status} tone-${status.tone}`} data-status={status.status}><div><span className="health-dot" aria-hidden="true" /><small>{item.label}</small></div><b>{status.label}</b><p>{item.detail}</p><code>{item.latencyMs !== null ? `${Math.round(item.latencyMs)} ms` : "local check"}</code></article>;
+          })}
           {!health && state === "loading" && Array.from({ length: 6 }).map((_, index) => <article key={index} className="health-check health-skeleton"><span /><span /><span /></article>)}
-          {state === "error" && <article className="health-check down"><div><span className="health-dot" /><small>Health endpoint</small></div><b>Unavailable</b><p>The local health endpoint did not return a valid response.</p><code>retry available</code></article>}
+          {state === "error" && <article className="health-check unavailable tone-error" data-status="unavailable"><div><span className="health-dot" aria-hidden="true" /><small>Health endpoint</small></div><b>Unavailable</b><p>The local health endpoint did not return a valid response.</p><code>retry available</code></article>}
         </div>
         <div className="health-client-grid">
           <article>{navigator.onLine ? <Wifi size={18} /> : <WifiOff size={18} />}<small>CLIENT NETWORK</small><b>{navigator.onLine ? "Online" : "Offline"}</b><span>browser connectivity</span></article>
