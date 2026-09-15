@@ -712,6 +712,33 @@ staging job.
 
 Repository release history is maintained in [`CHANGELOG.md`](./CHANGELOG.md). README intentionally summarizes only the six latest releases. Documentation-only production commits remain excluded from automatic production deploys.
 
+### 14.1 Release provenance rule
+
+A release is the signed annotated tag on the exact commit production reports in
+Build Information. Once a commit or tag is published, it is permanent:
+
+- never amend, rebase, recreate or force-push a published commit;
+- never delete, move or re-sign a published release tag;
+- this applies to cosmetic reasons too, including editing commit-message
+  trailers. A recreated commit with the same tree is equivalent code, not the
+  same commit, and every record that named the old SHA stops being true.
+
+Corrections go forward: a new commit, a new release, a new tag.
+
+**Incident, 2026-09-15 (v5.6.1).** To remove a `Co-Authored-By` trailer, the
+v5.6.1 history was recreated and force-pushed after release. The production
+merge `6a10b38656cd2fe8132758a3f907dca14391c22c` became
+`7ed1b03a5d80011551a4138df2974d69c5948f19` - the same tree
+(`4bfa26df20ff43a98b4ba2096277222e005294de`), a different message and a different
+second parent (`262dbe2` became `9de0ed3`, also same tree). Signed tag `5.6.1` was
+moved from tag object `409dccf572ef9d7e2ab99eb420fa8f0c19423464` (-> `6a10b38`)
+to `db65c8e39f0b69bc0ddbf0153fa489c86301dd06` (-> `7ed1b03`); both tag objects
+still verify on GitHub. Production was then rebuilt from `7ed1b03` and reports
+`v5.6.1-20260915T073641Z` for that commit. v5.6.1's live deployment was rebuilt
+and redeployed from a different commit with equivalent code, and its tag no
+longer points at the commit originally accepted. The tag is left where it is
+now rather than moved a second time; this record is the correction.
+
 ## 15. Health endpoint
 
 Production and staging bundles expose `/api/health`. The endpoint intentionally returns only safe operational data and build metadata. Do not extend it with environment variables, credentials, absolute filesystem paths, raw IP addresses, or secret/config contents.

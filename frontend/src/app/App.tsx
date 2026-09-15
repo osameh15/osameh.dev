@@ -52,6 +52,7 @@ import { relatedToCaseStudy, relatedToNote, relatedToProject, type RelatedItem, 
 import { engineeringNotes, adjacentNotes } from "../features/notes/notesData";
 import { AccessibilityControlButton, AvailabilityBadge, CaseStudiesSection, CaseStudyModal, PortfolioFeatureModals, availabilityConfig, availabilityProfile, capabilities, caseStudies, usePortfolioFeatures } from "../features/portfolio/PortfolioFeatures";
 import type { CaseStudy } from "../data/caseStudiesData";
+import { stabilizeSection, type SectionStabilization } from "../lib/sectionStabilizer";
 import { getWorkspaceScrollPosition, useModalDialog } from "../lib/modalScroll";
 import { HOME_TAB_ID, noteTab, noteTabId, projectTab, projectTabId, tabAfterClose, type EditorTab } from "./editorTabs";
 import { codeProfiles, contactFiles, fontOptions, roles, skillSource, skills, type CodeLanguage, type FontPreference, type ThemePreference, skillCatalog, skillGroups, EVIDENCE_LABEL } from "./workspacePreferences";
@@ -153,15 +154,24 @@ export default function Home() {
   const actionToastTimerRef = useRef<number | null>(null);
   const pendingSectionScrollRef = useRef<{ id: string; behavior: ScrollBehavior; exact: boolean; token: number } | null>(null);
   const sectionScrollTokenRef = useRef(0);
-  const sectionScrollTimersRef = useRef<number[]>([]);
+  // The one live section stabilization transaction. Any new section request or
+  // cancellation ends it first, so two stabilizers can never run at once.
+  const sectionStabilizationRef = useRef<SectionStabilization | null>(null);
+  /** Token of the request whose section has already been placed. */
+  const placedSectionTokenRef = useRef(0);
 
   const cancelSectionScroll = useCallback(() => {
     sectionScrollTokenRef.current += 1;
     pendingSectionScrollRef.current = null;
-    sectionScrollTimersRef.current.forEach(timer => window.clearTimeout(timer));
-    sectionScrollTimersRef.current = [];
+    sectionStabilizationRef.current?.cancel();
+    sectionStabilizationRef.current = null;
   }, []);
-  const caseStudyOriginRef = useRef<{ path: string; sectionPath: string; scrollX: number; scrollY: number } | null>(null);
+  /**
+   * The editor context a case study was opened over, restored when it closes -
+   * by Escape, the close control or Browser Back. Generic on purpose: the tab id
+   * says whether that context was Home, a project or a note.
+   */
+  const caseStudyOriginRef = useRef<{ tabId: string; path: string; sectionPath: string; title: string; scrollX: number; scrollY: number } | null>(null);
   useEffect(() => {
     const previous = window.history.scrollRestoration;
     window.history.scrollRestoration = "manual";
@@ -896,7 +906,11 @@ export default function Home() {
   useEffect(() => {
     const cancelForUserIntent = () => cancelSectionScroll();
     const cancelForKey = (event: KeyboardEvent) => {
-      if (["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "].includes(event.key)) cancelSectionScroll();
+      if (!["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "].includes(event.key)) return;
+      // A space or caret key inside a field is typing, not page navigation.
+      const field = event.target instanceof Element ? event.target.closest("input, textarea, select, [contenteditable='true']") : null;
+      if (field) return;
+      cancelSectionScroll();
     };
     window.addEventListener("wheel", cancelForUserIntent, { passive: true });
     window.addEventListener("touchstart", cancelForUserIntent, { passive: true });
@@ -917,38 +931,28 @@ export default function Home() {
     if (document.documentElement.dataset.modalOpen === "true") return false;
     const target = document.getElementById(request.id);
     if (!target) return false;
+    // Each request is placed once. The synchronous pass, the two-frame pass and
+    // the layout effect below can all reach this point; placing again would be
+    // exactly the absolute re-snap that measured stabilization replaces.
+    if (placedSectionTokenRef.current === request.token) return true;
+    placedSectionTokenRef.current = request.token;
+    sectionStabilizationRef.current?.cancel();
+    sectionStabilizationRef.current = null;
 
-    const move = (behavior: ScrollBehavior) => {
-      if (request.token !== sectionScrollTokenRef.current || document.documentElement.dataset.modalOpen === "true") return;
-      const currentTarget = document.getElementById(request.id);
-      if (!currentTarget) return;
-      const stickyOffset = window.innerWidth <= 720 ? 72 : 96;
-      const top = currentTarget.getBoundingClientRect().top + window.scrollY - stickyOffset;
-      const destination = Math.max(0, top);
-      if (request.exact) {
-        const root = document.documentElement;
-        const previousScrollBehavior = root.style.scrollBehavior;
-        root.style.scrollBehavior = "auto";
-        // scrollIntoView establishes the element boundary using the browser's
-        // current layout, then a small deterministic correction exposes it
-        // below the fixed IDE chrome. This is more robust than a stale absolute
-        // document coordinate when content above the section is still settling.
-        currentTarget.scrollIntoView({ behavior: "auto", block: "start" });
-        const correction = currentTarget.getBoundingClientRect().top - stickyOffset;
-        if (Math.abs(correction) > 0.5) window.scrollBy(0, correction);
-        root.style.scrollBehavior = previousScrollBehavior;
-        return;
-      }
-      window.scrollTo({ top: destination, behavior });
-    };
-
-    move(request.exact ? "auto" : request.behavior);
     if (request.exact) {
-      sectionScrollTimersRef.current.forEach(timer => window.clearTimeout(timer));
-      // Re-apply after async content/layout settles. 4.2.x used the first two
-      // passes; the later passes protect Notes/Case Studies from v5 content
-      // above the target changing height after Browser Back.
-      sectionScrollTimersRef.current = [60, 220, 500, 900].map(delay => window.setTimeout(() => move("auto"), delay));
+      // Place once, then compensate only for measured layout movement above
+      // the section. The transaction model lives in lib/sectionStabilizer.ts.
+      const stabilization = stabilizeSection(request.id, {
+        stickyOffset: () => (window.innerWidth <= 720 ? 72 : 96),
+        onEnd: () => {
+          if (sectionStabilizationRef.current === stabilization) sectionStabilizationRef.current = null;
+        },
+      });
+      sectionStabilizationRef.current = stabilization;
+    } else {
+      const stickyOffset = window.innerWidth <= 720 ? 72 : 96;
+      const destination = Math.max(0, target.getBoundingClientRect().top + window.scrollY - stickyOffset);
+      window.scrollTo({ top: destination, behavior: request.behavior });
     }
     if (pendingSectionScrollRef.current?.token === request.token) pendingSectionScrollRef.current = null;
     return true;
@@ -971,7 +975,7 @@ export default function Home() {
   }, [activeRepo, activeNoteSlug, activeCaseStudy, notFoundPath, resumeOpen]);
 
   useEffect(() => () => {
-    sectionScrollTimersRef.current.forEach(timer => window.clearTimeout(timer));
+    sectionStabilizationRef.current?.cancel();
   }, []);
 
   const openNote = (slug: string, updateHistory = true) => {
@@ -988,12 +992,15 @@ export default function Home() {
     }
     document.title = `${note.title} — Osameh Irandoust`;
     trackEvent("note_open", slug);
-    // Moving between Notes replaces the whole reading pane, so the destination
-    // must start at its own beginning. Animating there from the bottom of the
-    // note being left would scroll through content that is already unmounting.
+    // Opening a Note replaces the whole view - the home sections or the note
+    // being left - so the destination must start at its own beginning, and
+    // animating there would only scroll through content that is already gone.
+    // It also must not leave a smooth scroll in flight: pressing Browser Back
+    // during that animation let it step the restored Notes index upward after
+    // placement, flashing the Changelog section above it for a frame.
     // "instant" is required rather than "auto": html{scroll-behavior:smooth} is
     // exactly what "auto" defers to, so "auto" would still animate.
-    window.scrollTo({ top: 0, behavior: activeNoteSlug && activeNoteSlug !== slug ? "instant" : "smooth" });
+    window.scrollTo({ top: 0, behavior: "instant" });
     setPanelOpen(false);
   };
 
@@ -1019,8 +1026,10 @@ export default function Home() {
       // which would make closing this Case Study jump to the top of the page.
       const origin = getWorkspaceScrollPosition();
       caseStudyOriginRef.current = {
+        tabId: activeTabId,
         path: window.location.pathname,
         sectionPath: activeSectionPath,
+        title: document.title,
         scrollX: origin.x,
         scrollY: origin.y,
       };
@@ -1028,7 +1037,12 @@ export default function Home() {
       caseStudyOriginRef.current = null;
     }
     setNotFoundPath(null);
-    setActiveTabId(HOME_TAB_ID);
+    // A case study opened from a view is a dialog over that view, so the
+    // covered editor tab stays active: nothing behind the dialog changes and
+    // closing it has nothing to switch back from. Only an address with no
+    // covered workspace - a direct or history-restored case-study URL - shows
+    // Home behind the dialog.
+    if (!updateHistory) setActiveTabId(HOME_TAB_ID);
     setActiveCaseStudy(study);
     setActiveSectionPath("/case-studies");
     document.title = `${study.title} — Case Study | Osameh Irandoust`;
@@ -1037,6 +1051,14 @@ export default function Home() {
       if (window.location.pathname !== path) window.history.pushState({ caseStudy: study.id }, "", path);
     }
     trackEvent("case_study_open", study.id);
+  };
+
+  /** Returns the editor to the context a case study covered: its tab, section and title. */
+  const restoreCaseStudyOrigin = (origin: NonNullable<typeof caseStudyOriginRef.current>) => {
+    const tabStillOpen = origin.tabId === HOME_TAB_ID || editorTabs.some(tab => tab.id === origin.tabId);
+    setActiveTabId(tabStillOpen ? origin.tabId : HOME_TAB_ID);
+    setActiveSectionPath(origin.sectionPath);
+    document.title = tabStillOpen ? origin.title : "Osameh Irandoust — Software Engineer";
   };
 
   const closeCaseStudy = (returnToSection = true) => {
@@ -1051,7 +1073,7 @@ export default function Home() {
     if (!returnToSection) return;
 
     if (origin) {
-      setActiveSectionPath(origin.sectionPath);
+      restoreCaseStudyOrigin(origin);
       if (window.location.pathname !== origin.path) {
         window.history.replaceState({ restoredFromCaseStudy: true }, "", origin.path);
       }
@@ -1116,7 +1138,7 @@ export default function Home() {
           setActiveSectionPath("/case-studies");
           scrollToSection("case-studies", "auto", true);
         } else {
-          setActiveSectionPath(coveredCaseStudyOrigin.sectionPath);
+          restoreCaseStudyOrigin(coveredCaseStudyOrigin);
         }
         return;
       }
@@ -1157,7 +1179,7 @@ export default function Home() {
     };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, [repos, activeCaseStudy, cancelSectionScroll]);
+  }, [repos, activeCaseStudy, editorTabs, cancelSectionScroll]);
 
   // Filter state lives in the query string so it can be shared, restored on a
   // direct load, and undone with Back. It is a query parameter on the existing

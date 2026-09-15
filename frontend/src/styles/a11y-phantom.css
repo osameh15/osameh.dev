@@ -451,3 +451,36 @@ html[data-theme="light"] .action-toast-action:hover,
 html[data-theme="light"] .action-toast-action:focus-visible {
   background: var(--light-accent-soft);
 }
+
+/* ---------- v5.6.2 Raven: health vocabulary ---------- */
+/*
+ * The status label always names the state; colour only reinforces it.
+ * deployed and configured share an informational tone: healthy, but a lesser
+ * proof than operational, so they look neither like a pass nor like a failure.
+ */
+.health-check.tone-positive .health-dot { background: #71e096; box-shadow: 0 0 9px #71e096; }
+.health-check.tone-informational .health-dot { background: #7fb4ff; box-shadow: 0 0 9px rgba(127, 180, 255, .75); }
+.health-check.tone-warning .health-dot { background: #e2bd67; box-shadow: 0 0 9px #e2bd67; }
+.health-check.tone-error .health-dot { background: #e27777; box-shadow: 0 0 9px #e27777; }
+.health-check.tone-neutral .health-dot { background: #8e9a90; box-shadow: none; }
+.health-check.tone-informational code { color: #8fb4e8; }
+.health-check.tone-warning code { color: #c8a85e; }
+.health-check.tone-error code { color: #cc7878; }
+.health-check.tone-neutral code { color: #8e9a90; }
+/* The shared light code colour rendered at 4.19:1 on 9px text; the positive tone gets a darker green. */
+html[data-theme="light"] .health-check.tone-positive code { color: #1f5a31; }
+html[data-theme="light"] .health-check.tone-informational code { color: #2f5f9e; }
+html[data-theme="light"] .health-check.tone-warning code { color: #6b4d0b; }
+html[data-theme="light"] .health-check.tone-error code { color: #a33a3a; }
+html[data-theme="light"] .health-check.tone-neutral code { color: #56655b; }
+.health-overall.down span i { background: #e27777; box-shadow: 0 0 9px #e27777; }
+.health-overall.unknown span i { background: #8e9a90; box-shadow: none; }
+
+/* ---------- v5.6.2 Raven: measured section stabilization ---------- */
+/*
+ * While a stabilization transaction runs, lib/sectionStabilizer.ts compensates
+ * for layout movement above the section itself. Native scroll anchoring would
+ * correct the same change a second time, so it is off only for that window.
+ */
+html[data-section-settling],
+html[data-section-settling] body { overflow-anchor: none; }

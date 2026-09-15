@@ -506,6 +506,12 @@ The site also includes an in-app resume viewer and download/open controls.
 
 The **six most recent releases** are summarized here. See **[CHANGELOG.md](docs/CHANGELOG.md)** for the complete production history. This section is intentionally capped at six releases.
 
+### v5.6.2 - Raven
+
+- **Honest System Health labels.** Every status the backend reports has its own label and tone from one mapping: deployed and configured checks no longer render as **Down**, and failure states still read as failures.
+- **Measured section scroll restoration.** Timed absolute re-snaps were replaced with a bounded transaction that places a section, confirms it, and compensates only for measured layout movement above it, so find-in-page, screen readers and in-page anchors are never pulled back.
+- Fixes the race behind an intermittent case-study scroll-restore browser test that blocked a production deploy, and a Browser Back offset that appeared when Back was pressed during a smooth scroll.
+
 ### v5.6.1 - Raven
 
 - **Hirava case study.** A trust-driven recruitment marketplace connecting companies with professional recruiters, published as a client case study with an explicit in-development status: the frontend - Nuxt 3.17.6 in Nuxt 4 compatibility mode - is implemented and reachable as a development preview, and the Go backend is planned and not built.
@@ -544,14 +550,6 @@ The **six most recent releases** are summarized here. See **[CHANGELOG.md](docs/
 - **Mobile Note TOC alignment.** The sticky table-of-contents rail on an Engineering Note now spans the full width of the screen below 720px, instead of sitting flush left with a 36px gap on the right.
 - An inherited `max-width:100%` resolved against the padded reading column and over-constrained the rail, cancelling the negative right margin that produces the edge-to-edge layout.
 - Added browser regression coverage from 320px to 719px asserting the rail reaches both screen edges without introducing horizontal page scroll.
-
-### v5.3.3 — Vanta
-
-- **Branded HTTP errors.** Origin-generated 400/401/403/404/405/408/429/500/502/503/504 responses now render the portfolio's IDE error workspace instead of the hosting provider's default page, with a C++ editor tab (`error_403.cpp`) matching the Cyber Noir identity.
-- **The status code survives.** `ErrorDocument` is an internal subrequest, never a redirect, so a forbidden request still answers `403` and an unknown route still answers `404` at the original URL.
-- **Failure-independent.** Error documents are static HTML plus one shared stylesheet: no JavaScript, no bundle reference, no API call, so they render when the application runtime is what failed.
-- **APIs stay machine-readable.** Every `/api/` refusal carries its own JSON body — including the library-include refusal, now answered by the API's own JSON endpoint — so no API response is ever replaced by an HTML document.
-- Error documents are `noindex` in both meta and header, are absent from both sitemaps, and the 17-URL sitemap contract is unchanged. Edge-generated gateway errors remain outside origin control and are documented rather than claimed.
 
 ## License
 
