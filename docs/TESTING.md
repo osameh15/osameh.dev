@@ -726,5 +726,11 @@ from `placing` to `compensating` and then being removed - never on fixed sleeps.
   A control test paints a real Changelog frame on purpose and requires the
   recorder to report it.
 
+- A case study opened from a note returns to that note on Browser Back and on
+  Escape, at 1280 and 390px: the active editor tab id equals the originating
+  tab while the dialog is open and after it closes, the note content is shown,
+  no home section is painted during the return, settling completes, and the
+  note title is restored.
+
 The case-study restore test that exposed the race is unchanged. Repeat runs
 before release are recorded in the v5.6.2 release report.

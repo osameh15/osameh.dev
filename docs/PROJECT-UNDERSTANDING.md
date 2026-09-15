@@ -432,6 +432,8 @@ The complete release history remains in `docs/CHANGELOG.md`. The quality gate en
 
 Release notes are expected to describe user-visible differences from the previous published version, excluding temporary debugging, failed experiments, intermediate CI failures, and pre-release behavior that users never received.
 
+**Case-study editor origin (v5.6.2).** `caseStudyOriginRef` records the covered editor tab id and document title with the address, section and scroll position. `openCaseStudy` leaves the covered tab active and switches to Home only when nothing is covered; `restoreCaseStudyOrigin` is the one path Escape, the close control and Browser Back use to restore tab, section and title.
+
 **Published history is permanent.** Never amend, rebase, recreate or force-push a published commit, and never move, delete or re-sign a published release tag - including for cosmetic reasons such as commit-message trailers. The v5.6.1 release broke this rule on 2026-09-15: its merge was recreated (`6a10b38` became `7ed1b03`, same tree) and tag `5.6.1` was moved to the new commit. The full record is in [`DEPLOYMENT.md` §14.1](./DEPLOYMENT.md#141-release-provenance-rule).
 
 ## 23. Fragile and regression-prone areas

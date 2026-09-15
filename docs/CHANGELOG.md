@@ -25,6 +25,12 @@ A patch inside the **Raven** family with exactly two fixes. No content, route, S
 - An earlier approach cancelled stabilization from `scroll` events. It was discarded before release: the application's own smooth scrolls emit the same events, and Browser Back restoration went from 16/16 passing to 8/8 failing.
 - Opening an Engineering Note now jumps to its beginning instead of animating there. The whole view is replaced, so the animation only scrolled through content that was already gone, and pressing Back while it was still running let one more animation step move the restored Notes index 20-50px after placement.
 
+### Closing a case study returns to the editor it was opened from
+
+- A case study opened from a note - through Continue exploring, the Command Palette or any other link - switched the editor to the Home tab. Escape and Browser Back then restored the note's address and scroll position but left Home active, with the note tab still open and its content hidden. This was already present in 5.6.1; it is a restoration correctness fix, not a new feature.
+- The case-study origin now records the covered editor tab and document title alongside the address, section and scroll position. Opening a case study from a view keeps that view's tab active behind the dialog, and closing it by Escape, the close control or Browser Back restores the tab, section, title and position through one shared path. Home is used only when there is no covered editor, such as a directly loaded case-study address.
+- The mechanism is the same for every origin: Home, a project, a note or the Command Palette.
+
 ### Release provenance record
 
 - v5.6.1's history was recreated after release to remove a commit-message trailer. Production merge `6a10b38` became `7ed1b03` with the same tree, signed tag `5.6.1` was moved from tag object `409dccf` to `db65c8e`, and production was rebuilt from `7ed1b03` while still reporting 5.6.1. The code was equivalent; the commits and tags were not. The tag is not moved again, the full record is in `docs/DEPLOYMENT.md` §14.1, and published commits and tags are now permanent by rule.
