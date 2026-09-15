@@ -23,6 +23,11 @@ A patch inside the **Raven** family with exactly two fixes. No content, route, S
 - A transaction ends after a quiet period or a hard ceiling, on wheel, touch, pointer or navigation-key input (typing in a field does not count), when a dialog opens, or when a new section navigation replaces it. It always removes its observer, animation frame, timers and the `data-section-settling` attribute.
 - Placement confirmation covers a case the old timers hid: pressing Back while the note view's smooth scroll to the top is still animating let one more animation step land after placement, leaving the section 20-50px off.
 - An earlier approach cancelled stabilization from `scroll` events. It was discarded before release: the application's own smooth scrolls emit the same events, and Browser Back restoration went from 16/16 passing to 8/8 failing.
+- Opening an Engineering Note now jumps to its beginning instead of animating there. The whole view is replaced, so the animation only scrolled through content that was already gone, and pressing Back while it was still running let one more animation step move the restored Notes index 20-50px after placement.
+
+### Release provenance record
+
+- v5.6.1's history was recreated after release to remove a commit-message trailer. Production merge `6a10b38` became `7ed1b03` with the same tree, signed tag `5.6.1` was moved from tag object `409dccf` to `db65c8e`, and production was rebuilt from `7ed1b03` while still reporting 5.6.1. The code was equivalent; the commits and tags were not. The tag is not moved again, the full record is in `docs/DEPLOYMENT.md` §14.1, and published commits and tags are now permanent by rule.
 
 ## 5.6.1 - 2026-09-14 - Raven
 

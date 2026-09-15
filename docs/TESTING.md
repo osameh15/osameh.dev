@@ -711,5 +711,20 @@ from `placing` to `compensating` and then being removed - never on fixed sleeps.
 - Browser Back restores the notes anchor with reduced motion, and at 320, 360,
   390 and 412px without horizontal overflow.
 
+- A direct note route survives internal navigation (the breadcrumb back to the
+  Notes index) and Browser Back at 1280 and 390px: the original note becomes
+  active at its beginning, no Notes index section is left rendered, and the
+  settling attribute clears without moving the page.
+- No wrong-section flash: a recorder samples, on every animation frame, which
+  primary home section is presented at the reading line just below the sticky
+  chrome. Browser Back to the Notes index must present only `notes`, and
+  closing a case study only `case-studies`, at 1280 and 390px. The recorder uses
+  a one-pixel IntersectionObserver band, because intersections are computed
+  after ResizeObserver and just before paint. A first version sampled geometry
+  in requestAnimationFrame, which runs before layout; it forced layout on changes
+  that are compensated before paint and reported flashes that were never drawn.
+  A control test paints a real Changelog frame on purpose and requires the
+  recorder to report it.
+
 The case-study restore test that exposed the race is unchanged. Repeat runs
-before release are recorded in the v5.6.2 staging report.
+before release are recorded in the v5.6.2 release report.

@@ -432,6 +432,8 @@ The complete release history remains in `docs/CHANGELOG.md`. The quality gate en
 
 Release notes are expected to describe user-visible differences from the previous published version, excluding temporary debugging, failed experiments, intermediate CI failures, and pre-release behavior that users never received.
 
+**Published history is permanent.** Never amend, rebase, recreate or force-push a published commit, and never move, delete or re-sign a published release tag - including for cosmetic reasons such as commit-message trailers. The v5.6.1 release broke this rule on 2026-09-15: its merge was recreated (`6a10b38` became `7ed1b03`, same tree) and tag `5.6.1` was moved to the new commit. The full record is in [`DEPLOYMENT.md` §14.1](./DEPLOYMENT.md#141-release-provenance-rule).
+
 ## 23. Fragile and regression-prone areas
 
 - Shared modal locking, focus, restoration, and per-viewport geometry across eleven consumers
@@ -709,6 +711,11 @@ ancestors and every earlier sibling at each level scrolls by the section's
 measured document movement. CSS disables native scroll anchoring only while the
 attribute exists. It ends after 800ms without a layout change or 4s at most, and
 user intent, a dialog opening, or a new section request ends it early.
+Compensation runs inside the ResizeObserver callback, which is after layout and
+before paint, so a corrected position is what gets drawn; only placement
+confirmation waits for later animation frames. `openNote` scrolls to the top
+instantly: a smooth scroll still running when Back was pressed stepped the
+restored section after placement.
 
 ## 34. Current engineering priorities
 
