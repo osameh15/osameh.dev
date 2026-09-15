@@ -128,7 +128,7 @@ export function stabilizeSection(id: string, options: StabilizeOptions): Section
     restartQuietPeriod();
   };
 
-  // Several size changes in one frame are one layout change.
+  // Placement confirmation needs a later frame; one pending frame at a time.
   const schedule = () => {
     if (!ended && !frame) frame = window.requestAnimationFrame(measure);
   };
@@ -146,7 +146,17 @@ export function stabilizeSection(id: string, options: StabilizeOptions): Section
     // make padding changes count. Changes below the section measure as zero.
     // ponytail: margin-only changes on an ancestor are not observable this way;
     // add a MutationObserver on class/style attributes if one ever matters.
-    observer = new ResizeObserver(schedule);
+    // Compensate inside the observer callback, not on the next animation frame.
+    // ResizeObserver runs after layout and before paint, so the corrected
+    // position is what gets painted. Deferring to requestAnimationFrame painted
+    // one frame with the section displaced - enough to flash the Changelog
+    // section above Notes during Browser Back. Scrolling changes no observed
+    // size, so this cannot loop.
+    observer = new ResizeObserver(() => {
+      if (frame) window.cancelAnimationFrame(frame);
+      frame = 0;
+      measure();
+    });
     for (let node: Element | null = target; node && node !== root; node = node.parentElement) {
       if (node !== target) observer.observe(node, { box: "border-box" });
       for (let sibling = node.previousElementSibling; sibling; sibling = sibling.previousElementSibling) {

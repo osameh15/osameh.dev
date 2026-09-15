@@ -987,12 +987,15 @@ export default function Home() {
     }
     document.title = `${note.title} — Osameh Irandoust`;
     trackEvent("note_open", slug);
-    // Moving between Notes replaces the whole reading pane, so the destination
-    // must start at its own beginning. Animating there from the bottom of the
-    // note being left would scroll through content that is already unmounting.
+    // Opening a Note replaces the whole view - the home sections or the note
+    // being left - so the destination must start at its own beginning, and
+    // animating there would only scroll through content that is already gone.
+    // It also must not leave a smooth scroll in flight: pressing Browser Back
+    // during that animation let it step the restored Notes index upward after
+    // placement, flashing the Changelog section above it for a frame.
     // "instant" is required rather than "auto": html{scroll-behavior:smooth} is
     // exactly what "auto" defers to, so "auto" would still animate.
-    window.scrollTo({ top: 0, behavior: activeNoteSlug && activeNoteSlug !== slug ? "instant" : "smooth" });
+    window.scrollTo({ top: 0, behavior: "instant" });
     setPanelOpen(false);
   };
 
