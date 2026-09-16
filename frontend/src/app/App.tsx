@@ -53,7 +53,7 @@ import { engineeringNotes, adjacentNotes } from "../features/notes/notesData";
 import { AccessibilityControlButton, AvailabilityBadge, CaseStudiesSection, CaseStudyModal, PortfolioFeatureModals, availabilityConfig, availabilityProfile, capabilities, caseStudies, usePortfolioFeatures } from "../features/portfolio/PortfolioFeatures";
 import type { CaseStudy } from "../data/caseStudiesData";
 import { stabilizeSection, type SectionStabilization } from "../lib/sectionStabilizer";
-import { getWorkspaceScrollPosition, useModalDialog } from "../lib/modalScroll";
+import { captureScrollAnchor, getWorkspaceScrollPosition, restoreScrollAnchor, useModalDialog, type ScrollAnchor } from "../lib/modalScroll";
 import { HOME_TAB_ID, noteTab, noteTabId, projectTab, projectTabId, tabAfterClose, type EditorTab } from "./editorTabs";
 import { codeProfiles, contactFiles, fontOptions, roles, skillSource, skills, type CodeLanguage, type FontPreference, type ThemePreference, skillCatalog, skillGroups, EVIDENCE_LABEL } from "./workspacePreferences";
 import { sectionByPath, sections, type SearchResult } from "./sections";
@@ -83,6 +83,30 @@ export default function Home() {
   const { t, setAccessibilityOpen, setAvailabilityOpen } = usePortfolioFeatures();
   const [menuOpen, setMenuOpen] = useState(false);
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
+  // The status bar's language control. The same choice lives in the File menu;
+  // this is the direct route from the indicator that already names the language.
+  const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
+  const languageMenuRef = useRef<HTMLDivElement>(null);
+
+  /** Arrow/Home/End movement inside the status-bar language selector. */
+  const moveLanguageMenuFocus = (event: { key: string; preventDefault: () => void }) => {
+    const items = Array.from(languageMenuRef.current?.querySelectorAll<HTMLButtonElement>("button") ?? []);
+    if (!items.length) return;
+    const current = items.indexOf(document.activeElement as HTMLButtonElement);
+    const focusAt = (index: number) => { event.preventDefault(); items[index].focus({ preventScroll: true }); };
+    if (event.key === "ArrowDown") focusAt((current + 1) % items.length);
+    else if (event.key === "ArrowUp") focusAt((current - 1 + items.length) % items.length);
+    else if (event.key === "Home") focusAt(0);
+    else if (event.key === "End") focusAt(items.length - 1);
+  };
+
+  // Opening the selector puts focus on the active language, so a keyboard user
+  // starts from the current selection. preventScroll matters: the status bar is
+  // fixed, and focusing must never move the workspace behind it.
+  useLayoutEffect(() => {
+    if (!languageMenuOpen) return;
+    languageMenuRef.current?.querySelector<HTMLButtonElement>('button[aria-checked="true"]')?.focus({ preventScroll: true });
+  }, [languageMenuOpen]);
   const [activeSectionPath, setActiveSectionPath] = useState<string>("/home");
   const [resumeOpen, setResumeOpen] = useState(false);
   const { theme, setTheme, font, setFont, codeLanguage, setCodeLanguage } = useWorkspacePreferences();
@@ -171,7 +195,15 @@ export default function Home() {
    * by Escape, the close control or Browser Back. Generic on purpose: the tab id
    * says whether that context was Home, a project or a note.
    */
-  const caseStudyOriginRef = useRef<{ tabId: string; path: string; sectionPath: string; title: string; scrollX: number; scrollY: number } | null>(null);
+  const caseStudyOriginRef = useRef<{ tabId: string; path: string; sectionPath: string; title: string; scrollX: number; scrollY: number; anchor: ScrollAnchor | null } | null>(null);
+  /**
+   * Anchor to re-seat once the closing dialog has released the body lock.
+   *
+   * The lock restores the scroll coordinate the dialog covered. That coordinate
+   * is stale if content above it grew while the dialog was open, so the anchor
+   * captured at open time is re-measured afterwards and the difference removed.
+   */
+  const pendingAnchorRestoreRef = useRef<ScrollAnchor | null>(null);
   useEffect(() => {
     const previous = window.history.scrollRestoration;
     window.history.scrollRestoration = "manual";
@@ -575,9 +607,15 @@ export default function Home() {
 
   useEffect(() => {
     const closeMenu = (event: PointerEvent) => {
-      if (!(event.target as HTMLElement).closest(".ide-file-menu")) setFileMenuOpen(false);
+      const target = event.target as HTMLElement;
+      if (!target.closest(".ide-file-menu")) setFileMenuOpen(false);
+      if (!target.closest(".status-language")) setLanguageMenuOpen(false);
     };
-    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") setFileMenuOpen(false); };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setFileMenuOpen(false);
+      setLanguageMenuOpen(false);
+    };
     document.addEventListener("pointerdown", closeMenu);
     document.addEventListener("keydown", closeOnEscape);
     return () => { document.removeEventListener("pointerdown", closeMenu); document.removeEventListener("keydown", closeOnEscape); };
@@ -600,7 +638,9 @@ export default function Home() {
         }
         return;
       }
-      if (event.key !== "Escape" || fileMenuOpen) return;
+      // An open menu owns Escape. Without this, one Escape would both dismiss
+      // the menu and close the editor tab behind it.
+      if (event.key !== "Escape" || fileMenuOpen || languageMenuOpen) return;
       // Every close path - X button, Back to Portfolio, Escape - runs the same
       // tab-selection algorithm.
       if (notFoundPath) showHome();
@@ -608,7 +648,7 @@ export default function Home() {
     };
     document.addEventListener("keydown", closeActiveTab);
     return () => document.removeEventListener("keydown", closeActiveTab);
-  }, [activeTabId, editorTabs, notFoundPath, fileMenuOpen, galleryLightbox, repoGalleries, contextMenu, commandPaletteOpen]);
+  }, [activeTabId, editorTabs, notFoundPath, fileMenuOpen, languageMenuOpen, galleryLightbox, repoGalleries, contextMenu, commandPaletteOpen]);
 
   useEffect(() => {
     const toggleTerminal = (event: KeyboardEvent) => {
@@ -978,6 +1018,19 @@ export default function Home() {
     sectionStabilizationRef.current?.cancel();
   }, []);
 
+  // Runs in the commit that closed the case study. React fires every layout
+  // effect cleanup before any layout effect body, so the dialog's scroll lock
+  // has already restored the covered coordinate by the time this measures the
+  // anchor - and the only thing left to remove is layout drift from content that
+  // loaded while the dialog was open.
+  useLayoutEffect(() => {
+    if (activeCaseStudy) return;
+    const anchor = pendingAnchorRestoreRef.current;
+    if (!anchor) return;
+    pendingAnchorRestoreRef.current = null;
+    restoreScrollAnchor(anchor);
+  }, [activeCaseStudy]);
+
   const openNote = (slug: string, updateHistory = true) => {
     const note = engineeringNotes.find(item => item.slug === slug);
     if (!note) { setNotFoundPath(`/notes/${slug}`); return; }
@@ -1032,6 +1085,10 @@ export default function Home() {
         title: document.title,
         scrollX: origin.x,
         scrollY: origin.y,
+        // The visual origin. Asynchronous content can change the document above
+        // this point while the dialog is open, which is what makes the scroll
+        // coordinate alone insufficient to restore what the user was seeing.
+        anchor: captureScrollAnchor(),
       };
     } else {
       caseStudyOriginRef.current = null;
@@ -1068,6 +1125,7 @@ export default function Home() {
     cancelSectionScroll();
     const origin = caseStudyOriginRef.current;
     caseStudyOriginRef.current = null;
+    pendingAnchorRestoreRef.current = returnToSection ? origin?.anchor ?? null : null;
     setActiveCaseStudy(null);
     document.title = "Osameh Irandoust — Software Engineer";
     if (!returnToSection) return;
@@ -1138,6 +1196,9 @@ export default function Home() {
           setActiveSectionPath("/case-studies");
           scrollToSection("case-studies", "auto", true);
         } else {
+          // Browser Back restores the covered workspace, so it needs the same
+          // anchor compensation Escape and the close control get.
+          pendingAnchorRestoreRef.current = coveredCaseStudyOrigin.anchor;
           restoreCaseStudyOrigin(coveredCaseStudyOrigin);
         }
         return;
@@ -2135,7 +2196,35 @@ export default function Home() {
           </div>}
         </section>}
         <div className="status-bar">
-          <span><Github size={12} /> main*</span><button type="button" className="status-build status-build-button" title={`${BUILD_ID} · built ${BUILD_TIME}`} onClick={() => window.dispatchEvent(new Event("portfolio:build"))}>v{BUILD_VERSION}{BUILD_CODENAME && <> · <b>{BUILD_CODENAME.toUpperCase()}</b></>}</button><span className="status-online"><i /> {code.label} mode</span>
+          <span><Github size={12} /> main*</span><button type="button" className="status-build status-build-button" title={`${BUILD_ID} · built ${BUILD_TIME}`} onClick={() => window.dispatchEvent(new Event("portfolio:build"))}>v{BUILD_VERSION}{BUILD_CODENAME && <> · <b>{BUILD_CODENAME.toUpperCase()}</b></>}</button><div className="status-online status-language">
+            <button
+              type="button"
+              className="status-language-trigger"
+              aria-haspopup="menu"
+              aria-expanded={languageMenuOpen}
+              // Deliberately not "Language: X". An English-only guard asserts no
+              // button is named that, because it is what a locale switcher would
+              // be called. This control changes code presentation, not the site.
+              aria-label={`Change programming language (currently ${code.label})`}
+              title="Change programming language"
+              onClick={() => setLanguageMenuOpen(open => !open)}
+            ><i /> {code.label} <span className="status-language-word">mode</span> <ChevronDown size={11} aria-hidden="true" /></button>
+            {languageMenuOpen && <div
+              ref={languageMenuRef}
+              className="status-language-menu"
+              role="menu"
+              aria-label="Programming language"
+              onKeyDown={moveLanguageMenuFocus}
+            >
+              {(Object.entries(codeProfiles) as [CodeLanguage, typeof code][]).map(([id, profile]) => <button
+                key={id}
+                type="button"
+                role="menuitemradio"
+                aria-checked={codeLanguage === id}
+                onClick={() => { setCodeLanguage(id); setLanguageMenuOpen(false); }}
+              ><span><i className="language-dot" />{profile.label}</span>{codeLanguage === id && <Check size={13} />}</button>)}
+            </div>}
+          </div>
           <button onClick={() => { if (panelOpen) setPanelOpen(false); else openTerminal(); }}><PanelBottom size={13} /> {panelOpen ? "Close panel" : "Open panel"}</button>
         </div>
       </div>

@@ -44,6 +44,53 @@ export function getWorkspaceScrollPosition(): { x: number; y: number } {
   return { x: window.scrollX, y: window.scrollY };
 }
 
+/** A section the workspace was showing, with the exact viewport offset it sat at. */
+export type ScrollAnchor = { id: string; top: number };
+
+/**
+ * Captures what the user is looking at, rather than where the document is.
+ *
+ * A scroll coordinate describes the document, so it goes stale the moment
+ * content above the viewport changes height - which is exactly what happens
+ * when repository data finishes loading while a dialog is open. An element plus
+ * its viewport offset stays true across that change, so restoring it puts the
+ * same pixels back in the same place however much grew above them.
+ *
+ * Reading a rect works while a dialog holds the body lock: the body is offset by
+ * the frozen scroll position, so rendered positions are unchanged even though
+ * `window.scrollY` reads 0.
+ */
+export function captureScrollAnchor(): ScrollAnchor | null {
+  if (typeof document === "undefined") return null;
+  let anchor: ScrollAnchor | null = null;
+  // Document order: keep the last section that starts at or above the viewport
+  // top, otherwise the first one below it.
+  for (const section of document.querySelectorAll<HTMLElement>("section[id]")) {
+    const top = section.getBoundingClientRect().top;
+    if (top <= 0 || !anchor) anchor = { id: section.id, top };
+    if (top > 0) break;
+  }
+  return anchor;
+}
+
+/**
+ * Puts `anchor` back at the offset it was captured at.
+ *
+ * Returns false when the anchor cannot be resolved - a view that no longer
+ * renders it, such as returning into an open note - so the caller keeps whatever
+ * restoration it already performed. The scroll is explicitly instant because the
+ * site sets `scroll-behavior: smooth`, and a correction must land in the frame
+ * the layout moved rather than animate into place.
+ */
+export function restoreScrollAnchor(anchor: ScrollAnchor | null): boolean {
+  if (!anchor || typeof document === "undefined") return false;
+  const element = document.getElementById(anchor.id);
+  if (!element) return false;
+  const drift = element.getBoundingClientRect().top - anchor.top;
+  if (Math.abs(drift) >= 0.5) window.scrollBy({ top: drift, left: 0, behavior: "instant" });
+  return true;
+}
+
 function removeLockEntry(lockId: number): LockEntry | null {
   const index = lockStack.findIndex(entry => entry.id === lockId);
   if (index === -1) return null;
