@@ -218,7 +218,10 @@ jobs:
             echo "put next-ledger.json -o /asset-retention.json"
             echo "bye"
           } > prune.lftp
-          lftp --norc --env-password --user "${PRODUCTION_FTP_USERNAME}" -p "${PRODUCTION_FTP_PORT}" "${PRODUCTION_FTP_HOST}" -f prune.lftp
+          # Commands arrive on stdin, exactly like every other lftp call in this
+          # workflow. "-f file" alongside a positional host argument is the one
+          # invocation that deviated from that pattern, and the one that failed.
+          lftp --norc --env-password --user "${PRODUCTION_FTP_USERNAME}" -p "${PRODUCTION_FTP_PORT}" "${PRODUCTION_FTP_HOST}" < prune.lftp
           rm -f previous-ledger.json next-ledger.json deletions.txt prune.lftp
 
       - name: Verify live production build
