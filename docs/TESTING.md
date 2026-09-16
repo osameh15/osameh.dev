@@ -734,3 +734,85 @@ from `placing` to `compensating` and then being removed - never on fixed sleeps.
 
 The case-study restore test that exposed the race is unchanged. Repeat runs
 before release are recorded in the v5.6.2 release report.
+
+## 17. v5.6.3 Raven coverage
+
+### Deployment cache coherence (no server, no CDN)
+
+`scripts/asset-retention.mjs` is executed by `npm run quality` and can be run on
+its own. It proves the retention policy by simulating build transitions rather
+than by contacting a host, so it fails only for reasons related to the change
+under test:
+
+- The first deploy onto an origin with no ledger deletes nothing.
+- Deploying build B retains every asset a cached build A document references, and
+  publishes B's own assets - the transition that broke production after v5.6.2.
+- Rolling back to A finds A's assets still present.
+- Repeated deploys past the age floor prune old generations, so retention stays
+  bounded and never accumulates indefinitely.
+- Deploys inside the stale-document window are retained by age even after falling
+  outside the generation count.
+- An asset carried unchanged into a newer build survives the prune of the
+  generation it first shipped in.
+- A corrupt or missing ledger authorises no deletion at all.
+
+A second gate reads both deploy workflows and fails unless each publishes assets,
+then documents, then prunes - with `assets/**` and `asset-retention.json`
+excluded from the document mirror's `--delete`.
+
+### Async layout stability across an open dialog
+
+The race is the thing under test, so the project request is **held open** and
+released while the dialog is on screen. Each test asserts the layout above the
+origin actually moved before asserting restoration, so it cannot pass vacuously.
+
+- Palette → case study → project data lands while open → close restores the
+  originating section to within 2px of its captured viewport offset, at 1280 and
+  390px, for Escape, the close control and Browser Back (6 combinations).
+- The same flow with data already settled, and with the request failing, both
+  restore exactly - the restoration path contains nothing GitHub-specific.
+- Scrolling after the close still wins; no delayed correction follows.
+
+Correctness is judged from `getBoundingClientRect()` on the anchor element, never
+from `window.scrollY`, because native scroll anchoring legitimately changes the
+scroll coordinate when content above the viewport grows.
+
+These six race tests fail against v5.6.2: the anchor moved by the full height of
+the content that loaded while the dialog was open (325px in the local
+reproduction, 580-588px as measured on staging and production).
+
+### Status bar programming-language selector
+
+The selectable languages are asserted against `codeProfiles` itself rather than a
+list copied into the test, so a second drifting list fails the suite and the
+deliberately removed JavaScript entry cannot return unnoticed.
+
+- The trigger names the active mode; clicking it opens the selector, and the
+  measured popover box sits entirely above the status bar and inside the
+  viewport at 320, 360, 390 and 412px with no horizontal overflow.
+- Both controls are one state: File menu to Go shows in the status bar, status
+  bar to Java shows as selected in the File menu, and `portfolio-language`
+  remains the only storage key.
+- Keyboard: focus opens on the active language, Home/End/ArrowUp/ArrowDown move
+  between items, Enter applies and closes.
+- Escape and an outside click close it, and Escape does not also close the
+  editor tab behind it.
+- A dedicated test asserts no localization was introduced: the document language
+  is unchanged, no locale route appears, no `locale`/`i18n` storage key exists,
+  and interface copy stays English.
+
+### Engineering Notes progressive disclosure
+
+Six notes are published and the batch size is six, so production renders no
+control. The tests therefore pin both the production state and the contracts the
+feature must never affect, while the batching rule itself is proved in the
+quality gates, where it does not depend on how many notes happen to exist.
+
+- The index renders a prefix of the canonical newest-first list, and the authored
+  order is asserted to be genuinely newest-first.
+- The control appears only while notes remain hidden; revealing a batch does not
+  move the page.
+- Every published note stays directly routable and reachable from the Command
+  Palette, and Previous/Next resolves against the full authored list.
+- A quality gate fails if the Notes batch size drifts from the Projects one, if
+  the index stops slicing the canonical list, or if it sorts its own subset.

@@ -284,10 +284,25 @@ Verify FTPS certificate fingerprint   (SHA-256 or SHA-1, exact match)
    v
 Preflight FTPS login                  (fails early with an explicit message)
    v
-lftp mirror --reverse --delete        (excludes .well-known/, cgi-bin/)
+lftp mirror --reverse dist/assets/    (new hashed assets, no --delete)
+   v
+lftp mirror --reverse --delete        (documents and the rest; excludes
+                                       .well-known/, cgi-bin/, assets/**,
+                                       asset-retention.json)
+   v
+Prune superseded asset generations    (ledger-driven, bounded, fails safe)
    v
 Verify live build fingerprint
 ```
+
+The three transfer steps are ordered, not incidental. New fingerprinted assets
+are published **before** any document can reference them, the document mirror is
+forbidden from deleting the asset directory a cached document may still name, and
+superseded generations are pruned **last**, only once no cached document can
+reach them. See [`DEPLOYMENT.md`](./DEPLOYMENT.md) section 5.1 for the retention
+rule and the storage budget. Because the prune step runs repository tooling, both
+deploy jobs check out the repository before downloading the artifact - checkout
+cleans the workspace, so it cannot run afterwards.
 
 Passwords are passed via `LFTP_PASSWORD` with `--env-password`, never as command
 arguments. Staging fails hard if the deployed `robots.txt` is not
@@ -324,6 +339,8 @@ A staging `530` is never resolved by substituting production credentials.
 | `verify:staging` / `verify:production` | no artifact, that environment does not deploy |
 | Missing `.htaccess` in the artifact | deploy job fails before `lftp` runs |
 | FTPS fingerprint mismatch or login failure | deploy fails before any file transfer |
+| Asset publish step fails | deploy fails before any document referencing those assets is published |
+| Retention prune step fails | deploy fails after publishing; the origin keeps more asset generations than planned, which is the safe direction |
 
 Re-running only a deploy job cannot bypass a failed quality job: the artifact it
 depends on will not exist.

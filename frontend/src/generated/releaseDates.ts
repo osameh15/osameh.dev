@@ -1,5 +1,6 @@
 // AUTO-GENERATED from docs/CHANGELOG.md. Do not edit manually.
 export const RELEASE_DATES: Record<string, string> = {
+  "5.6.3": "2026-09-16",
   "5.6.2": "2026-09-15",
   "5.6.1": "2026-09-14",
   "5.6.0": "2026-09-13",

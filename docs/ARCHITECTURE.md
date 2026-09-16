@@ -241,7 +241,13 @@ request
 ```
 
 Valid dynamic responses keep their normal cache policy
-(`public, max-age=300, stale-while-revalidate=3600`).
+(`public, max-age=300, stale-while-revalidate=60`).
+
+The revalidation window is deliberately short. A document is the only response
+that names fingerprinted assets, so the longer a stale document can be served,
+the longer the origin must retain the assets it references. 300 + 60 seconds
+bounds that window at six minutes, while hashed assets keep their one-year
+immutable policy. See [`DEPLOYMENT.md`](./DEPLOYMENT.md) section 5.1.
 
 ### Invalid route
 

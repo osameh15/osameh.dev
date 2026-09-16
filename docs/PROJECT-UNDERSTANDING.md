@@ -719,7 +719,58 @@ confirmation waits for later animation frames. `openNote` scrolls to the top
 instantly: a smooth scroll still running when Back was pressed stepped the
 restored section after placement.
 
-## 34. Current engineering priorities
+## 34. v5.6.3 Raven fixes
+
+**Deployment cache coherence.** The deploy was one
+`mirror --reverse --delete`, which removed the previous build's hashed assets at
+the instant the new build was published, while documents stayed cacheable and the
+edge kept serving some request variants the older HTML. That HTML named deleted
+assets, so those clients 404'd and never booted the application. The deploy is now
+ordered - assets, then documents, then prune - and
+`scripts/asset-retention.mjs` owns the retention policy: a generation survives
+while it is one of the newest three or younger than six hours, and deletion is
+computed against the union of retained generations, so a shared asset is never
+removed. `asset-retention.json` at the web root carries that state between
+deploys. Purge shortens the stale window but guarantees nothing; retention is what
+makes the invariant hold. Document `stale-while-revalidate` dropped from 3600 to
+60 seconds, bounding the stale-document window at six minutes.
+
+**Anchor-based modal restoration.** `caseStudyOriginRef` already recorded the
+covered tab, address, section, title and scroll position. A scroll coordinate
+describes the document, so it went stale whenever content above the viewport
+finished loading while the dialog was open - the page returned shifted by exactly
+that growth. The origin now also carries a `ScrollAnchor` from
+`captureScrollAnchor()`: the section the workspace was showing plus its exact
+viewport offset. `restoreScrollAnchor()` re-measures it in a `useLayoutEffect`
+that runs in the commit which closed the dialog - React fires every layout-effect
+cleanup before any layout-effect body, so the scroll lock has already restored the
+covered coordinate and only the drift remains. An anchor that no longer resolves,
+such as returning into an open note, leaves the existing restoration untouched.
+Nothing in the path is GitHub-specific; project data is only the deterministic
+reproducer. The 5.6.2 stabilizer contract is unchanged: no re-snaps, no
+scroll-event intent detection, measured compensation only.
+
+**Status bar programming-language selector.** `codeProfiles` in
+`app/workspacePreferences.ts` remains the single source for the selectable
+code-presentation languages, and `useWorkspacePreferences` remains the single
+state and the single `portfolio-language` storage key. The status bar control and
+the File menu group both read and write those, so they cannot disagree. The
+selector is anchored above the fixed status bar, opens upward, focuses the active
+language with `preventScroll` so the workspace behind it never moves, and
+supports arrow keys, Home and End. An open menu owns Escape, so dismissing it
+does not also close the active editor tab. This is a code-presentation mode, not
+localization: the portfolio stays English-only, with no locale route, no i18n and
+no SEO language behaviour.
+
+**Engineering Notes progressive disclosure.** The index already revealed six at a
+time, matching Projects, and slices the canonical newest-first `engineeringNotes`
+array rather than sorting a subset. Load More is presentation only - routes,
+Command Palette, related content, sitemap, Activity and Previous/Next all
+continue to use the full authored list, and no pagination URL state exists. A
+quality gate pins the batch-size parity and the canonical slice, because with six
+published notes a browser cannot observe the batching at all.
+
+## 35. Current engineering priorities
 
 1. Complete the outstanding staging acceptance pass carried since v5.2.0:
    release identity, Neural Cipher assets, active-tab auto-scroll, plus the

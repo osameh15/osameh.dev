@@ -119,7 +119,8 @@ public_html/
 ├── manifest.webmanifest
 ├── sw.js
 ├── build-info.json
-├── assets/
+├── asset-retention.json   # server state, written by the deploy; see 5.1
+├── assets/                # current build + retained previous generations
 ├── api/
 │   ├── github.php
 │   ├── contact.php
@@ -142,6 +143,68 @@ After upload:
 4. compare the build version in the site status bar
 
 Purge submission returning HTTP 200 only means the purge was queued. The CDN history status is the better confirmation that all nodes processed it.
+
+### 5.1 Cache coherence: asset retention and deploy ordering (v5.6.3)
+
+**The invariant.** A document response that any cache may still serve must never
+reference a fingerprinted asset that has already been removed from the origin.
+
+**Why retention exists.** Until v5.6.3 the deploy was a single
+`mirror --reverse --delete`, so the previous build's hashed assets were removed
+the moment the new build was published. Documents are cacheable and the ParsPack
+edge keys variants by request headers, so a client could still be handed the
+previous build's HTML for minutes afterwards. That HTML named
+`/assets/index-<oldhash>.js`, which no longer existed: the request 404'd and the
+application never booted. Measured on production immediately after the v5.6.2
+deploy - requests without browser headers received HTML referencing the v5.6.1
+bundle, both assets 404, while browser-header requests received fresh HTML.
+
+**Purge is not the guarantee.** A purge can be delayed, partial or regionally
+inconsistent, and the API can be unavailable. Purging remains useful for
+shortening the stale-document window, but correctness rests on retention alone:
+if every purge failed, the deploy would still be coherent.
+
+**Deploy ordering.** Three steps, in this order, in both workflows:
+
+1. **Publish assets.** `mirror --reverse dist/assets/ /assets/` with no
+   `--delete`. New assets exist before any document can name them.
+2. **Publish documents.** `mirror --reverse --delete` over the rest of the
+   bundle, excluding `assets/**` and `asset-retention.json`. Removed files are
+   still pruned; the asset directory is never touched.
+3. **Prune superseded generations.** `scripts/asset-retention.mjs plan` reads the
+   ledger from the origin, writes the next one, and deletes only assets no
+   retained generation still references.
+
+Neither invalid state is reachable: a new document never precedes its assets, and
+an old document never outlives the assets it names.
+
+**Safe prune rule.** A generation is retained while it is one of the newest
+`KEEP_GENERATIONS` (3) **or** younger than `MIN_RETENTION_MS` (6 hours) -
+whichever keeps it longer. Six hours is the six-minute document window many times
+over. An asset carried unchanged into a newer build is never deleted, because
+deletion is computed against the union of retained generations rather than per
+build. A missing or malformed ledger authorises no deletions at all.
+
+**The ledger.** `asset-retention.json` at the web root records, per generation,
+the build id, deploy timestamp and asset list. It is server state rather than
+build output, which is why the document mirror excludes it. It contains no
+secret and is not linked or listed in either sitemap.
+
+**Rollback.** Retention is what makes rollback work. Restoring the previous
+web-root archive restores that build's documents, and the assets they reference
+are still on the origin because that generation is still retained. Roll back
+within the retention window; beyond it, redeploy the older commit instead so its
+assets are published again. Re-deploying a build id already in the ledger
+replaces that entry rather than stacking a duplicate.
+
+**Storage budget.** One generation of hashed assets is ~772 KB (≈541 KB JS,
+≈245 KB CSS) against a ~2.6 MB bundle. Three retained generations cost ~2.3 MB,
+and a burst of deploys inside the six-hour floor is bounded by how many deploys
+fit in it. Storage is bounded in every case; nothing accumulates indefinitely.
+
+`node scripts/asset-retention.mjs` runs the policy simulation on its own, and
+`npm run quality` runs it plus a check that both workflows apply the three steps
+in the correct order.
 
 
 ## 404 behavior (true origin status, custom body)
@@ -483,6 +546,12 @@ Keep the previous `public_html` archive before deployment. If a production issue
 
 The external `private/osameh-portfolio-secrets.php` does not need to change during rollback.
 
+A rollback only works because the previous build's fingerprinted assets are still
+on the origin: restoring its documents restores references to assets that section
+5.1's retention window is still holding. Roll back inside that window. Beyond it,
+redeploy the older commit instead, so its assets are published again rather than
+assumed to be present.
+
 
 ## 11. Interaction smoke tests
 
@@ -686,6 +755,18 @@ curl -s "https://osameh.dev/api/github.php?meta=osameh.dev" | head -c 80
 
 If the second returns the repository list instead of metadata, query strings are
 being dropped before PHP.
+
+**Some clients get a blank page right after a deploy; the console shows a 404 for
+`/assets/index-<hash>.js`.**
+A cached document from the previous build is being served while the asset it
+references has been deleted. Since v5.6.3 this must not be reachable: check that
+the deploy ran all three transfer steps, that `asset-retention.json` exists at the
+web root, and that the previous generation's files are still in `/assets/`. A
+deploy whose prune step ran against a corrupt ledger deletes nothing, so an empty
+or malformed ledger is not the cause. Confirm the failing request with the
+request profile that reproduced it - the edge keys variants by request headers,
+so a browser-header request and a plain one can receive different documents.
+Re-publishing the current build restores the missing assets. See section 5.1.
 
 **A custom origin 404 is replaced by the ParsPack error page.**
 Check ParsPack → Error Page Management → **Show origin server errors**. It must be
