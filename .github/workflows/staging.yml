@@ -30,6 +30,12 @@ jobs:
       name: staging
       url: https://staging.osameh.dev
     steps:
+      # The deploy job runs repository tooling (asset retention planning), so it
+      # needs the sources as well as the artifact. Checkout cleans the workspace,
+      # so it must run before the artifact is downloaded into dist/.
+      - name: Checkout deployment tooling
+        uses: actions/checkout@v5
+
       - name: Download tested staging bundle
         uses: actions/download-artifact@v8
         with:
@@ -104,7 +110,40 @@ jobs:
             exit 1
           fi
 
-      - name: Deploy staging with staging-only credentials
+      # Deploy ordering is the cache-coherence contract (DEPLOYMENT.md section 5.1).
+      # A document response must never reference a fingerprinted asset that has
+      # already been removed from the origin, so assets are published before any
+      # document can name them and superseded assets are pruned last. Staging and
+      # production follow the same correctness model.
+      - name: Publish new fingerprinted assets before any document names them
+        shell: bash
+        env:
+          STAGING_FTP_HOST: ${{ secrets.STAGING_FTP_HOST }}
+          STAGING_FTP_PORT: ${{ secrets.STAGING_FTP_PORT }}
+          STAGING_FTP_USERNAME: ${{ secrets.STAGING_FTP_USERNAME }}
+          LFTP_PASSWORD: ${{ secrets.STAGING_FTP_PASSWORD }}
+        run: |
+          set -euo pipefail
+          STAGING_FTP_PORT="${STAGING_FTP_PORT:-21}"
+          lftp --norc --env-password --user "${STAGING_FTP_USERNAME}" -p "${STAGING_FTP_PORT}" "${STAGING_FTP_HOST}" <<'LFTP'
+          set cmd:fail-exit true
+          set net:max-retries 2
+          set net:timeout 25
+          set net:reconnect-interval-base 5
+          set ftp:passive-mode true
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate false
+          mirror --reverse --verbose --parallel=4 --no-perms dist/assets/ /assets/
+          bye
+          LFTP
+
+      # Documents and every other file. --delete still prunes what the artifact
+      # no longer ships, but it may never reach the asset directory: a cached
+      # document from the previous build still names those files. The retention
+      # ledger is excluded for the same reason - it is server state, not build
+      # output, and the next deploy needs the copy this one wrote.
+      - name: Publish documents and prune removed files, never touching assets
         shell: bash
         env:
           STAGING_FTP_HOST: ${{ secrets.STAGING_FTP_HOST }}
@@ -128,9 +167,56 @@ jobs:
             --exclude-glob '.well-known/**' \
             --exclude-glob cgi-bin \
             --exclude-glob 'cgi-bin/**' \
+            --exclude-glob assets \
+            --exclude-glob 'assets/**' \
+            --exclude-glob asset-retention.json \
             dist/ /
           bye
           LFTP
+
+      # Bounded retention. A superseded generation is removed only once no cached
+      # document can still name it: it must have fallen outside both the kept
+      # generation count and the minimum retention window. A missing or corrupt
+      # ledger deletes nothing, so this step can never be the cause of a 404.
+      - name: Prune superseded asset generations within the retention window
+        shell: bash
+        env:
+          STAGING_FTP_HOST: ${{ secrets.STAGING_FTP_HOST }}
+          STAGING_FTP_PORT: ${{ secrets.STAGING_FTP_PORT }}
+          STAGING_FTP_USERNAME: ${{ secrets.STAGING_FTP_USERNAME }}
+          LFTP_PASSWORD: ${{ secrets.STAGING_FTP_PASSWORD }}
+        run: |
+          set -euo pipefail
+          STAGING_FTP_PORT="${STAGING_FTP_PORT:-21}"
+          build_id="$(jq -r '.buildId' dist/build-info.json)"
+          rm -f previous-ledger.json next-ledger.json deletions.txt prune.lftp
+          lftp --norc --env-password --user "${STAGING_FTP_USERNAME}" -p "${STAGING_FTP_PORT}" "${STAGING_FTP_HOST}" <<'LFTP' || echo "No retention ledger on the origin yet; this deploy establishes one."
+          set net:max-retries 1
+          set net:timeout 20
+          set ftp:passive-mode true
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate false
+          get /asset-retention.json -o previous-ledger.json
+          bye
+          LFTP
+          node scripts/asset-retention.mjs plan dist previous-ledger.json "$build_id" next-ledger.json deletions.txt
+          {
+            echo "set cmd:fail-exit true"
+            echo "set net:max-retries 2"
+            echo "set net:timeout 25"
+            echo "set ftp:passive-mode true"
+            echo "set ftp:ssl-force true"
+            echo "set ftp:ssl-protect-data true"
+            echo "set ssl:verify-certificate false"
+            while IFS= read -r asset; do
+              if [[ -n "$asset" ]]; then echo "rm -f /${asset}"; fi
+            done < deletions.txt
+            echo "put next-ledger.json -o /asset-retention.json"
+            echo "bye"
+          } > prune.lftp
+          lftp --norc --env-password --user "${STAGING_FTP_USERNAME}" -p "${STAGING_FTP_PORT}" "${STAGING_FTP_HOST}" -f prune.lftp
+          rm -f previous-ledger.json next-ledger.json deletions.txt prune.lftp
 
       # Root returning 200 is not acceptance. Contact fails closed without
       # verification, so a deploy that cannot load its environment-local
