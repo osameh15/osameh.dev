@@ -24,6 +24,7 @@ function frontendSources(root = "frontend/src") {
 const frontendSourceFiles = frontendSources();
 const frontendSourceText = new Map(frontendSourceFiles.map(file => [file, readFileSync(resolve(file), "utf8")]));
 import { verifyServiceWorker } from "./verify-sw.mjs";
+import { verifyAssetRetention } from "./asset-retention.mjs";
 import { verifyBrandAssets } from "./verify-brand-assets.mjs";
 import { verifyReadmeAssetUrls } from "./verify-readme-assets.mjs";
 import { verifyRepositorySecrets } from "./verify-secrets.mjs";
@@ -685,6 +686,50 @@ for (const [label, failures] of [
 const serviceWorkerFailures = await verifyServiceWorker();
 for (const failure of serviceWorkerFailures) fail(failure);
 if (!serviceWorkerFailures.length) pass("Service worker clones before body consumption and never caches /api/ responses");
+
+// ---- v5.6.3 Raven: Notes index progressive disclosure ----
+//
+// With six published notes nothing is hidden, so a browser cannot observe the
+// batching. The rule is proved here instead: the index must reveal a prefix of
+// the canonical newest-first list, in the same batch size Projects uses, and
+// must never sort a subset of its own.
+{
+  const notesIndexSource = readFileSync(resolve("frontend/src/features/notes/EngineeringNotes.tsx"), "utf8");
+  const appSource = readFileSync(resolve("frontend/src/app/App.tsx"), "utf8");
+  const notesBatch = notesIndexSource.match(/const batchSize = (\d+)/)?.[1];
+  const projectsBatch = appSource.match(/const \[visibleRepos, setVisibleRepos\] = useState\((\d+)\)/)?.[1];
+  const indexSection = notesIndexSource.slice(0, notesIndexSource.indexOf("type TocItem"));
+
+  if (!notesBatch) fail("The Notes index does not declare a batch size");
+  else if (!projectsBatch) fail("Could not read the Projects initial count to compare the Notes batch size against");
+  else if (notesBatch !== projectsBatch) fail(`Notes reveal ${notesBatch} at a time but Projects use ${projectsBatch}; progressive disclosure should match`);
+  else if (!indexSection.includes("engineeringNotes.slice(0, visibleCount)")) fail("The Notes index does not render a prefix of the canonical note list");
+  else if (/\.sort\(/.test(indexSection)) fail("The Notes index sorts its own subset instead of preserving the authored order");
+  else pass(`Notes and Projects both reveal ${notesBatch} at a time, from the canonical order`);
+}
+
+// ---- v5.6.3 Raven: deployment cache coherence ----
+//
+// A document a cache may still serve must never name an asset the origin has
+// already deleted. The policy itself is proved by simulating build transitions,
+// with no server and no CDN; the workflows are then checked to actually apply
+// that policy in the one order that is safe.
+const assetRetentionFailures = verifyAssetRetention();
+for (const failure of assetRetentionFailures) fail(failure);
+if (!assetRetentionFailures.length) pass("Asset retention keeps every cached document's assets reachable, stays bounded, and fails safe");
+
+for (const [label, workflowFile] of [["Production", ".github/workflows/deploy.yml"], ["Staging", ".github/workflows/staging.yml"]]) {
+  const workflow = readFileSync(resolve(workflowFile), "utf8");
+  const publishAssets = workflow.indexOf("mirror --reverse --verbose --parallel=4 --no-perms dist/assets/ /assets/");
+  const publishDocuments = workflow.indexOf("mirror --reverse --delete");
+  const prune = workflow.indexOf("asset-retention.mjs plan");
+  if (publishAssets === -1) fail(`${label} deploy does not publish fingerprinted assets as their own step`);
+  else if (publishDocuments === -1 || publishAssets > publishDocuments) fail(`${label} deploy publishes documents before the assets they reference exist`);
+  else if (prune === -1 || prune < publishDocuments) fail(`${label} deploy does not prune superseded assets after publishing the new build`);
+  else if (!workflow.includes("--exclude-glob 'assets/**'")) fail(`${label} document mirror can delete assets a cached document still references`);
+  else if (!workflow.includes("--exclude-glob asset-retention.json")) fail(`${label} document mirror deletes the retention ledger the next deploy needs`);
+  else pass(`${label} deploy publishes assets, then documents, then prunes superseded generations`);
+}
 
 if (failures.length) {
   console.error(`\nQuality gates failed (${failures.length}).`);
