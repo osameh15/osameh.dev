@@ -75,6 +75,6 @@ $structured = [
 $json = json_encode($structured, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
 $html = str_replace('</head>', '<script type="application/ld+json" id="case-study-structured-data">' . $json . '</script></head>', $html);
 header('Content-Type: text/html; charset=utf-8');
-header('Cache-Control: public, max-age=300, stale-while-revalidate=3600');
+header('Cache-Control: public, max-age=300, stale-while-revalidate=60');
 header('Vary: Accept-Encoding');
 echo $html;

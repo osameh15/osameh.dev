@@ -193,6 +193,6 @@ $json = json_encode($structured, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
 if (is_string($json)) $html = str_replace('</head>', '<script type="application/ld+json" id="project-structured-data">' . $json . '</script></head>', $html);
 
 header('Content-Type: text/html; charset=utf-8');
-header('Cache-Control: public, max-age=300, stale-while-revalidate=3600');
+header('Cache-Control: public, max-age=300, stale-while-revalidate=60');
 header('Vary: Accept-Encoding');
 echo $html;

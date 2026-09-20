@@ -4,7 +4,7 @@ import { resolveReleaseCodename } from "../../frontend/src/lib/releaseMetadataCo
 import { adjacentNotes, engineeringNotes } from "../../frontend/src/features/notes/notesData";
 import { RECAPTCHA_ACTION, recaptchaSiteKey } from "../../frontend/src/config/recaptchaConfig";
 import { canonicalKeys, technologyLabel } from "../../frontend/src/lib/technology";
-import { skillCatalog } from "../../frontend/src/app/workspacePreferences";
+import { codeProfiles, skillCatalog } from "../../frontend/src/app/workspacePreferences";
 import { BUILD_COMMIT, BUILD_COMMIT_SHORT } from "../../frontend/src/generated/build";
 import { relatedToCaseStudy, relatedToNote, relatedToProject, type RelatedSource } from "../../frontend/src/lib/relatedContent";
 import { caseStudies as clientCaseStudies } from "../../frontend/src/data/caseStudiesData";
@@ -3821,3 +3821,410 @@ for (const width of [320, 360, 390, 412]) {
     expect(await overflow(), "case study modal").toBeLessThanOrEqual(1);
   });
 }
+
+// ---- v5.6.3 Raven: async layout stability across an open dialog ----
+//
+// Opening a case study freezes the workspace and closing it restores where the
+// user was. Until 5.6.3 the origin was an absolute scroll coordinate, which goes
+// stale when content ABOVE the viewport finishes loading while the dialog is
+// open: the page came back shifted by exactly how much that content grew
+// (measured at 580px on staging and 588px on production during 5.6.2
+// acceptance). The origin now also carries a visual anchor, so restoration puts
+// the element the user was looking at back at the same viewport offset.
+//
+// GitHub project data is only the deterministic reproducer. Nothing in the
+// restoration path knows about GitHub; the test grows real content above the
+// origin while the dialog holds the body lock.
+
+const SLOW_REPO_BLURB =
+  "A production service with an unusually long repository description, used here only to make each project card measurably taller than the checked-in fallback card so the Projects section above the reading position grows by a real, painted amount while a dialog is open.";
+const SLOW_REPOS = Array.from({ length: 6 }, (unused, index) => ({
+  id: 900 + index,
+  name: `delayed-repo-${index}`,
+  description: SLOW_REPO_BLURB,
+  language: "TypeScript",
+  topics: ["react", "typescript", "php", "devops", "accessibility"],
+  stargazers_count: index,
+  forks_count: 0,
+  archived: false,
+  updated_at: `2026-08-0${index + 1}T00:00:00Z`,
+  fork: false,
+  default_branch: "main",
+}));
+
+/**
+ * Holds the repository request open until the returned function is called.
+ *
+ * Every other GitHub endpoint is refused so exactly one asynchronous layout
+ * change happens, at the moment the test chooses. `outcome` covers the failure
+ * path: a portfolio that falls back to embedded projects must restore just as
+ * exactly as one that receives live data.
+ */
+async function deferProjectData(page: import("@playwright/test").Page, outcome: "resolve" | "fail" = "resolve") {
+  let release!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  await page.route("**/api/github/**", async route => {
+    const url = route.request().url();
+    if (!/\/api\/github(\/repos|\.php)/.test(url)) return route.abort();
+    await held;
+    if (outcome === "fail") return route.abort();
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(SLOW_REPOS) });
+  });
+  return release;
+}
+
+/** Height of the Projects section, which sits above every anchor used below. */
+const projectsHeight = (page: import("@playwright/test").Page) =>
+  page.evaluate(() => document.getElementById("work")?.getBoundingClientRect().height ?? 0);
+
+/** Puts `id` at roughly `line` and lets any stabilization finish. */
+async function parkAt(page: import("@playwright/test").Page, id: string, line: number) {
+  await page.evaluate(({ target, top }) => {
+    const node = document.getElementById(target)!;
+    window.scrollBy({ top: node.getBoundingClientRect().top - top, left: 0, behavior: "instant" as ScrollBehavior });
+  }, { target: id, top: line });
+  await waitForSectionSettled(page);
+  await nextFrames(page);
+}
+
+for (const width of [1280, 390]) {
+  for (const close of ["Escape", "close button", "Browser Back"] as const) {
+    test(`a case study closed with ${close} keeps its visual anchor when project data lands while it is open at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: width <= 720 ? 844 : 720 });
+      const release = await deferProjectData(page);
+      await page.goto("/", { waitUntil: "domcontentloaded" });
+      await expect(page.locator(".project-card").first()).toBeVisible();
+
+      // The user is reading Experience, which sits below the Projects section
+      // that is about to grow.
+      await parkAt(page, "experience", 300);
+      const anchorBefore = await sectionTop(page, "experience");
+      const heightBefore = await projectsHeight(page);
+
+      await page.evaluate(openPaletteShortcut);
+      const palette = page.getByRole("dialog", { name: "Command Palette" });
+      await expect(palette).toBeVisible();
+      await palette.getByRole("textbox").fill("amorella beauty");
+      await expect(palette.getByRole("option").first()).toContainText("Amorella Beauty");
+      await palette.getByRole("textbox").press("Enter");
+
+      const modal = page.locator('[role="dialog"].case-study-modal');
+      await expect(modal).toBeVisible();
+      await expect.poll(() => page.evaluate(() => document.body.style.position)).toBe("fixed");
+
+      // The race under test: content above the origin finishes loading while the
+      // dialog is open, so the stored coordinate goes stale before it is used.
+      release();
+      await expect.poll(() => projectsHeight(page), { timeout: 10_000 })
+        .not.toBe(heightBefore);
+      const heightAfter = await projectsHeight(page);
+      expect(Math.abs(heightAfter - heightBefore), "the layout above the origin really moved").toBeGreaterThan(20);
+
+      if (close === "Escape") await page.keyboard.press("Escape");
+      else if (close === "close button") await modal.getByRole("button", { name: /close/i }).click();
+      else await page.goBack();
+
+      await expect(modal).toBeHidden();
+      await expect.poll(() => page.evaluate(() => document.body.style.position)).not.toBe("fixed");
+      await waitForSectionSettled(page);
+      await nextFrames(page);
+
+      const anchorAfter = await sectionTop(page, "experience");
+      expect(
+        Math.abs(anchorAfter! - anchorBefore!),
+        `the anchor moved from ${anchorBefore} to ${anchorAfter} after ${heightAfter - heightBefore}px of growth above it`,
+      ).toBeLessThanOrEqual(2);
+    });
+  }
+}
+
+test("a case study restores its anchor when project data was already settled", async ({ page }) => {
+  const release = await deferProjectData(page);
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await expect(page.locator(".project-card").first()).toBeVisible();
+  release();
+  await expect.poll(() => projectsHeight(page), { timeout: 10_000 }).toBeGreaterThan(0);
+  await parkAt(page, "experience", 300);
+  const anchorBefore = await sectionTop(page, "experience");
+
+  await page.evaluate(openPaletteShortcut);
+  const palette = page.getByRole("dialog", { name: "Command Palette" });
+  await expect(palette).toBeVisible();
+  await palette.getByRole("textbox").fill("amorella beauty");
+  await palette.getByRole("textbox").press("Enter");
+  const modal = page.locator('[role="dialog"].case-study-modal');
+  await expect(modal).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(modal).toBeHidden();
+  await expect.poll(() => page.evaluate(() => document.body.style.position)).not.toBe("fixed");
+  await nextFrames(page);
+
+  expect(Math.abs((await sectionTop(page, "experience"))! - anchorBefore!), "a settled layout is restored exactly").toBeLessThanOrEqual(2);
+});
+
+test("a failed project request still restores the case-study anchor", async ({ page }) => {
+  const release = await deferProjectData(page, "fail");
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await expect(page.locator(".project-card").first()).toBeVisible();
+  await parkAt(page, "experience", 300);
+  const anchorBefore = await sectionTop(page, "experience");
+
+  await page.evaluate(openPaletteShortcut);
+  const palette = page.getByRole("dialog", { name: "Command Palette" });
+  await expect(palette).toBeVisible();
+  await palette.getByRole("textbox").fill("amorella beauty");
+  await palette.getByRole("textbox").press("Enter");
+  const modal = page.locator('[role="dialog"].case-study-modal');
+  await expect(modal).toBeVisible();
+
+  // The request fails while the dialog is open: the fallback stays, so nothing
+  // above the origin moves and restoration must still be exact.
+  release();
+  await page.keyboard.press("Escape");
+  await expect(modal).toBeHidden();
+  await expect.poll(() => page.evaluate(() => document.body.style.position)).not.toBe("fixed");
+  await nextFrames(page);
+
+  expect(Math.abs((await sectionTop(page, "experience"))! - anchorBefore!), "a GitHub failure does not move the restored view").toBeLessThanOrEqual(2);
+});
+
+test("late layout growth does not override where the user scrolled after closing", async ({ page }) => {
+  const release = await deferProjectData(page);
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await expect(page.locator(".project-card").first()).toBeVisible();
+  await parkAt(page, "experience", 300);
+
+  await page.evaluate(openPaletteShortcut);
+  const palette = page.getByRole("dialog", { name: "Command Palette" });
+  await expect(palette).toBeVisible();
+  await palette.getByRole("textbox").fill("amorella beauty");
+  await palette.getByRole("textbox").press("Enter");
+  const modal = page.locator('[role="dialog"].case-study-modal');
+  await expect(modal).toBeVisible();
+  release();
+  await page.keyboard.press("Escape");
+  await expect(modal).toBeHidden();
+  await expect.poll(() => page.evaluate(() => document.body.style.position)).not.toBe("fixed");
+  await nextFrames(page);
+
+  // User input after the restore always wins; nothing may pull it back.
+  await page.mouse.move(400, 400);
+  await page.mouse.wheel(0, 300);
+  await expect.poll(() => page.evaluate(() => Math.round(window.scrollY))).toBeGreaterThan(0);
+  const afterUserScroll = await page.evaluate(() => Math.round(window.scrollY));
+  await page.waitForTimeout(1_200);
+  expect(Math.abs(await page.evaluate(() => Math.round(window.scrollY)) - afterUserScroll), "no delayed correction after user input").toBeLessThanOrEqual(2);
+});
+
+// ---- Status bar language switcher ----
+//
+// The status bar already named the active code language. It is now the control
+// that changes it, so the choice is reachable without opening the File menu.
+
+const languageTrigger = (page: import("@playwright/test").Page) => page.locator(".status-language-trigger");
+const languageMenu = (page: import("@playwright/test").Page) => page.locator(".status-language-menu");
+
+test("the status bar language indicator opens a menu above the bar and switches language", async ({ page }) => {
+  await page.goto("/");
+  const trigger = languageTrigger(page);
+  await expect(trigger).toBeVisible();
+  await expect(trigger).toHaveAttribute("aria-expanded", "false");
+
+  await trigger.click();
+  const menu = languageMenu(page);
+  await expect(menu).toBeVisible();
+  await expect(trigger).toHaveAttribute("aria-expanded", "true");
+
+  // It must open upward: the status bar is pinned to the bottom of the viewport,
+  // so a menu rendered below it would be off screen.
+  const menuBox = (await menu.boundingBox())!;
+  const barBox = (await page.locator(".status-bar").boundingBox())!;
+  expect(menuBox.y + menuBox.height, "the menu sits above the status bar").toBeLessThanOrEqual(barBox.y + 2);
+  expect(menuBox.y).toBeGreaterThanOrEqual(0);
+
+  // Every selectable language is offered, with the active one marked.
+  const options = menu.getByRole("menuitemradio");
+  await expect(options).toHaveCount(7);
+  await expect(menu.locator('button[aria-checked="true"]')).toHaveCount(1);
+
+  await menu.getByRole("menuitemradio", { name: /^C\+\+/ }).click();
+  await expect(menu).toBeHidden();
+  await expect(trigger).toContainText("C++ mode");
+
+  // The choice is a stored workspace preference, like theme and font.
+  await page.reload();
+  await expect(languageTrigger(page)).toContainText("C++ mode");
+  expect(await page.evaluate(() => localStorage.getItem("portfolio-language"))).toBe("cpp");
+});
+
+test("the status bar language menu closes on Escape and on an outside click, without closing a tab", async ({ page }) => {
+  await page.goto(`/notes/${HIRAVA_NOTES[0]}`);
+  await expect(page.locator(".note-markdown")).toBeVisible();
+  const openTab = await activeTabId(page);
+
+  await languageTrigger(page).click();
+  await expect(languageMenu(page)).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(languageMenu(page)).toBeHidden();
+  // Escape belongs to the open menu; the editor tab behind it must survive.
+  expect(await activeTabId(page), "Escape closed the menu only").toBe(openTab);
+  await expect(page.locator(".note-markdown")).toBeVisible();
+
+  await languageTrigger(page).click();
+  await expect(languageMenu(page)).toBeVisible();
+  await page.mouse.click(400, 300);
+  await expect(languageMenu(page)).toBeHidden();
+});
+
+const CODE_LANGUAGE_LABELS = Object.values(codeProfiles).map(profile => profile.label);
+const menuLabels = async (page: import("@playwright/test").Page) =>
+  (await languageMenu(page).getByRole("menuitemradio").allInnerTexts()).map(text => text.trim().split("\n")[0].trim());
+
+test("the status bar selector offers exactly the configured programming languages", async ({ page }) => {
+  await page.goto("/");
+  await languageTrigger(page).click();
+  // The authoritative list is codeProfiles. A second, drifting list is the
+  // failure this pins: JavaScript was deliberately removed and must stay out.
+  expect(await menuLabels(page)).toEqual(CODE_LANGUAGE_LABELS);
+  expect(await menuLabels(page)).not.toContain("JavaScript");
+  await expect(languageMenu(page).locator('button[aria-checked="true"]')).toHaveCount(1);
+});
+
+test("the File menu and the status bar share one programming-language state", async ({ page }) => {
+  await page.goto("/");
+  const fileGroup = page.locator(".file-menu-popover .menu-group", { hasText: "Programming language" });
+
+  // File menu -> Go reaches the status bar.
+  await page.locator(".file-menu-trigger").click();
+  await fileGroup.getByRole("button", { name: "Go" }).click();
+  await expect(languageTrigger(page)).toContainText("Go");
+
+  // Status bar -> Java reaches the File menu's checked state.
+  await page.keyboard.press("Escape");
+  await languageTrigger(page).click();
+  await languageMenu(page).getByRole("menuitemradio", { name: /^Java/ }).click();
+  await expect(languageTrigger(page)).toContainText("Java");
+  await page.locator(".file-menu-trigger").click();
+  await expect(fileGroup.getByRole("button", { name: "Java" }).locator("svg"), "the File menu shows Java as selected").toBeVisible();
+  expect(await page.evaluate(() => localStorage.getItem("portfolio-language")), "one storage key, one state").toBe("java");
+});
+
+test("the status bar language selector is keyboard navigable", async ({ page }) => {
+  await page.goto("/");
+  await languageTrigger(page).click();
+  const menu = languageMenu(page);
+  // Focus starts on the active language so keyboard users begin at the current
+  // selection rather than at the top of the list.
+  await expect(menu.locator('button[aria-checked="true"]')).toBeFocused();
+  await page.keyboard.press("Home");
+  await expect(menu.getByRole("menuitemradio").first()).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(menu.getByRole("menuitemradio").nth(1)).toBeFocused();
+  await page.keyboard.press("ArrowUp");
+  await expect(menu.getByRole("menuitemradio").first()).toBeFocused();
+  await page.keyboard.press("End");
+  await expect(menu.getByRole("menuitemradio").last()).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(menu).toBeHidden();
+  await expect(languageTrigger(page)).toContainText(CODE_LANGUAGE_LABELS[CODE_LANGUAGE_LABELS.length - 1]);
+});
+
+test("the programming-language selector introduces no site localization", async ({ page }) => {
+  await page.goto("/");
+  const documentLanguage = await page.evaluate(() => document.documentElement.lang);
+  await languageTrigger(page).click();
+  await languageMenu(page).getByRole("menuitemradio", { name: /^Go/ }).click();
+
+  // Code presentation only: no document language change, no locale route, no
+  // second storage key, and the interface copy stays English.
+  expect(await page.evaluate(() => document.documentElement.lang)).toBe(documentLanguage);
+  await expect(page).toHaveURL(/\/$/);
+  const keys = await page.evaluate(() => Object.keys(localStorage));
+  expect(keys.filter(key => /locale|i18n|\bfa\b/i.test(key)), `unexpected localization state: ${keys.join(", ")}`).toEqual([]);
+  expect(keys).toContain("portfolio-language");
+  await expect(page.locator(".nav-links"), "interface copy stays English").toContainText(/case studies/i);
+  // The English-only guard forbids a button named "Language:", since that is
+  // what a locale switcher would be called. This control must never match it.
+  await expect(page.getByRole("button", { name: /Language:/i }), "must not read as a locale switcher").toHaveCount(0);
+});
+
+for (const width of [320, 360, 390, 412]) {
+  test(`the status bar language selector stays usable and clipped to ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto("/");
+    const trigger = languageTrigger(page);
+    await expect(trigger, "the selector is reachable on phones").toBeVisible();
+    await trigger.click();
+    const menu = languageMenu(page);
+    await expect(menu).toBeVisible();
+
+    const box = (await menu.boundingBox())!;
+    const bar = (await page.locator(".status-bar").boundingBox())!;
+    expect(box.y + box.height, "opens upward, never below the viewport").toBeLessThanOrEqual(bar.y + 2);
+    expect(box.y).toBeGreaterThanOrEqual(0);
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(width + 1);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
+  });
+}
+
+// ---- Engineering Notes index: progressive disclosure ----
+//
+// Notes already batch like Projects (6, then 6 more). With six published notes
+// nothing is hidden, so production correctly renders no control. These pin that
+// production behaviour and the contracts Load More must never affect; the
+// batching rule itself is proved deterministically in the quality gates.
+
+const NOTES_BATCH = 6;
+
+test("the notes index renders the first batch in canonical newest-first order", async ({ page }) => {
+  const published = [...engineeringNotes].map(note => Date.parse(note.publishedAt));
+  expect([...published].sort((a, b) => b - a), "notes are authored newest first").toEqual(published);
+
+  await page.goto("/notes");
+  const cards = page.locator(".note-card");
+  await expect(cards).toHaveCount(Math.min(NOTES_BATCH, engineeringNotes.length));
+  const rendered = await cards.evaluateAll(list => list.map(card => (card as HTMLElement).dataset.noteSlug));
+  expect(rendered, "the visible subset is a prefix of the canonical list, never re-sorted")
+    .toEqual(engineeringNotes.slice(0, NOTES_BATCH).map(note => note.slug));
+});
+
+test("Load More appears only while notes remain hidden", async ({ page }) => {
+  await page.goto("/notes");
+  const control = page.locator(".notes-load-more button");
+  if (engineeringNotes.length > NOTES_BATCH) {
+    await expect(control).toBeVisible();
+    await expect(control).toContainText(`${NOTES_BATCH} / ${engineeringNotes.length}`);
+    const before = await page.evaluate(() => Math.round(window.scrollY));
+    await control.click();
+    await expect(page.locator(".note-card")).toHaveCount(Math.min(NOTES_BATCH * 2, engineeringNotes.length));
+    expect(Math.abs(await page.evaluate(() => Math.round(window.scrollY)) - before), "revealing a batch must not jump the page").toBeLessThanOrEqual(2);
+  } else {
+    await expect(control, `all ${engineeringNotes.length} notes fit the first batch`).toHaveCount(0);
+    await expect(page.locator(".note-card")).toHaveCount(engineeringNotes.length);
+  }
+});
+
+test("progressive disclosure never limits routing, search or note-to-note navigation", async ({ page }) => {
+  // Every published note keeps a working direct route and palette entry,
+  // whether or not the index happens to be showing it.
+  for (const note of engineeringNotes) {
+    await page.goto(`/notes/${note.slug}`);
+    await expect(page.locator(".note-markdown"), `${note.slug} is directly routable`).toBeVisible();
+  }
+
+  const last = engineeringNotes[engineeringNotes.length - 1];
+  await page.goto(`/notes/${last.slug}`);
+  const { previous } = adjacentNotes(last.slug);
+  if (previous) {
+    // Previous/Next walks the full authored list, not the visible subset.
+    await expect(page.locator(".note-adjacent-link[data-adjacent='previous']")).toHaveAttribute("href", `/notes/${previous.slug}`);
+  }
+
+  await page.goto("/");
+  await page.evaluate(openPaletteShortcut);
+  const palette = page.getByRole("dialog", { name: "Command Palette" });
+  await expect(palette).toBeVisible();
+  await palette.getByRole("textbox").fill(last.title.slice(0, 18));
+  await expect(palette.getByRole("option").first(), "a note outside the first batch is still searchable").toBeVisible();
+});

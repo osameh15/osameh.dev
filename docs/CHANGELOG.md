@@ -4,6 +4,45 @@ All notable changes to **osameh.dev** are documented here.
 
 The project follows [Semantic Versioning](https://semver.org/). The early production releases were shipped in rapid succession while the portfolio was moved from its hosted prototype to the current ParsPack/CDN deployment.
 
+## 5.6.3 - 2026-09-16 - Raven
+
+A patch inside the **Raven** family: the two defects carried forward from 5.6.1 and 5.6.2, plus one small interface addition. No content, route, SEO or dependency change.
+
+### A deployment can no longer serve a document whose assets are gone
+
+- The deploy mirrored the artifact with `--delete`, so the previous build's fingerprinted assets were removed the instant the new build was published. Documents stay cacheable and the ParsPack edge keys variants by request headers, so some clients were still handed the previous build's HTML for minutes afterwards - HTML naming `/assets/index-<oldhash>.js`, which no longer existed. Those requests answered 404 and the application never booted. Measured on production right after the 5.6.2 deploy: requests without browser headers received HTML referencing the 5.6.1 bundle, both assets 404, while browser-header requests received fresh HTML.
+- Deployment is now ordered rather than atomic-by-hope: new fingerprinted assets are published first, documents second, and superseded assets pruned last. New assets exist before any document names them, and the document mirror is forbidden from deleting the asset directory or the retention ledger.
+- `scripts/asset-retention.mjs` owns the policy. A generation is retained while it is one of the newest three **or** younger than six hours, whichever keeps it longer; deletion is computed against the union of retained generations, so an asset carried unchanged into a newer build is never removed. A missing or malformed ledger authorises no deletion at all.
+- Assets that predate the ledger are neither deleted nor immortal. Each deploy enumerates the remote asset directory and adopts whatever the ledger does not describe into one synthetic `legacy-untracked-<buildId>` generation, timestamped when it was first observed - conservative, because the real publication time is unknowable, and it grants exactly the overlap a stale document referencing those files still needs. The adopted generation then obeys the ordinary rule and is pruned like any other, so retention is bounded for assets that were never tracked as well as for those that were. Adoption happens once; a later deploy does not re-adopt or restart the window.
+- Only `assets/<name>-<hash>.<ext>` with Rollup's eight-character fingerprint is managed. Unrelated static files are never adopted, counted or deleted, and a bundle that ever published assets in nested directories fails the deploy rather than leaving files outside the accounting.
+- Recovery is fail-safe in both directions. A missing or malformed ledger deletes nothing and bootstraps a valid one from the verified remote inventory plus the current build. A remote listing that cannot be obtained also deletes nothing and reports that the prune phase could not establish a safe state, rather than reporting bounded retention it did not prove; an empty listing counts as unreadable, because the deploy published its own assets there moments earlier.
+- CDN purge is no longer load-bearing. A purge can be delayed, partial or regionally inconsistent; correctness now rests on retention, so the deployment stays coherent even if every purge fails.
+- Document `stale-while-revalidate` drops from 3600 to 60 seconds for note, case-study and project responses, bounding the stale-document window at six minutes. Hashed assets keep their one-year immutable policy - asset caching is not weakened to work around the problem.
+- Rollback is covered by the same retention: restoring the previous build finds the assets its documents reference still present.
+- The policy is proved by a deterministic simulation that contacts no server and no CDN, and a second gate fails the build unless both workflows apply the three steps in the correct order.
+
+### Closing a case study restores what you were looking at
+
+- Opening a case study recorded the scroll coordinate it covered. A coordinate describes the document, so it went stale whenever content above the viewport finished loading while the dialog was open: closing it returned the page shifted by exactly that growth. Measured at 580px on staging and 588px on production during 5.6.2 acceptance, and present on 5.6.1 as well.
+- The origin now also records a visual anchor - the section the workspace was showing plus its exact viewport offset. On close the anchor is re-measured and the drift removed, so the same content returns to the same place however much grew above it.
+- The compensation runs in the commit that closed the dialog. React fires every layout-effect cleanup before any layout-effect body, so the scroll lock has already restored the covered position and only real drift remains. An anchor that no longer resolves - returning into an open note, for example - leaves the existing restoration untouched.
+- Nothing in the path is GitHub-specific. Project data is only the deterministic reproducer; any asynchronous content above the origin is handled the same way.
+- The 5.6.2 stabilizer contract is unchanged: no timed re-snaps, no scroll-event intent detection, measured compensation only, and user input still wins.
+
+### The status bar switches the programming-language presentation mode
+
+- The status bar already named the active **programming-language presentation mode** - the language the workspace renders its code samples, file names and tab labels in. Clicking it now opens a compact selector anchored above the bar, like an IDE status-bar language picker, so the choice no longer requires opening the File menu.
+- **This is not site localization.** The portfolio remains English-only. No natural-language switcher, no locale routes, no i18n, and no change to SEO language behaviour. Only the existing code-presentation mode changes.
+- Both controls read and write one state from one source, `codeProfiles`: choosing Go in the File menu updates the status bar immediately, and choosing Java in the status bar shows as selected in the File menu. The existing `portfolio-language` preference is reused; no second list and no second storage key were introduced. The selectable languages are unchanged - TypeScript, C++, C#, Java, Go, Python and PHP - and JavaScript stays removed.
+- The selector opens upward so it can never render below the viewport, closes on selection, Escape and an outside click, and is keyboard navigable with arrow keys, Home and End. Opening it focuses the active language without scrolling the workspace behind it, and an open menu owns Escape so dismissing it never also closes the editor tab.
+- The control is reachable on phones as well: only the trailing "mode" word is dropped, and the popover is capped to the viewport so it cannot overflow at 320px.
+
+### Engineering Notes reveal in batches
+
+- The Notes index already used the same progressive disclosure as Projects - six notes, then six more - so nothing needed rebuilding. With six published notes nothing is hidden and no control is rendered, which is the correct state rather than a missing feature.
+- The behaviour is now pinned: the visible set is always a prefix of the canonical newest-first list, never a separately sorted subset, and the batch size is gate-checked against the Projects one so the two cannot drift.
+- Progressive disclosure stays presentation-only. Every note keeps its direct route, Command Palette entry, related-content links, sitemap entry and Activity presence, and Previous/Next still walks the full authored list rather than the visible subset. No pagination route or query parameter was added.
+
 ## 5.6.2 - 2026-09-15 - Raven
 
 A patch inside the **Raven** family with exactly two fixes. No content, route, SEO or dependency change.

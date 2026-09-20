@@ -469,6 +469,7 @@ https://osameh.dev/build-info.json
 
 - Vite-hashed JS/CSS assets use long immutable cache lifetimes.
 - HTML and build metadata revalidate quickly.
+- Deployments retain the previous builds' hashed assets, so a document still held by a cache never references a file that has already been deleted. Retention is bounded and pruned automatically.
 - Dynamic API routes use no-store/CDN no-store headers.
 - Repository metadata is cached server-side for a short interval.
 - READMEs and image discovery use longer origin caches with stale fallback.
@@ -505,6 +506,14 @@ The site also includes an in-app resume viewer and download/open controls.
 ## Release history
 
 The **six most recent releases** are summarized here. See **[CHANGELOG.md](docs/CHANGELOG.md)** for the complete production history. This section is intentionally capped at six releases.
+
+### v5.6.3 - Raven
+
+- **Cache-coherent deployments.** Fingerprinted assets are published before any document references them, and the previous builds' assets are retained until no cached document can still name them. A visitor served a slightly stale page can no longer receive one whose scripts have already been deleted.
+- **Bounded, deterministic retention.** The newest three generations, or anything younger than six hours, whichever keeps more; a missing or corrupt ledger deletes nothing. Rollback is covered by the same rule. CDN purge is no longer the correctness guarantee.
+- **Stable visual origin across dialogs.** Closing a case study restores the element you were reading to the same position, even when project data finished loading above the viewport while the dialog was open - previously a 580-588px jump.
+- **Status bar programming-language selector.** The indicator naming the active code-presentation mode now opens a compact selector above the bar. It shares one state and one storage key with the File menu control. This is not localization - the portfolio remains English-only.
+- **Batched Engineering Notes index.** The notes index reveals six at a time like Projects; routing, search, sitemap and Previous/Next continue to use the full authored list.
 
 ### v5.6.2 - Raven
 
@@ -544,12 +553,6 @@ The **six most recent releases** are summarized here. See **[CHANGELOG.md](docs/
 - **Keyboard-closable editor tabs.** The close control is now a real `<button>` beside the tab's activation button, with a label and focus state. The tab lifecycle is unchanged.
 - **One description** across page, Open Graph and X metadata, from a single source; added the official X identity to the metadata and Person schema.
 - Stopped deploying a 717 KB authoring image nothing referenced. The live social image is untouched.
-
-### v5.3.4 — Vanta
-
-- **Mobile Note TOC alignment.** The sticky table-of-contents rail on an Engineering Note now spans the full width of the screen below 720px, instead of sitting flush left with a 36px gap on the right.
-- An inherited `max-width:100%` resolved against the padded reading column and over-constrained the rail, cancelling the negative right margin that produces the edge-to-edge layout.
-- Added browser regression coverage from 320px to 719px asserting the rail reaches both screen edges without introducing horizontal page scroll.
 
 ## License
 
