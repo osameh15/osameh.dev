@@ -172,8 +172,9 @@ if every purge failed, the deploy would still be coherent.
    bundle, excluding `assets/**` and `asset-retention.json`. Removed files are
    still pruned; the asset directory is never touched.
 3. **Prune superseded generations.** `scripts/asset-retention.mjs plan` reads the
-   ledger from the origin, writes the next one, and deletes only assets no
-   retained generation still references.
+   ledger *and* a listing of the remote asset directory (`lftp cls -1 /assets/`),
+   writes the next ledger, and deletes only assets no retained generation still
+   references.
 
 Neither invalid state is reachable: a new document never precedes its assets, and
 an old document never outlives the assets it names.
@@ -186,9 +187,47 @@ deletion is computed against the union of retained generations rather than per
 build. A missing or malformed ledger authorises no deletions at all.
 
 **The ledger.** `asset-retention.json` at the web root records, per generation,
-the build id, deploy timestamp and asset list. It is server state rather than
+the build id, deploy timestamp and asset list; an adopted generation also carries
+`adopted`, `firstObservedAt` and `adoptedAt`. It is server state rather than
 build output, which is why the document mirror excludes it. It contains no
 secret and is not linked or listed in either sitemap.
+
+**Bootstrap and adoption (untracked legacy assets).** An origin can hold
+fingerprinted assets no valid ledger describes: everything published before
+retention existed, and everything published while the ledger was missing or
+malformed. They are neither deleted on sight - a stale document may still name
+them - nor left outside the model for ever, which would make retention unbounded
+in exactly the way it was introduced to prevent.
+
+Every deploy therefore enumerates the remote asset directory and compares it with
+the ledger plus the build it is publishing. Anything left over is adopted into one
+synthetic generation, `legacy-untracked-<buildId>`, timestamped with the
+observation time. That time is deliberately conservative: the real publication
+time is unknowable, so adoption grants a full retention window from first sight,
+which is also the overlap a stale document referencing those files still needs.
+From that moment the adopted generation obeys the ordinary rule - newest
+`KEEP_GENERATIONS`, or younger than `MIN_RETENTION_MS` - and is pruned like any
+other. Adoption happens once: the next deploy finds those assets in the ledger,
+does not re-adopt them, and does not restart their window.
+
+**Classification.** Only `assets/<name>-<hash>.<ext>` with Rollup's
+eight-character fingerprint is managed. Unrelated static files - `robots.txt`,
+`icons/`, the error documents, anything hand-placed that is not fingerprinted -
+are never adopted, never counted and never deleted. The remote listing covers the
+asset root only, so a bundle that published assets in nested directories would
+leave files unaccounted for; `plan` fails the deploy rather than proceed if the
+build ever produces one.
+
+**Two fail-safes.**
+
+- A **missing or malformed ledger** authorises zero deletions for that deploy. It
+  bootstraps instead: enumerate the origin, delete nothing, adopt every
+  fingerprinted asset found, add the current build, upload the repaired ledger.
+  Normal bounded pruning resumes on the next deploy.
+- A **remote listing that cannot be obtained** also authorises zero deletions, and
+  the step says so with a `::warning::` rather than reporting bounded retention it
+  did not prove. An empty listing is treated as an unreadable one, because the
+  build published its own assets to that directory moments earlier.
 
 **Rollback.** Retention is what makes rollback work. Restoring the previous
 web-root archive restores that build's documents, and the assets they reference
@@ -197,14 +236,23 @@ within the retention window; beyond it, redeploy the older commit instead so its
 assets are published again. Re-deploying a build id already in the ledger
 replaces that entry rather than stacking a duplicate.
 
-**Storage budget.** One generation of hashed assets is ~772 KB (≈541 KB JS,
-≈245 KB CSS) against a ~2.6 MB bundle. Three retained generations cost ~2.3 MB,
+**Storage budget.** One generation of hashed assets is ~772 KB (≈531 KB JS,
+≈240 KB CSS) against a ~2.6 MB bundle. Three retained generations cost ~2.3 MB,
 and a burst of deploys inside the six-hour floor is bounded by how many deploys
-fit in it. Storage is bounded in every case; nothing accumulates indefinitely.
+fit in it.
+
+Adoption adds a one-time overhead rather than a new steady state: the synthetic
+generation holds whatever fingerprinted files the origin was already carrying
+outside the ledger, counts as one generation from the moment it is observed, and
+is pruned once it falls outside both rules - in practice after the third
+subsequent deploy or six hours, whichever is later. The steady-state maximum is
+unchanged at three generations, ~2.3 MB. Storage is bounded in every case;
+nothing accumulates indefinitely, and nothing is immortal for having predated the
+ledger.
 
 `node scripts/asset-retention.mjs` runs the policy simulation on its own, and
 `npm run quality` runs it plus a check that both workflows apply the three steps
-in the correct order.
+in the correct order and enumerate the origin before planning retention.
 
 
 ## 404 behavior (true origin status, custom body)

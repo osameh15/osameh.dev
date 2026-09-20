@@ -290,7 +290,8 @@ lftp mirror --reverse --delete        (documents and the rest; excludes
                                        .well-known/, cgi-bin/, assets/**,
                                        asset-retention.json)
    v
-Prune superseded asset generations    (ledger-driven, bounded, fails safe)
+Prune superseded asset generations    (ledger + remote listing: adopts
+                                       untracked assets, bounded, fails safe)
    v
 Verify live build fingerprint
 ```
@@ -299,8 +300,11 @@ The three transfer steps are ordered, not incidental. New fingerprinted assets
 are published **before** any document can reference them, the document mirror is
 forbidden from deleting the asset directory a cached document may still name, and
 superseded generations are pruned **last**, only once no cached document can
-reach them. See [`DEPLOYMENT.md`](./DEPLOYMENT.md) section 5.1 for the retention
-rule and the storage budget. Because the prune step runs repository tooling, both
+reach them. The prune step reads the remote asset directory as well as the
+ledger, so assets the ledger never described are adopted into the model rather
+than deleted on sight or retained for ever; a listing that cannot be read deletes
+nothing and says so. See [`DEPLOYMENT.md`](./DEPLOYMENT.md) section 5.1 for the
+retention rule, the adoption model and the storage budget. Because the prune step runs repository tooling, both
 deploy jobs check out the repository before downloading the artifact - checkout
 cleans the workspace, so it cannot run afterwards.
 

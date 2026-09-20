@@ -178,6 +178,12 @@ jobs:
       # document can still name it: it must have fallen outside both the kept
       # generation count and the minimum retention window. A missing or corrupt
       # ledger deletes nothing, so this step can never be the cause of a 404.
+      #
+      # The remote asset directory is enumerated as well as the ledger. Assets the
+      # ledger does not describe - everything published before retention existed -
+      # are adopted into a synthetic generation instead of being deleted on sight
+      # or left outside the model for ever. A listing that cannot be obtained
+      # suppresses every deletion rather than being treated as an empty origin.
       - name: Prune superseded asset generations within the retention window
         shell: bash
         env:
@@ -189,7 +195,7 @@ jobs:
           set -euo pipefail
           STAGING_FTP_PORT="${STAGING_FTP_PORT:-21}"
           build_id="$(jq -r '.buildId' dist/build-info.json)"
-          rm -f previous-ledger.json next-ledger.json deletions.txt prune.lftp
+          rm -f previous-ledger.json next-ledger.json deletions.txt prune.lftp remote-assets.txt
           lftp --norc --env-password --user "${STAGING_FTP_USERNAME}" -p "${STAGING_FTP_PORT}" "${STAGING_FTP_HOST}" <<'LFTP' || echo "No retention ledger on the origin yet; this deploy establishes one."
           set net:max-retries 1
           set net:timeout 20
@@ -200,7 +206,20 @@ jobs:
           get /asset-retention.json -o previous-ledger.json
           bye
           LFTP
-          node scripts/asset-retention.mjs plan dist previous-ledger.json "$build_id" next-ledger.json deletions.txt
+          # The inventory the adoption model needs. On failure the file stays
+          # empty, which the planner reads as "unknown" and answers with zero
+          # deletions - never as "the origin holds no assets".
+          lftp --norc --env-password --user "${STAGING_FTP_USERNAME}" -p "${STAGING_FTP_PORT}" "${STAGING_FTP_HOST}" > remote-assets.txt <<'LFTP' || echo "::warning::Could not enumerate /assets on staging; this deploy will delete nothing."
+          set net:max-retries 1
+          set net:timeout 20
+          set ftp:passive-mode true
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate false
+          cls -1 /assets/
+          bye
+          LFTP
+          node scripts/asset-retention.mjs plan dist previous-ledger.json "$build_id" next-ledger.json deletions.txt remote-assets.txt
           {
             echo "set cmd:fail-exit true"
             echo "set net:max-retries 2"
@@ -219,7 +238,7 @@ jobs:
           # workflow. "-f file" alongside a positional host argument is the one
           # invocation that deviated from that pattern, and the one that failed.
           lftp --norc --env-password --user "${STAGING_FTP_USERNAME}" -p "${STAGING_FTP_PORT}" "${STAGING_FTP_HOST}" < prune.lftp
-          rm -f previous-ledger.json next-ledger.json deletions.txt prune.lftp
+          rm -f previous-ledger.json next-ledger.json deletions.txt prune.lftp remote-assets.txt
 
       # Root returning 200 is not acceptance. Contact fails closed without
       # verification, so a deploy that cannot load its environment-local

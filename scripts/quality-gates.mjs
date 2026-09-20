@@ -723,12 +723,15 @@ for (const [label, workflowFile] of [["Production", ".github/workflows/deploy.ym
   const publishAssets = workflow.indexOf("mirror --reverse --verbose --parallel=4 --no-perms dist/assets/ /assets/");
   const publishDocuments = workflow.indexOf("mirror --reverse --delete");
   const prune = workflow.indexOf("asset-retention.mjs plan");
+  const inventory = workflow.indexOf("cls -1 /assets/");
   if (publishAssets === -1) fail(`${label} deploy does not publish fingerprinted assets as their own step`);
   else if (publishDocuments === -1 || publishAssets > publishDocuments) fail(`${label} deploy publishes documents before the assets they reference exist`);
   else if (prune === -1 || prune < publishDocuments) fail(`${label} deploy does not prune superseded assets after publishing the new build`);
   else if (!workflow.includes("--exclude-glob 'assets/**'")) fail(`${label} document mirror can delete assets a cached document still references`);
   else if (!workflow.includes("--exclude-glob asset-retention.json")) fail(`${label} document mirror deletes the retention ledger the next deploy needs`);
-  else pass(`${label} deploy publishes assets, then documents, then prunes superseded generations`);
+  else if (inventory === -1 || inventory > prune) fail(`${label} deploy plans retention without first enumerating the remote asset directory, so assets the ledger never described stay outside the model`);
+  else if (!workflow.includes("next-ledger.json deletions.txt remote-assets.txt")) fail(`${label} deploy does not pass the remote asset inventory to the retention planner`);
+  else pass(`${label} deploy publishes assets, then documents, then adopts and prunes generations against the real origin`);
 }
 
 if (failures.length) {

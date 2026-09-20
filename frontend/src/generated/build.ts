@@ -1,8 +1,8 @@
 // AUTO-GENERATED. Do not edit manually.
 export const BUILD_VERSION = "5.6.3";
 export const BUILD_CODENAME = "Raven";
-export const BUILD_ID = "v5.6.3-20260916T112554Z";
-export const BUILD_DISPLAY = "v5.6.3 · RAVEN · 0916.1125Z";
-export const BUILD_TIME = "2026-09-16T11:25:54.163Z";
-export const BUILD_COMMIT = "413d1fefe945068658c23f2d9a5dda335a91e5d3";
-export const BUILD_COMMIT_SHORT = "413d1fe";
+export const BUILD_ID = "v5.6.3-20260920T063459Z";
+export const BUILD_DISPLAY = "v5.6.3 · RAVEN · 0920.0634Z";
+export const BUILD_TIME = "2026-09-20T06:34:59.702Z";
+export const BUILD_COMMIT = "0f7824e24ed6f98d5429960d78dd43a063515634";
+export const BUILD_COMMIT_SHORT = "0f7824e";

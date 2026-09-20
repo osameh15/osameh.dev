@@ -756,9 +756,32 @@ under test:
   generation it first shipped in.
 - A corrupt or missing ledger authorises no deletion at all.
 
+Adoption of assets that no ledger ever described is proved by the same
+simulation:
+
+- **Bootstrap.** Generations A and B sit on the origin, no ledger exists, and C
+  is deployed: zero deletions, A and B survive, C is published, and the resulting
+  ledger accounts for all three through one adopted generation.
+- **Boundedness after adoption.** Advancing deploys past both the generation
+  count and the age floor prunes the adopted assets. The assertion is explicit:
+  no legacy asset remains retained without satisfying an active retention rule.
+- **Adoption happens once.** A later deploy reading the ledger neither re-adopts
+  those assets nor restarts their retention window.
+- **Corrupt-ledger recovery.** Remote assets exist and the ledger is malformed:
+  the first deploy deletes nothing and rebuilds a ledger from the verified remote
+  inventory alone, containing nothing it did not observe; pruning resumes on the
+  deploy after that.
+- **An unreadable inventory deletes nothing**, even with a valid ledger holding a
+  stale generation, and reports that it could not establish a safe state.
+- **Classification.** `assets/logo.svg`, `assets/hero-template.css`,
+  `robots.txt`, `icons/apple-touch-icon.png` and directory entries are not
+  managed, so they are never adopted and never deleted; real fingerprinted names
+  are. A mixed listing adopts only the fingerprinted members.
+
 A second gate reads both deploy workflows and fails unless each publishes assets,
 then documents, then prunes - with `assets/**` and `asset-retention.json`
-excluded from the document mirror's `--delete`.
+excluded from the document mirror's `--delete`, and the remote asset directory
+enumerated and handed to the planner before anything is deleted.
 
 ### Async layout stability across an open dialog
 

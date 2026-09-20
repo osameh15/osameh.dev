@@ -731,9 +731,15 @@ ordered - assets, then documents, then prune - and
 while it is one of the newest three or younger than six hours, and deletion is
 computed against the union of retained generations, so a shared asset is never
 removed. `asset-retention.json` at the web root carries that state between
-deploys. Purge shortens the stale window but guarantees nothing; retention is what
-makes the invariant hold. Document `stale-while-revalidate` dropped from 3600 to
-60 seconds, bounding the stale-document window at six minutes.
+deploys. Each deploy also enumerates the remote asset directory: fingerprinted
+files the ledger never described - anything published before retention existed -
+are adopted into one synthetic generation at the time they are first observed, so
+they are neither deleted while a stale document may still name them nor retained
+for ever outside the model. A missing or malformed ledger, or a listing that
+cannot be read, authorises zero deletions for that deploy. Purge shortens the
+stale window but guarantees nothing; retention is what makes the invariant hold.
+Document `stale-while-revalidate` dropped from 3600 to 60 seconds, bounding the
+stale-document window at six minutes.
 
 **Anchor-based modal restoration.** `caseStudyOriginRef` already recorded the
 covered tab, address, section, title and scroll position. A scroll coordinate
