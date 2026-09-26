@@ -309,13 +309,14 @@ function rise(el, t, s, d = .7, dist = 40) {
 
 /* ---------- timeline ---------- */
 const scenes = [
-  { id: "s1", file: "whoami.sh",       start: 0,    end: 4.4  },
-  { id: "s2", file: "about.md",        start: 4.4,  end: 9.0  },
-  { id: "s3", file: "experience.log",  start: 9.0,  end: 16.6 },
-  { id: "s4", file: "skills.cpp",      start: 16.6, end: 21.6 },
-  { id: "s5", file: "education.json",  start: 21.6, end: 26.2 },
-  { id: "s6", file: "contact.ts",      start: 26.2, end: 30.01 },
+  { id: "s1", file: "whoami.sh",       start: 0,    end: 4.5  },
+  { id: "s2", file: "about.md",        start: 4.5,  end: 9.0  },
+  { id: "s3", file: "experience.log",  start: 9.0,  end: 16.5 },
+  { id: "s4", file: "skills.cpp",      start: 16.5, end: 21.5 },
+  { id: "s5", file: "education.json",  start: 21.5, end: 26.0 },
+  { id: "s6", file: "contact.ts",      start: 26.0, end: 30.01 },
 ];
+// Cuts sit on the soundtrack's 120 BPM beat grid; soundtrack.mjs mirrors them.
 const WIPE = .55; // seconds of wipe between scenes
 
 /* ---------- build dynamic DOM ---------- */
@@ -602,10 +603,20 @@ function fit() {
 }
 if (!new URLSearchParams(location.search).has("render")) {
   addEventListener("resize", fit); fit();
+  // Browsers block autoplaying sound: click anywhere to restart with the soundtrack.
+  const audio = new Audio("soundtrack.wav");
+  let t0 = 0;
   document.fonts.ready.then(() => {
-    const t0 = performance.now();
-    const loop = now => { renderAt(((now - t0) / 1000) % (DURATION + 1.5)); requestAnimationFrame(loop); };
+    t0 = performance.now();
+    const loop = now => {
+      const t = audio.paused ? ((now - t0) / 1000) % (DURATION + 1.5) : audio.currentTime;
+      renderAt(t); requestAnimationFrame(loop);
+    };
     requestAnimationFrame(loop);
+  });
+  addEventListener("click", () => {
+    if (!audio.paused) { audio.pause(); t0 = performance.now() - audio.currentTime * 1000; return; }
+    audio.currentTime = 0; audio.play().catch(() => {});
   });
 } else {
   renderAt(0);

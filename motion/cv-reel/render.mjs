@@ -1,6 +1,6 @@
 // Renders index.html frame by frame into an MP4.
 //
-//   node motion/cv-reel/render.mjs                 -> motion/cv-reel/osameh-cv-reel.mp4
+//   node motion/cv-reel/render.mjs                 -> motion/cv-reel/osameh-cv-reel.mp4 (with soundtrack)
 //   node motion/cv-reel/render.mjs --stills 2,6,12 -> PNG stills at those seconds
 //
 // The composition is a pure function of time (window.renderAt), so every frame
@@ -40,8 +40,11 @@ if (stillsAt) {
     console.log("wrote", path);
   }
 } else {
+  await import("./soundtrack.mjs"); // (re)writes soundtrack.wav
   const ffmpeg = spawn(process.env.FFMPEG || "ffmpeg", [
     "-y", "-f", "image2pipe", "-framerate", String(FPS), "-i", "-",
+    "-i", join(here, "soundtrack.wav"), "-map", "0:v", "-map", "1:a",
+    "-c:a", "aac", "-b:a", "192k", "-shortest",
     "-c:v", "libx264", "-preset", "slow", "-crf", "18", "-pix_fmt", "yuv420p",
     "-movflags", "+faststart", out,
   ], { stdio: ["pipe", "inherit", "inherit"] });
